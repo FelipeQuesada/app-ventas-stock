@@ -1,0 +1,129 @@
+import {
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  signOut,
+  sendPasswordResetEmail,
+  updatePassword,
+  deleteUser,
+  User,
+} from 'firebase/auth';
+import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { auth, db } from '@/lib/firebase';
+import { UserProfile, UserRole } from '@/types';
+
+export function getAuthErrorMessage(error: unknown): string {
+  const code = (error as { code?: string })?.code ?? '';
+  const message = (error as { message?: string })?.message ?? '';
+
+  switch (code) {
+    case 'auth/email-already-in-use':
+      return 'Ese email ya está registrado. Probá iniciar sesión o recuperar la contraseña.';
+    case 'auth/invalid-email':
+      return 'El email no es válido.';
+    case 'auth/weak-password':
+      return 'La contraseña debe tener al menos 6 caracteres.';
+    case 'auth/invalid-credential':
+    case 'auth/wrong-password':
+    case 'auth/user-not-found':
+      return 'Email o contraseña incorrectos.';
+    case 'permission-denied':
+      return 'Firestore bloqueó el guardado. Creá la base de datos en Firebase Console y publicá las reglas de firestore.rules.';
+    case 'unavailable':
+    case 'failed-precondition':
+      return 'Firestore no está disponible. Verificá que creaste la base de datos en Firebase Console.';
+    default:
+      if (message.includes('Firestore')) {
+        return `Error de base de datos: ${message}`;
+      }
+      return 'Ocurrió un error. Intentá de nuevo.';
+  }
+}
+
+export async function signIn(email: string, password: string) {
+  const result = await signInWithEmailAndPassword(auth, email.trim(), password);
+  await ensureUserProfile(result.user);
+  return result.user;
+}
+
+export async function signOutUser() {
+  await signOut(auth);
+}
+
+export async function resetPassword(email: string) {
+  await sendPasswordResetEmail(auth, email.trim());
+}
+
+export async function changeUserPassword(newPassword: string) {
+  const user = auth.currentUser;
+  if (!user) throw new Error('No hay sesión activa');
+  await updatePassword(user, newPassword);
+}
+
+export async function getUserProfile(uid: string): Promise<UserProfile | null> {
+  const snap = await getDoc(doc(db, 'users', uid));
+  if (!snap.exists()) return null;
+  const data = snap.data();
+  return {
+    uid,
+    email: data.email,
+    name: data.name,
+    role: data.role as UserRole,
+    createdAt: data.createdAt?.toDate?.(),
+  };
+}
+
+export async function createUserProfile(
+  user: User,
+  name: string,
+  role: UserRole = 'employee'
+) {
+  await setDoc(doc(db, 'users', user.uid), {
+    email: user.email ?? '',
+    name,
+    role,
+    createdAt: serverTimestamp(),
+  });
+}
+
+export async function ensureUserProfile(user: User, name?: string): Promise<UserProfile> {
+  const existing = await getUserProfile(user.uid);
+  if (existing) return existing;
+
+  const fallbackName =
+    name?.trim() ||
+    user.displayName ||
+    user.email?.split('@')[0] ||
+    'Usuario';
+
+  await createUserProfile(user, fallbackName, 'employee');
+  const profile = await getUserProfile(user.uid);
+  if (!profile) {
+    throw new Error('No se pudo crear el perfil en Firestore');
+  }
+  return profile;
+}
+
+export async function registerUser(
+  email: string,
+  password: string,
+  name: string,
+  role: UserRole = 'employee'
+) {
+  const result = await createUserWithEmailAndPassword(auth, email.trim(), password);
+
+  try {
+    await createUserProfile(result.user, name, role);
+    const profile = await getUserProfile(result.user.uid);
+    if (!profile) {
+      throw new Error('El perfil no se guardó en Firestore');
+    }
+    return result.user;
+  } catch (error) {
+    try {
+      await deleteUser(result.user);
+    } catch {
+      // Si no se puede borrar, el usuario quedó huérfano en Auth
+    }
+    throw error;
+  }
+}
