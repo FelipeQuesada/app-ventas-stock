@@ -85,7 +85,7 @@ Efectivo, Transferencia, Débito, Crédito, Mercado Pago
 
 ## Tecnologías
 
-- Expo SDK 57 + Expo Router
+- Expo SDK 54 + Expo Router
 - React Native
 - Firebase (Auth, Firestore, Storage)
 - react-native-gifted-charts
