@@ -1,12 +1,19 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, Image, StyleSheet } from 'react-native';
 import { colors, spacing, typography } from '@/constants/theme';
 
 export function Logo({ size = 'lg' }: { size?: 'sm' | 'lg' }) {
   const isLarge = size === 'lg';
+  const logoSize = isLarge ? 56 : 40;
+
   return (
     <View style={[styles.container, isLarge && styles.containerLg]}>
-      <Text style={[styles.logoText, isLarge && styles.logoTextLg]}>AC</Text>
+      <Image
+        source={require('../assets/images/logo-advance.png')}
+        style={{ width: logoSize, height: logoSize }}
+        resizeMode="contain"
+        accessibilityLabel="Advance Coat"
+      />
       <View>
         <Text style={[styles.brand, isLarge && styles.brandLg]}>Advance Coat</Text>
         {isLarge && <Text style={styles.tagline}>Showroom Sales</Text>}
@@ -24,25 +31,6 @@ const styles = StyleSheet.create({
   containerLg: {
     gap: spacing.md,
     marginBottom: spacing.xl,
-  },
-  logoText: {
-    width: 40,
-    height: 40,
-    borderRadius: 10,
-    backgroundColor: colors.primary,
-    color: colors.white,
-    fontFamily: 'Inter_700Bold',
-    fontSize: 16,
-    textAlign: 'center',
-    lineHeight: 40,
-    overflow: 'hidden',
-  },
-  logoTextLg: {
-    width: 56,
-    height: 56,
-    fontSize: 22,
-    lineHeight: 56,
-    borderRadius: 14,
   },
   brand: {
     ...typography.h3,
