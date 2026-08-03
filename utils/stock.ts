@@ -1,5 +1,5 @@
 import { colors } from '@/constants/theme';
-import { StockLevel } from '@/types';
+import { Product, StockLevel } from '@/types';
 
 export const LOW_STOCK_THRESHOLD = 10;
 
@@ -7,6 +7,12 @@ export function getStockLevel(stock: number): StockLevel {
   if (stock <= 0) return 'empty';
   if (stock < LOW_STOCK_THRESHOLD) return 'low';
   return 'high';
+}
+
+export function getLowStockProducts(products: Product[]): Product[] {
+  return products
+    .filter((p) => p.stock < LOW_STOCK_THRESHOLD)
+    .sort((a, b) => a.stock - b.stock);
 }
 
 export function getStockColor(level: StockLevel): string {

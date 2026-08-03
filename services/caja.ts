@@ -15,6 +15,8 @@ import { db } from '@/lib/firebase';
 import { DailyCaja } from '@/types/caja';
 import { Sale } from '@/types';
 import { getTodaySales } from '@/services/sales';
+import { calculateCajaGanancia, calculateCambioCierre } from '@/utils/caja';
+import { logAudit } from '@/services/audit';
 
 const COLLECTION = 'caja';
 
@@ -97,8 +99,8 @@ export interface SaveCajaInput {
 }
 
 export async function saveCaja(input: SaveCajaInput): Promise<void> {
-  const ganancia = input.cajaTotal - input.cajaCambio;
-  const cambioCierre = input.cajaTotal - input.totalGuardado;
+  const ganancia = calculateCajaGanancia(input.cajaTotal, input.cajaCambio);
+  const cambioCierre = calculateCambioCierre(input.cajaTotal, input.totalGuardado);
   const id = dateToId(input.date);
 
   await setDoc(doc(db, COLLECTION, id), {
@@ -113,6 +115,15 @@ export async function saveCaja(input: SaveCajaInput): Promise<void> {
     updatedByName: input.updatedByName ?? '',
     updatedAt: serverTimestamp(),
   });
+
+  await logAudit({
+    action: 'caja_save',
+    entityType: 'caja',
+    entityId: id,
+    summary: `Caja guardada — total $${input.cajaTotal}, ganancia $${ganancia}`,
+    userId: input.updatedBy,
+    userName: input.updatedByName,
+  });
 }
 
 export async function updateTotalGuardado(
@@ -123,8 +134,8 @@ export async function updateTotalGuardado(
   updatedBy: string,
   updatedByName?: string
 ): Promise<void> {
-  const ganancia = cajaTotal - cajaCambio;
-  const cambioCierre = cajaTotal - totalGuardado;
+  const ganancia = calculateCajaGanancia(cajaTotal, cajaCambio);
+  const cambioCierre = calculateCambioCierre(cajaTotal, totalGuardado);
   const id = dateToId(date);
 
   await setDoc(
@@ -143,4 +154,13 @@ export async function updateTotalGuardado(
     },
     { merge: true }
   );
+
+  await logAudit({
+    action: 'caja_save',
+    entityType: 'caja',
+    entityId: id,
+    summary: `Caja actualizada — guardado $${totalGuardado}`,
+    userId: updatedBy,
+    userName: updatedByName,
+  });
 }

@@ -91,6 +91,13 @@ export default function ProfileScreen() {
           onPress={() => setShowPasswordForm(!showPasswordForm)}
         />
         <MenuItem icon="warehouse" label="Control de stock" onPress={() => router.push('/stock')} />
+        {profile?.role === 'admin' && (
+          <MenuItem
+            icon="admin-panel-settings"
+            label="Usuarios y auditoría"
+            onPress={() => router.push('/users')}
+          />
+        )}
       </Card>
 
       {showPasswordForm && (

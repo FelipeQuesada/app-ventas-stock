@@ -78,7 +78,43 @@ export interface CreateSaleInput {
   createdByName?: string;
 }
 
-export async function createSale(input: CreateSaleInput): Promise<string> {
+export type CreateSaleOptions = {
+  skipOfflineQueue?: boolean;
+};
+
+export async function createSale(
+  input: CreateSaleInput,
+  options: CreateSaleOptions = {}
+): Promise<string> {
+  const { enqueueSale, isLikelyNetworkError } = await import('@/services/offlineQueue');
+  const { logAudit } = await import('@/services/audit');
+
+  try {
+    const saleId = await commitSaleCreate(input);
+    await logAudit({
+      action: 'sale_create',
+      entityType: 'sale',
+      entityId: saleId,
+      summary: `Venta por $${input.total}`,
+      userId: input.createdBy,
+      userName: input.createdByName,
+      meta: { total: input.total, paymentMethod: input.paymentMethod },
+    });
+    return saleId;
+  } catch (error) {
+    if (!options.skipOfflineQueue && isLikelyNetworkError(error)) {
+      await enqueueSale(input);
+      const offlineError = new Error(
+        'Sin conexión. La venta quedó en cola y se sincronizará automáticamente.'
+      );
+      (offlineError as Error & { queued?: boolean }).queued = true;
+      throw offlineError;
+    }
+    throw error;
+  }
+}
+
+async function commitSaleCreate(input: CreateSaleInput): Promise<string> {
   const normalizedCustomer = {
     name: input.customer.name.trim(),
     email: input.customer.email.trim().toLowerCase(),
@@ -189,12 +225,28 @@ export async function updateSale(
     total: input.total,
     amountPaid: input.amountPaid ?? null,
     change: input.change ?? null,
+    updatedBy: input.createdBy,
+    updatedByName: input.createdByName ?? '',
+    updatedAt: serverTimestamp(),
   });
 
   await batch.commit();
+
+  const { logAudit } = await import('@/services/audit');
+  await logAudit({
+    action: 'sale_update',
+    entityType: 'sale',
+    entityId: saleId,
+    summary: `Venta editada — total $${input.total}`,
+    userId: input.createdBy,
+    userName: input.createdByName,
+  });
 }
 
-export async function deleteSale(saleId: string): Promise<void> {
+export async function deleteSale(
+  saleId: string,
+  deletedBy?: { userId: string; userName?: string }
+): Promise<void> {
   const saleRef = doc(db, COLLECTION, saleId);
   const snap = await getDoc(saleRef);
   if (!snap.exists()) throw new Error('Venta no encontrada');
@@ -214,6 +266,18 @@ export async function deleteSale(saleId: string): Promise<void> {
 
   batch.delete(saleRef);
   await batch.commit();
+
+  if (deletedBy?.userId) {
+    const { logAudit } = await import('@/services/audit');
+    await logAudit({
+      action: 'sale_delete',
+      entityType: 'sale',
+      entityId: saleId,
+      summary: `Venta eliminada — total $${sale.total}`,
+      userId: deletedBy.userId,
+      userName: deletedBy.userName,
+    });
+  }
 }
 
 export function getTodaySales(sales: Sale[]): Sale[] {
@@ -230,14 +294,10 @@ export function getMonthSales(sales: Sale[], date = new Date()): Sale[] {
   return sales.filter((s) => s.date >= start && s.date <= end);
 }
 
-export function calculateDiscount(
-  subtotal: number,
-  discountType: DiscountType | null,
-  discountValue: number
-): number {
-  if (!discountType || discountValue <= 0) return 0;
-  if (discountType === 'percent') {
-    return Math.min(subtotal, (subtotal * discountValue) / 100);
-  }
-  return Math.min(subtotal, discountValue);
+export function getDaySales(sales: Sale[], date = new Date()): Sale[] {
+  const start = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const end = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 23, 59, 59, 999);
+  return sales.filter((s) => s.date >= start && s.date <= end);
 }
+
+export { calculateDiscount } from '@/utils/discount';

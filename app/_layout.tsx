@@ -4,11 +4,20 @@ import { Stack, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
+import { HeaderTitle } from '@/components/HeaderTitle';
 import { colors } from '@/constants/theme';
 
 export { ErrorBoundary } from 'expo-router';
 
 SplashScreen.preventAutoHideAsync();
+
+const stackHeaderOptions = {
+  headerShown: true,
+  headerTintColor: colors.primary,
+  headerStyle: { backgroundColor: colors.surface },
+  headerTitleStyle: { fontFamily: 'Inter_600SemiBold' as const },
+  headerTitle: ({ children }: { children: string }) => <HeaderTitle>{children}</HeaderTitle>,
+};
 
 function AuthGate({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
@@ -60,87 +69,71 @@ export default function RootLayout() {
           <Stack.Screen
             name="product/[id]"
             options={{
-              headerShown: true,
-              headerTitle: 'Producto',
-              headerTintColor: colors.primary,
-              headerStyle: { backgroundColor: colors.surface },
-              headerTitleStyle: { fontFamily: 'Inter_600SemiBold' },
+              ...stackHeaderOptions,
+              title: 'Producto',
             }}
           />
           <Stack.Screen
             name="stock"
             options={{
-              headerShown: true,
-              headerTitle: 'Control de Stock',
-              headerTintColor: colors.primary,
-              headerStyle: { backgroundColor: colors.surface },
-              headerTitleStyle: { fontFamily: 'Inter_600SemiBold' },
+              ...stackHeaderOptions,
+              title: 'Control de Stock',
             }}
           />
           <Stack.Screen
             name="caja"
             options={{
-              headerShown: true,
-              headerTitle: 'Caja',
+              ...stackHeaderOptions,
+              title: 'Caja',
               headerBackTitle: 'Volver',
-              headerTintColor: colors.primary,
-              headerStyle: { backgroundColor: colors.surface },
-              headerTitleStyle: { fontFamily: 'Inter_600SemiBold' },
             }}
           />
           <Stack.Screen
             name="sales-list"
             options={{
-              headerShown: true,
-              headerTitle: 'Ventas',
+              ...stackHeaderOptions,
+              title: 'Ventas',
               headerBackTitle: 'Volver',
-              headerTintColor: colors.primary,
-              headerStyle: { backgroundColor: colors.surface },
-              headerTitleStyle: { fontFamily: 'Inter_600SemiBold' },
             }}
           />
           <Stack.Screen
             name="customers"
             options={{
-              headerShown: true,
-              headerTitle: 'Clientes',
+              ...stackHeaderOptions,
+              title: 'Clientes',
               headerBackTitle: 'Volver',
-              headerTintColor: colors.primary,
-              headerStyle: { backgroundColor: colors.surface },
-              headerTitleStyle: { fontFamily: 'Inter_600SemiBold' },
             }}
           />
           <Stack.Screen
             name="caja-list"
             options={{
-              headerShown: true,
-              headerTitle: 'Historial de caja',
+              ...stackHeaderOptions,
+              title: 'Historial de caja',
               headerBackTitle: 'Volver',
-              headerTintColor: colors.primary,
-              headerStyle: { backgroundColor: colors.surface },
-              headerTitleStyle: { fontFamily: 'Inter_600SemiBold' },
             }}
           />
           <Stack.Screen
             name="caja-edit/[date]"
             options={{
-              headerShown: true,
-              headerTitle: 'Editar caja',
+              ...stackHeaderOptions,
+              title: 'Editar caja',
               headerBackTitle: 'Volver',
-              headerTintColor: colors.primary,
-              headerStyle: { backgroundColor: colors.surface },
-              headerTitleStyle: { fontFamily: 'Inter_600SemiBold' },
             }}
           />
           <Stack.Screen
             name="sale/[id]"
             options={{
-              headerShown: true,
-              headerTitle: 'Editar venta',
+              ...stackHeaderOptions,
+              title: 'Editar venta',
               headerBackTitle: 'Volver',
-              headerTintColor: colors.primary,
-              headerStyle: { backgroundColor: colors.surface },
-              headerTitleStyle: { fontFamily: 'Inter_600SemiBold' },
+            }}
+          />
+          <Stack.Screen
+            name="users"
+            options={{
+              ...stackHeaderOptions,
+              title: 'Usuarios',
+              headerBackTitle: 'Volver',
             }}
           />
         </Stack>

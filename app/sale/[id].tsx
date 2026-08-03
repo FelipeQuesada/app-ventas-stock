@@ -1,7 +1,6 @@
 import React from 'react';
 import { Stack, useLocalSearchParams } from 'expo-router';
 import { SaleForm } from '@/components/SaleForm';
-import { colors } from '@/constants/theme';
 
 export default function EditSaleScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -10,12 +9,7 @@ export default function EditSaleScreen() {
     <>
       <Stack.Screen
         options={{
-          headerShown: true,
-          headerTitle: 'Editar venta',
-          headerBackTitle: 'Volver',
-          headerTintColor: colors.primary,
-          headerStyle: { backgroundColor: colors.surface },
-          headerTitleStyle: { fontFamily: 'Inter_600SemiBold' },
+          title: 'Editar venta',
         }}
       />
       <SaleForm mode="edit" saleId={id} />

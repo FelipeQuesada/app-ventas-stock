@@ -6,10 +6,32 @@ import {
   updatePassword,
   deleteUser,
   User,
+  getAuth,
 } from 'firebase/auth';
-import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import {
+  collection,
+  doc,
+  getDoc,
+  getDocs,
+  setDoc,
+  updateDoc,
+  query,
+  orderBy,
+  serverTimestamp,
+} from 'firebase/firestore';
+import { initializeApp, deleteApp } from 'firebase/app';
 import { auth, db } from '@/lib/firebase';
 import { UserProfile, UserRole } from '@/types';
+import { logAudit } from '@/services/audit';
+
+const firebaseConfig = {
+  apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
+  authDomain: process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.EXPO_PUBLIC_FIREBASE_APP_ID,
+};
 
 export function getAuthErrorMessage(error: unknown): string {
   const code = (error as { code?: string })?.code ?? '';
@@ -72,6 +94,21 @@ export async function getUserProfile(uid: string): Promise<UserProfile | null> {
   };
 }
 
+export async function listUsers(): Promise<UserProfile[]> {
+  const q = query(collection(db, 'users'), orderBy('name'));
+  const snap = await getDocs(q);
+  return snap.docs.map((d) => {
+    const data = d.data();
+    return {
+      uid: d.id,
+      email: data.email as string,
+      name: data.name as string,
+      role: data.role as UserRole,
+      createdAt: data.createdAt?.toDate?.(),
+    };
+  });
+}
+
 export async function createUserProfile(
   user: User,
   name: string,
@@ -126,4 +163,64 @@ export async function registerUser(
     }
     throw error;
   }
+}
+
+/** Crea un usuario sin reemplazar la sesión del admin (app Firebase secundaria). */
+export async function createUserAsAdmin(
+  email: string,
+  password: string,
+  name: string,
+  role: UserRole,
+  actor: { userId: string; userName?: string }
+): Promise<UserProfile> {
+  const appName = `Secondary-${Date.now()}`;
+  const secondaryApp = initializeApp(firebaseConfig, appName);
+  const secondaryAuth = getAuth(secondaryApp);
+
+  try {
+    const result = await createUserWithEmailAndPassword(
+      secondaryAuth,
+      email.trim(),
+      password
+    );
+    await createUserProfile(result.user, name.trim(), role);
+    await logAudit({
+      action: 'user_create',
+      entityType: 'user',
+      entityId: result.user.uid,
+      summary: `Usuario creado: ${name} (${role})`,
+      userId: actor.userId,
+      userName: actor.userName,
+    });
+    const profile = await getUserProfile(result.user.uid);
+    if (!profile) throw new Error('No se pudo crear el perfil');
+    return profile;
+  } finally {
+    try {
+      await signOut(secondaryAuth);
+    } catch {
+      // ignore
+    }
+    try {
+      await deleteApp(secondaryApp);
+    } catch {
+      // ignore
+    }
+  }
+}
+
+export async function updateUserRole(
+  uid: string,
+  role: UserRole,
+  actor: { userId: string; userName?: string }
+): Promise<void> {
+  await updateDoc(doc(db, 'users', uid), { role });
+  await logAudit({
+    action: 'user_update',
+    entityType: 'user',
+    entityId: uid,
+    summary: `Rol actualizado a ${role}`,
+    userId: actor.userId,
+    userName: actor.userName,
+  });
 }

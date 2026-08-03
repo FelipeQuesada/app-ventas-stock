@@ -37,6 +37,9 @@ import {
   hasActiveProductBrowse,
 } from '@/utils/productList';
 import { showAlert } from '@/utils/alert';
+import { SaleTicketModal } from '@/components/SaleTicketModal';
+import { SaleTicketData } from '@/utils/saleTicket';
+import { getPendingSalesCount, syncPendingSales } from '@/services/offlineQueue';
 import { colors, spacing, typography, radius } from '@/constants/theme';
 
 interface SaleFormProps {
@@ -73,6 +76,8 @@ export function SaleForm({ mode, saleId }: SaleFormProps) {
   const [extraDescription, setExtraDescription] = useState('');
   const [extraQuantity, setExtraQuantity] = useState('1');
   const [extraPrice, setExtraPrice] = useState('');
+  const [ticketSale, setTicketSale] = useState<SaleTicketData | null>(null);
+  const [pendingCount, setPendingCount] = useState(0);
 
   const loadProducts = useCallback(async () => {
     const [productsData, salesData] = await Promise.all([
@@ -128,8 +133,19 @@ export function SaleForm({ mode, saleId }: SaleFormProps) {
   useFocusEffect(
     useCallback(() => {
       if (!isEdit) {
-        loadProducts().catch(console.error);
+        loadProducts().catch(() => {
+          showAlert('Error', 'No se pudieron cargar los productos');
+        });
       }
+      getPendingSalesCount().then(setPendingCount).catch(() => undefined);
+      syncPendingSales()
+        .then(({ synced }) => {
+          if (synced > 0) {
+            showAlert('Sincronizado', `Se enviaron ${synced} venta(s) pendientes`);
+            getPendingSalesCount().then(setPendingCount).catch(() => undefined);
+          }
+        })
+        .catch(() => undefined);
     }, [isEdit, loadProducts])
   );
 
@@ -336,17 +352,42 @@ export function SaleForm({ mode, saleId }: SaleFormProps) {
     setLoading(true);
     try {
       const input = buildSaleInput();
+      const ticket: SaleTicketData = {
+        date: input.date,
+        items: input.items,
+        subtotal: input.subtotal,
+        discountAmount: input.discountAmount,
+        total: input.total,
+        paymentMethod: input.paymentMethod,
+        paymentMethodLabel: input.paymentMethodLabel,
+        customer: input.customer,
+        amountPaid: input.amountPaid,
+        change: input.change,
+        createdByName: input.createdByName,
+      };
 
       if (isEdit && saleId) {
         await updateSale(saleId, input, originalItems);
-        showAlert('Venta actualizada', `Total: ${formatCurrency(total)}`, [
-          { text: 'OK', onPress: () => router.back() },
-        ]);
+        setTicketSale(ticket);
       } else {
-        await createSale(input);
-        showAlert('¡Venta registrada!', `Total: ${formatCurrency(total)}`, [
-          { text: 'OK', onPress: resetForm },
-        ]);
+        try {
+          await createSale(input);
+          setTicketSale(ticket);
+          resetForm();
+        } catch (error) {
+          const queued = (error as Error & { queued?: boolean })?.queued;
+          if (queued) {
+            setPendingCount((c) => c + 1);
+            setTicketSale(ticket);
+            resetForm();
+            showAlert(
+              'Guardada offline',
+              'Sin conexión. La venta quedó en cola y se sincronizará cuando vuelva internet.'
+            );
+            return;
+          }
+          throw error;
+        }
       }
     } catch (error) {
       const message =
@@ -360,11 +401,21 @@ export function SaleForm({ mode, saleId }: SaleFormProps) {
   if (initialLoading) return <LoadingScreen />;
 
   return (
+    <>
     <ScrollView
       style={styles.container}
       contentContainerStyle={styles.content}
       keyboardShouldPersistTaps="handled"
     >
+      {pendingCount > 0 && (
+        <View style={styles.pendingBanner}>
+          <MaterialIcons name="cloud-off" size={18} color={colors.warning} />
+          <Text style={styles.pendingText}>
+            {pendingCount} venta(s) pendiente(s) de sincronizar
+          </Text>
+        </View>
+      )}
+
       <DatePickerField value={saleDate} onChange={setSaleDate} />
 
       <Text style={styles.sectionTitle}>Datos del cliente</Text>
@@ -577,6 +628,17 @@ export function SaleForm({ mode, saleId }: SaleFormProps) {
         style={styles.registerButton}
       />
     </ScrollView>
+
+    <SaleTicketModal
+      visible={!!ticketSale}
+      sale={ticketSale}
+      title={isEdit ? 'Venta actualizada' : 'Venta registrada'}
+      onClose={() => {
+        setTicketSale(null);
+        if (isEdit) router.back();
+      }}
+    />
+    </>
   );
 }
 
@@ -588,6 +650,21 @@ const styles = StyleSheet.create({
   content: {
     padding: spacing.md,
     paddingBottom: spacing.xxl,
+  },
+  pendingBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    backgroundColor: colors.warning + '22',
+    borderRadius: radius.md,
+    padding: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  pendingText: {
+    ...typography.bodySmall,
+    fontFamily: 'Inter_500Medium',
+    color: colors.text,
+    flex: 1,
   },
   sectionTitle: {
     ...typography.h3,

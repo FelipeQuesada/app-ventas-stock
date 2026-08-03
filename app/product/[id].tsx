@@ -254,7 +254,7 @@ export default function ProductFormScreen() {
 
     <>
 
-      <Stack.Screen options={{ headerTitle: isNew ? 'Nuevo producto' : 'Editar producto' }} />
+      <Stack.Screen options={{ title: isNew ? 'Nuevo producto' : 'Editar producto' }} />
 
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
 

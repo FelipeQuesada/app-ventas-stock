@@ -26,7 +26,7 @@ import {
 import { LoadingScreen } from '@/components/ui/EmptyState';
 import { getSales, getMonthSales } from '@/services/sales';
 import { getProducts } from '@/services/products';
-import { exportMonthSalesToExcel } from '@/services/export';
+import { exportDaySalesToExcel, exportMonthSalesToExcel } from '@/services/export';
 import {
   CHART_COLORS,
   getDailyRevenueInMonth,
@@ -90,6 +90,7 @@ export default function StatisticsScreen() {
       setProducts(productsData);
     } catch (error) {
       console.error(error);
+      showAlert('Error', 'No se pudieron cargar las estadísticas');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -114,6 +115,19 @@ export default function StatisticsScreen() {
     try {
       await exportMonthSalesToExcel(sales, selectedMonth);
       showAlert('Listo', `El Excel de ${monthLabel} se descargó correctamente`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'No se pudo exportar';
+      showAlert('Error', message);
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleExportDay = async () => {
+    setExporting(true);
+    try {
+      await exportDaySalesToExcel(sales, new Date());
+      showAlert('Listo', 'Excel del día descargado');
     } catch (error) {
       const message = error instanceof Error ? error.message : 'No se pudo exportar';
       showAlert('Error', message);
@@ -371,18 +385,26 @@ export default function StatisticsScreen() {
       {activeCategory === 'general' && (
         <Card style={styles.exportCard}>
           <View style={styles.exportInfo}>
-            <Text style={styles.exportTitle}>Exportar a Excel</Text>
+            <Text style={styles.exportTitle}>Exportar reportes</Text>
             <Text style={styles.exportSubtitle}>
-              Incluye resumen, ventas, productos y medios de pago de {monthLabel}
+              Excel del mes ({monthLabel}) o del día de hoy
             </Text>
           </View>
-          <Button
-            title="Descargar Excel"
-            onPress={handleExport}
-            loading={exporting}
-            variant="secondary"
-            size="sm"
-          />
+          <View style={{ flexDirection: 'row', gap: 8 }}>
+            <Button
+              title="Mes"
+              onPress={handleExport}
+              loading={exporting}
+              variant="secondary"
+              size="sm"
+            />
+            <Button
+              title="Hoy"
+              onPress={handleExportDay}
+              loading={exporting}
+              size="sm"
+            />
+          </View>
         </Card>
       )}
 

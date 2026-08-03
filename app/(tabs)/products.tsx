@@ -18,7 +18,7 @@ import { ImportProductsModal } from '@/components/ImportProductsModal';
 
 import { EmptyState, LoadingScreen } from '@/components/ui/EmptyState';
 
-import { getProducts } from '@/services/products';
+import { getProducts, subscribeProducts } from '@/services/products';
 
 import { getSales } from '@/services/sales';
 
@@ -33,6 +33,8 @@ import {
   getUniqueProductCategories,
 
 } from '@/utils/productList';
+
+import { showAlert } from '@/utils/alert';
 
 import { colors, spacing } from '@/constants/theme';
 
@@ -64,30 +66,32 @@ export default function ProductsScreen() {
     try {
       const [productsData, salesData] = await Promise.all([
         getProducts(),
-        getSales().catch((error) => {
-          console.error('Error loading sales for product sorting:', error);
-          return [] as Sale[];
-        }),
+        getSales().catch(() => [] as Sale[]),
       ]);
       setProducts(productsData);
       setSales(salesData);
     } catch (error) {
       console.error(error);
+      showAlert('Error', 'No se pudieron cargar los productos');
     } finally {
       setLoading(false);
     }
   }, []);
 
-
-
   useFocusEffect(
-
     useCallback(() => {
-
       loadProducts();
-
+      const unsubscribe = subscribeProducts(
+        (data) => {
+          setProducts(data);
+          setLoading(false);
+        },
+        () => {
+          showAlert('Error', 'Se perdió la conexión en tiempo real de productos');
+        }
+      );
+      return () => unsubscribe();
     }, [loadProducts])
-
   );
 
 

@@ -1,24 +1,26 @@
-import React, { useCallback, useState } from 'react';
+﻿import React, { useCallback, useState, useRef } from 'react';
 import { View, Text, StyleSheet, ScrollView, RefreshControl } from 'react-native';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { useAuth } from '@/context/AuthContext';
 import { StatCard } from '@/components/ui/StatCard';
 import { QuickAction } from '@/components/QuickAction';
 import { ChartCard, StatsLineChart } from '@/components/ui/ChartCard';
 import { LoadingScreen } from '@/components/ui/EmptyState';
 import { getProducts } from '@/services/products';
-import { getSales } from '@/services/sales';
+import { getSales, getTodaySales } from '@/services/sales';
 import {
   getDailySalesChart,
-  getLowStockProducts,
   getMonthlyRevenue,
 } from '@/services/stats';
-import { getTodaySales } from '@/services/sales';
+import { syncPendingSales, getPendingSalesCount } from '@/services/offlineQueue';
 import { formatCurrency, capitalize } from '@/utils/format';
+import { showAlert } from '@/utils/alert';
+import { getLowStockProducts, LOW_STOCK_THRESHOLD } from '@/utils/stock';
 import { colors, spacing, typography } from '@/constants/theme';
 
 export default function DashboardScreen() {
   const { profile } = useAuth();
+  const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [todaySales, setTodaySales] = useState(0);
@@ -27,33 +29,65 @@ export default function DashboardScreen() {
   const [lowStockCount, setLowStockCount] = useState(0);
   const [totalSales, setTotalSales] = useState(0);
   const [chartData, setChartData] = useState<{ label: string; value: number }[]>([]);
+  const [pendingCount, setPendingCount] = useState(0);
+  const lowStockAlerted = useRef(false);
 
   const loadData = useCallback(async () => {
     try {
       const [products, sales] = await Promise.all([getProducts(), getSales()]);
       const today = getTodaySales(sales);
+      const lowStock = getLowStockProducts(products);
       setTodaySales(today.length);
       setTodayRevenue(today.reduce((sum, s) => sum + s.total, 0));
       setMonthRevenue(getMonthlyRevenue(sales));
-      setLowStockCount(getLowStockProducts(products).length);
+      setLowStockCount(lowStock.length);
       setTotalSales(sales.length);
       setChartData(getDailySalesChart(sales, 30).map((d) => ({ label: d.label, value: d.value })));
+
+      if (lowStock.length > 0 && !lowStockAlerted.current) {
+        lowStockAlerted.current = true;
+        const names = lowStock
+          .slice(0, 5)
+          .map((p) => `• ${p.name} (${p.stock})`)
+          .join('\n');
+        const extra = lowStock.length > 5 ? `\n… y ${lowStock.length - 5} más` : '';
+        showAlert(
+          'Alerta de stock bajo',
+          `${lowStock.length} producto(s) con stock ≤ ${LOW_STOCK_THRESHOLD}:\n${names}${extra}`,
+          [
+            { text: 'Ver stock', onPress: () => router.push('/stock') },
+            { text: 'OK', style: 'cancel' },
+          ]
+        );
+      }
     } catch (error) {
       console.error('Error loading dashboard:', error);
+      showAlert('Error', 'No se pudieron cargar los datos del dashboard');
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [router]);
 
   useFocusEffect(
     useCallback(() => {
       loadData();
+      getPendingSalesCount().then(setPendingCount).catch(() => undefined);
+      syncPendingSales()
+        .then(({ synced }) => {
+          if (synced > 0) {
+            showAlert('Sincronizado', `Se enviaron ${synced} venta(s) pendientes`);
+            getPendingSalesCount().then(setPendingCount).catch(() => undefined);
+            loadData();
+          }
+        })
+        .catch(() => undefined);
     }, [loadData])
   );
 
   const onRefresh = () => {
     setRefreshing(true);
+    lowStockAlerted.current = false;
     loadData();
   };
 
@@ -75,6 +109,12 @@ export default function DashboardScreen() {
       <Text style={styles.date}>
         {new Date().toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' })}
       </Text>
+
+      {pendingCount > 0 && (
+        <Text style={styles.pendingHint}>
+          {pendingCount} venta(s) pendiente(s) de sincronizar
+        </Text>
+      )}
 
       <View style={styles.statsGrid}>
         <View style={styles.statsTopRow}>
@@ -145,8 +185,14 @@ const styles = StyleSheet.create({
     ...typography.bodySmall,
     fontFamily: 'Inter_400Regular',
     color: colors.textSecondary,
-    marginBottom: spacing.lg,
+    marginBottom: spacing.sm,
     textTransform: 'capitalize',
+  },
+  pendingHint: {
+    ...typography.bodySmall,
+    fontFamily: 'Inter_500Medium',
+    color: colors.warning,
+    marginBottom: spacing.md,
   },
   statsGrid: {
     gap: spacing.sm,

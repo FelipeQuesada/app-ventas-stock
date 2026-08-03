@@ -140,12 +140,7 @@ export default function CajaEditScreen() {
     <>
       <Stack.Screen
         options={{
-          headerShown: true,
-          headerTitle: isNew ? 'Nuevo cierre de caja' : 'Editar caja',
-          headerBackTitle: 'Volver',
-          headerTintColor: colors.primary,
-          headerStyle: { backgroundColor: colors.surface },
-          headerTitleStyle: { fontFamily: 'Inter_600SemiBold' },
+          title: isNew ? 'Nuevo cierre de caja' : 'Editar caja',
         }}
       />
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>

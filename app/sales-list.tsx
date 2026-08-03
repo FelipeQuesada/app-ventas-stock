@@ -9,31 +9,39 @@ import {
   ScrollView,
 } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { format, startOfMonth } from 'date-fns';
+import { format, startOfMonth, startOfDay, isSameDay } from 'date-fns';
 import { es } from 'date-fns/locale';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { SearchBar } from '@/components/ui/SearchBar';
 import { MonthPickerField } from '@/components/ui/MonthPickerField';
+import { DatePickerField } from '@/components/ui/DatePickerField';
 import { SaleListItem } from '@/components/ui/SaleListItem';
 import { EmptyState, LoadingScreen } from '@/components/ui/EmptyState';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { deleteSale, getSales, getMonthSales } from '@/services/sales';
-import { exportMonthSalesToExcel } from '@/services/export';
-import { Sale } from '@/types';
+import { exportDaySalesToExcel, exportMonthSalesToExcel, exportDaySalesReportText } from '@/services/export';
+import { Sale, PaymentMethod } from '@/types';
 import { formatCurrency, formatDate } from '@/utils/format';
-import { getPaymentMethodLabel } from '@/constants/payments';
+import { PAYMENT_METHODS, getPaymentMethodLabel } from '@/constants/payments';
+import { useAuth } from '@/context/AuthContext';
 import { showAlert, showConfirm } from '@/utils/alert';
+import { SaleTicketModal } from '@/components/SaleTicketModal';
 import { colors, radius, spacing, typography } from '@/constants/theme';
 
 export default function SalesListScreen() {
   const router = useRouter();
+  const { user, profile } = useAuth();
   const [sales, setSales] = useState<Sale[]>([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
   const [selectedMonth, setSelectedMonth] = useState(startOfMonth(new Date()));
+  const [filterDay, setFilterDay] = useState<Date | null>(null);
+  const [filterPayment, setFilterPayment] = useState<PaymentMethod | 'all'>('all');
+  const [filterSeller, setFilterSeller] = useState<string>('all');
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
+  const [ticketSale, setTicketSale] = useState<Sale | null>(null);
 
   const loadSales = useCallback(async () => {
     try {
@@ -58,13 +66,28 @@ export default function SalesListScreen() {
     [sales, selectedMonth]
   );
 
+  const sellers = useMemo(() => {
+    const names = new Set<string>();
+    for (const sale of monthSales) {
+      if (sale.createdByName?.trim()) names.add(sale.createdByName.trim());
+    }
+    return [...names].sort((a, b) => a.localeCompare(b));
+  }, [monthSales]);
+
   const monthLabel = format(selectedMonth, 'MMMM yyyy', { locale: es });
 
   const filtered = useMemo(() => {
     const term = search.toLowerCase().trim();
-    if (!term) return monthSales;
 
     return monthSales.filter((sale) => {
+      if (filterDay) {
+        if (!isSameDay(sale.date, filterDay)) return false;
+      }
+      if (filterPayment !== 'all' && sale.paymentMethod !== filterPayment) return false;
+      if (filterSeller !== 'all' && (sale.createdByName ?? '') !== filterSeller) return false;
+
+      if (!term) return true;
+
       const customerText = [
         sale.customer.name,
         sale.customer.email,
@@ -74,21 +97,50 @@ export default function SalesListScreen() {
         .toLowerCase();
       const itemsText = sale.items.map((item) => item.productName).join(' ').toLowerCase();
       const payment = getPaymentMethodLabel(sale.paymentMethod, sale.paymentMethodLabel).toLowerCase();
+      const seller = (sale.createdByName ?? '').toLowerCase();
 
       return (
         customerText.includes(term) ||
         itemsText.includes(term) ||
         payment.includes(term) ||
+        seller.includes(term) ||
         formatCurrency(sale.total).toLowerCase().includes(term)
       );
     });
-  }, [monthSales, search]);
+  }, [monthSales, search, filterDay, filterPayment, filterSeller]);
 
-  const handleExport = async () => {
+  const handleExportMonth = async () => {
     setExporting(true);
     try {
       await exportMonthSalesToExcel(sales, selectedMonth);
       showAlert('Listo', `El Excel de ${monthLabel} se descargó correctamente`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'No se pudo exportar';
+      showAlert('Error', message);
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleExportDay = async () => {
+    const day = filterDay ?? new Date();
+    setExporting(true);
+    try {
+      await exportDaySalesToExcel(sales, day);
+      showAlert('Listo', `Excel del ${format(day, 'dd/MM/yyyy')} listo`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'No se pudo exportar';
+      showAlert('Error', message);
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleExportDayText = async () => {
+    const day = filterDay ?? new Date();
+    setExporting(true);
+    try {
+      await exportDaySalesReportText(sales, day);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'No se pudo exportar';
       showAlert('Error', message);
@@ -105,7 +157,10 @@ export default function SalesListScreen() {
     if (!confirmed) return;
 
     try {
-      await deleteSale(sale.id);
+      await deleteSale(sale.id, {
+        userId: user?.uid ?? 'unknown',
+        userName: profile?.name,
+      });
       setSales((current) => current.filter((item) => item.id !== sale.id));
       if (selectedSale?.id === sale.id) setSelectedSale(null);
       showAlert('Venta eliminada', 'Se restauró el stock de los productos');
@@ -118,30 +173,95 @@ export default function SalesListScreen() {
     }
   };
 
+  const clearFilters = () => {
+    setFilterDay(null);
+    setFilterPayment('all');
+    setFilterSeller('all');
+    setSearch('');
+  };
+
   const listHeader = (
     <View style={styles.headerSection}>
       <View style={styles.monthRow}>
         <MonthPickerField value={selectedMonth} onChange={setSelectedMonth} />
       </View>
 
+      <Card style={styles.filtersCard}>
+        <Text style={styles.filtersTitle}>Filtros</Text>
+        <Text style={styles.filterLabel}>Filtrar por día</Text>
+        <DatePickerField
+          value={filterDay ?? startOfDay(new Date())}
+          onChange={(d) => setFilterDay(startOfDay(d))}
+        />
+        {filterDay && (
+          <Button title="Quitar filtro de día" onPress={() => setFilterDay(null)} variant="outline" size="sm" />
+        )}
+
+        <Text style={styles.filterLabel}>Medio de pago</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
+          <Pressable
+            style={[styles.chip, filterPayment === 'all' && styles.chipActive]}
+            onPress={() => setFilterPayment('all')}
+          >
+            <Text style={[styles.chipText, filterPayment === 'all' && styles.chipTextActive]}>Todos</Text>
+          </Pressable>
+          {PAYMENT_METHODS.map((pm) => (
+            <Pressable
+              key={pm.value}
+              style={[styles.chip, filterPayment === pm.value && styles.chipActive]}
+              onPress={() => setFilterPayment(pm.value)}
+            >
+              <Text style={[styles.chipText, filterPayment === pm.value && styles.chipTextActive]}>
+                {pm.label}
+              </Text>
+            </Pressable>
+          ))}
+        </ScrollView>
+
+        {sellers.length > 0 && (
+          <>
+            <Text style={styles.filterLabel}>Vendedor</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
+              <Pressable
+                style={[styles.chip, filterSeller === 'all' && styles.chipActive]}
+                onPress={() => setFilterSeller('all')}
+              >
+                <Text style={[styles.chipText, filterSeller === 'all' && styles.chipTextActive]}>Todos</Text>
+              </Pressable>
+              {sellers.map((seller) => (
+                <Pressable
+                  key={seller}
+                  style={[styles.chip, filterSeller === seller && styles.chipActive]}
+                  onPress={() => setFilterSeller(seller)}
+                >
+                  <Text style={[styles.chipText, filterSeller === seller && styles.chipTextActive]}>
+                    {seller}
+                  </Text>
+                </Pressable>
+              ))}
+            </ScrollView>
+          </>
+        )}
+
+        <Button title="Limpiar filtros" onPress={clearFilters} variant="outline" size="sm" />
+      </Card>
+
       <Card style={styles.exportCard}>
         <View style={styles.exportInfo}>
-          <Text style={styles.exportTitle}>Exportar ventas</Text>
+          <Text style={styles.exportTitle}>Exportar</Text>
           <Text style={styles.exportSubtitle}>
-            Excel de {monthLabel} con resumen, ventas, productos y medios de pago
+            Excel del mes, del día o reporte compartible
           </Text>
         </View>
-        <Button
-          title="Excel"
-          onPress={handleExport}
-          loading={exporting}
-          variant="secondary"
-          size="sm"
-        />
+        <View style={styles.exportActions}>
+          <Button title="Mes" onPress={handleExportMonth} loading={exporting} variant="secondary" size="sm" />
+          <Button title="Día" onPress={handleExportDay} loading={exporting} size="sm" />
+          <Button title="PDF/Txt" onPress={handleExportDayText} loading={exporting} variant="outline" size="sm" />
+        </View>
       </Card>
 
       <Text style={styles.listTitle}>
-        Ventas de {monthLabel} ({filtered.length})
+        Ventas ({filtered.length})
       </Text>
     </View>
   );
@@ -151,7 +271,7 @@ export default function SalesListScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.searchContainer}>
-        <SearchBar value={search} onChangeText={setSearch} placeholder="Buscar ventas del mes..." />
+        <SearchBar value={search} onChangeText={setSearch} placeholder="Buscar cliente, producto, vendedor..." />
       </View>
 
       <FlatList
@@ -168,13 +288,11 @@ export default function SalesListScreen() {
         )}
         contentContainerStyle={styles.list}
         ListEmptyComponent={
-          monthSales.length === 0 ? null : (
-            <EmptyState
-              icon="receipt-long"
-              title="Sin resultados"
-              subtitle="No hay ventas que coincidan con la búsqueda"
-            />
-          )
+          <EmptyState
+            icon="receipt-long"
+            title="Sin resultados"
+            subtitle="No hay ventas con estos filtros"
+          />
         }
       />
 
@@ -250,7 +368,16 @@ export default function SalesListScreen() {
 
                 <View style={styles.modalActions}>
                   <Button
-                    title="Editar venta"
+                    title="Ticket"
+                    onPress={() => {
+                      setTicketSale(selectedSale);
+                      setSelectedSale(null);
+                    }}
+                    variant="secondary"
+                    style={styles.editAction}
+                  />
+                  <Button
+                    title="Editar"
                     onPress={() => {
                       const id = selectedSale.id;
                       setSelectedSale(null);
@@ -259,7 +386,7 @@ export default function SalesListScreen() {
                     style={styles.editAction}
                   />
                   <Button
-                    title="Eliminar venta"
+                    title="Eliminar"
                     variant="outline"
                     onPress={() => handleDelete(selectedSale)}
                     style={styles.deleteAction}
@@ -270,6 +397,13 @@ export default function SalesListScreen() {
           </Pressable>
         </Pressable>
       </Modal>
+
+      <SaleTicketModal
+        visible={!!ticketSale}
+        sale={ticketSale}
+        title="Ticket de venta"
+        onClose={() => setTicketSale(null)}
+      />
     </View>
   );
 }
@@ -290,11 +424,47 @@ const styles = StyleSheet.create({
   monthRow: {
     flexDirection: 'row',
   },
+  filtersCard: {
+    gap: spacing.sm,
+  },
+  filtersTitle: {
+    ...typography.label,
+    fontFamily: 'Inter_600SemiBold',
+    color: colors.text,
+  },
+  filterLabel: {
+    ...typography.caption,
+    fontFamily: 'Inter_500Medium',
+    color: colors.textMuted,
+    marginTop: spacing.xs,
+  },
+  chips: {
+    gap: spacing.xs,
+    paddingVertical: spacing.xs,
+  },
+  chip: {
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.xs,
+    borderRadius: radius.full,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    marginRight: spacing.xs,
+  },
+  chipActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  chipText: {
+    ...typography.caption,
+    fontFamily: 'Inter_500Medium',
+    color: colors.textSecondary,
+  },
+  chipTextActive: {
+    color: colors.white,
+  },
   exportCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: spacing.md,
+    gap: spacing.sm,
   },
   exportInfo: {
     flex: 1,
@@ -309,7 +479,10 @@ const styles = StyleSheet.create({
     ...typography.caption,
     fontFamily: 'Inter_400Regular',
     color: colors.textSecondary,
-    textTransform: 'capitalize',
+  },
+  exportActions: {
+    flexDirection: 'row',
+    gap: spacing.xs,
   },
   listTitle: {
     ...typography.h3,

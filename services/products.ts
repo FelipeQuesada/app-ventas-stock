@@ -9,12 +9,15 @@ import {
   writeBatch,
   query,
   orderBy,
+  onSnapshot,
   serverTimestamp,
   Timestamp,
+  Unsubscribe,
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from '@/lib/firebase';
 import { Product } from '@/types';
+import { logAudit } from '@/services/audit';
 
 const COLLECTION = 'products';
 
@@ -36,6 +39,22 @@ export async function getProducts(): Promise<Product[]> {
   const q = query(collection(db, COLLECTION), orderBy('name'));
   const snap = await getDocs(q);
   return snap.docs.map((d) => mapProduct(d.id, d.data()));
+}
+
+export function subscribeProducts(
+  onData: (products: Product[]) => void,
+  onError?: (error: Error) => void
+): Unsubscribe {
+  const q = query(collection(db, COLLECTION), orderBy('name'));
+  return onSnapshot(
+    q,
+    (snap) => {
+      onData(snap.docs.map((d) => mapProduct(d.id, d.data())));
+    },
+    (error) => {
+      onError?.(error);
+    }
+  );
 }
 
 export async function getProduct(id: string): Promise<Product | null> {
@@ -77,11 +96,27 @@ export async function updateProduct(
   });
 }
 
-export async function updateProductStock(id: string, stock: number) {
+export async function updateProductStock(
+  id: string,
+  stock: number,
+  actor?: { userId: string; userName?: string; previousStock?: number; productName?: string }
+) {
   await updateDoc(doc(db, COLLECTION, id), {
     stock,
     updatedAt: serverTimestamp(),
   });
+
+  if (actor?.userId) {
+    await logAudit({
+      action: 'stock_update',
+      entityType: 'product',
+      entityId: id,
+      summary: `${actor.productName ?? 'Producto'}: stock ${actor.previousStock ?? '?'} → ${stock}`,
+      userId: actor.userId,
+      userName: actor.userName,
+      meta: { previousStock: actor.previousStock, stock },
+    });
+  }
 }
 
 export async function deleteProduct(id: string) {
