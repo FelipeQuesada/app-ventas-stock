@@ -9,24 +9,33 @@ import {
   ScrollView,
 } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { format, startOfMonth, startOfDay, isSameDay } from 'date-fns';
-import { es } from 'date-fns/locale';
+import { format } from 'date-fns';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { SearchBar } from '@/components/ui/SearchBar';
-import { MonthPickerField } from '@/components/ui/MonthPickerField';
-import { DatePickerField } from '@/components/ui/DatePickerField';
+import { PeriodFilter } from '@/components/ui/PeriodFilter';
 import { SaleListItem } from '@/components/ui/SaleListItem';
 import { EmptyState, LoadingScreen } from '@/components/ui/EmptyState';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
-import { deleteSale, getSales, getMonthSales } from '@/services/sales';
-import { exportDaySalesToExcel, exportMonthSalesToExcel, exportDaySalesReportText } from '@/services/export';
+import { deleteSale, getSales } from '@/services/sales';
+import {
+  exportSalesReportText,
+  exportSalesInRangeToExcel,
+  buildSalesPdfHtml,
+} from '@/services/export';
 import { Sale, PaymentMethod } from '@/types';
-import { formatCurrency, formatDate } from '@/utils/format';
+import { formatCurrency, formatDate, getSaleDisplayDate } from '@/utils/format';
+import {
+  createDefaultPeriod,
+  formatPeriodLabel,
+  isDateInRange,
+  PeriodSelection,
+} from '@/utils/datePeriod';
 import { PAYMENT_METHODS, getPaymentMethodLabel } from '@/constants/payments';
 import { useAuth } from '@/context/AuthContext';
 import { showAlert, showConfirm } from '@/utils/alert';
 import { SaleTicketModal } from '@/components/SaleTicketModal';
+import { PdfPreviewModal, PdfPreviewState } from '@/components/ui/PdfPreviewModal';
 import { colors, radius, spacing, typography } from '@/constants/theme';
 
 export default function SalesListScreen() {
@@ -36,12 +45,12 @@ export default function SalesListScreen() {
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
-  const [selectedMonth, setSelectedMonth] = useState(startOfMonth(new Date()));
-  const [filterDay, setFilterDay] = useState<Date | null>(null);
+  const [period, setPeriod] = useState<PeriodSelection>(() => createDefaultPeriod());
   const [filterPayment, setFilterPayment] = useState<PaymentMethod | 'all'>('all');
   const [filterSeller, setFilterSeller] = useState<string>('all');
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
   const [ticketSale, setTicketSale] = useState<Sale | null>(null);
+  const [pdfPreview, setPdfPreview] = useState<PdfPreviewState>(null);
 
   const loadSales = useCallback(async () => {
     try {
@@ -61,28 +70,25 @@ export default function SalesListScreen() {
     }, [loadSales])
   );
 
-  const monthSales = useMemo(
-    () => getMonthSales(sales, selectedMonth),
-    [sales, selectedMonth]
+  const periodSales = useMemo(
+    () => sales.filter((sale) => isDateInRange(sale.date, period.range)),
+    [sales, period]
   );
 
   const sellers = useMemo(() => {
     const names = new Set<string>();
-    for (const sale of monthSales) {
+    for (const sale of periodSales) {
       if (sale.createdByName?.trim()) names.add(sale.createdByName.trim());
     }
     return [...names].sort((a, b) => a.localeCompare(b));
-  }, [monthSales]);
+  }, [periodSales]);
 
-  const monthLabel = format(selectedMonth, 'MMMM yyyy', { locale: es });
+  const periodLabel = formatPeriodLabel(period);
 
   const filtered = useMemo(() => {
     const term = search.toLowerCase().trim();
 
-    return monthSales.filter((sale) => {
-      if (filterDay) {
-        if (!isSameDay(sale.date, filterDay)) return false;
-      }
+    return periodSales.filter((sale) => {
       if (filterPayment !== 'all' && sale.paymentMethod !== filterPayment) return false;
       if (filterSeller !== 'all' && (sale.createdByName ?? '') !== filterSeller) return false;
 
@@ -107,13 +113,18 @@ export default function SalesListScreen() {
         formatCurrency(sale.total).toLowerCase().includes(term)
       );
     });
-  }, [monthSales, search, filterDay, filterPayment, filterSeller]);
+  }, [periodSales, search, filterPayment, filterSeller]);
 
-  const handleExportMonth = async () => {
+  const handleExportExcel = async () => {
     setExporting(true);
     try {
-      await exportMonthSalesToExcel(sales, selectedMonth);
-      showAlert('Listo', `El Excel de ${monthLabel} se descargó correctamente`);
+      await exportSalesInRangeToExcel(
+        filtered,
+        period.range.start,
+        period.range.end,
+        periodLabel
+      );
+      showAlert('Listo', `Excel de ${periodLabel} listo`);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'No se pudo exportar';
       showAlert('Error', message);
@@ -122,25 +133,26 @@ export default function SalesListScreen() {
     }
   };
 
-  const handleExportDay = async () => {
-    const day = filterDay ?? new Date();
-    setExporting(true);
-    try {
-      await exportDaySalesToExcel(sales, day);
-      showAlert('Listo', `Excel del ${format(day, 'dd/MM/yyyy')} listo`);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'No se pudo exportar';
-      showAlert('Error', message);
-    } finally {
-      setExporting(false);
+  const handleExportPdf = () => {
+    if (filtered.length === 0) {
+      showAlert('Error', 'No hay ventas en este período para exportar');
+      return;
     }
+    const title = `Ventas ${periodLabel}`;
+    setPdfPreview({
+      html: buildSalesPdfHtml(filtered, title),
+      title,
+    });
   };
 
-  const handleExportDayText = async () => {
-    const day = filterDay ?? new Date();
+  const handleExportText = async () => {
     setExporting(true);
     try {
-      await exportDaySalesReportText(sales, day);
+      await exportSalesReportText(
+        filtered,
+        periodLabel,
+        `${format(period.range.start, 'yyyy-MM-dd')}_${format(period.range.end, 'yyyy-MM-dd')}`
+      );
     } catch (error) {
       const message = error instanceof Error ? error.message : 'No se pudo exportar';
       showAlert('Error', message);
@@ -174,7 +186,7 @@ export default function SalesListScreen() {
   };
 
   const clearFilters = () => {
-    setFilterDay(null);
+    setPeriod(createDefaultPeriod());
     setFilterPayment('all');
     setFilterSeller('all');
     setSearch('');
@@ -182,20 +194,10 @@ export default function SalesListScreen() {
 
   const listHeader = (
     <View style={styles.headerSection}>
-      <View style={styles.monthRow}>
-        <MonthPickerField value={selectedMonth} onChange={setSelectedMonth} />
-      </View>
+      <PeriodFilter value={period} onChange={setPeriod} />
 
       <Card style={styles.filtersCard}>
         <Text style={styles.filtersTitle}>Filtros</Text>
-        <Text style={styles.filterLabel}>Filtrar por día</Text>
-        <DatePickerField
-          value={filterDay ?? startOfDay(new Date())}
-          onChange={(d) => setFilterDay(startOfDay(d))}
-        />
-        {filterDay && (
-          <Button title="Quitar filtro de día" onPress={() => setFilterDay(null)} variant="outline" size="sm" />
-        )}
 
         <Text style={styles.filterLabel}>Medio de pago</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chips}>
@@ -248,15 +250,13 @@ export default function SalesListScreen() {
 
       <Card style={styles.exportCard}>
         <View style={styles.exportInfo}>
-          <Text style={styles.exportTitle}>Exportar</Text>
-          <Text style={styles.exportSubtitle}>
-            Excel del mes, del día o reporte compartible
-          </Text>
+          <Text style={styles.exportTitle}>Exportar período</Text>
+          <Text style={styles.exportSubtitle}>{periodLabel}</Text>
         </View>
         <View style={styles.exportActions}>
-          <Button title="Mes" onPress={handleExportMonth} loading={exporting} variant="secondary" size="sm" />
-          <Button title="Día" onPress={handleExportDay} loading={exporting} size="sm" />
-          <Button title="PDF/Txt" onPress={handleExportDayText} loading={exporting} variant="outline" size="sm" />
+          <Button title="Excel" onPress={handleExportExcel} loading={exporting} variant="secondary" size="sm" />
+          <Button title="PDF" onPress={handleExportPdf} loading={exporting} size="sm" />
+          <Button title="Txt" onPress={handleExportText} loading={exporting} variant="outline" size="sm" />
         </View>
       </Card>
 
@@ -310,7 +310,12 @@ export default function SalesListScreen() {
 
                 <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
                   <Text style={styles.detailLabel}>Fecha</Text>
-                  <Text style={styles.detailValue}>{formatDate(selectedSale.date)}</Text>
+                  <Text style={styles.detailValue}>
+                    {(() => {
+                      const d = getSaleDisplayDate(selectedSale);
+                      return `${formatDate(d)} · ${format(d, 'HH:mm')}`;
+                    })()}
+                  </Text>
 
                   <Text style={styles.detailLabel}>Cliente</Text>
                   <Text style={styles.detailValue}>
@@ -404,6 +409,13 @@ export default function SalesListScreen() {
         title="Ticket de venta"
         onClose={() => setTicketSale(null)}
       />
+
+      <PdfPreviewModal
+        visible={!!pdfPreview}
+        html={pdfPreview?.html ?? null}
+        title={pdfPreview?.title}
+        onClose={() => setPdfPreview(null)}
+      />
     </View>
   );
 }
@@ -420,9 +432,6 @@ const styles = StyleSheet.create({
   headerSection: {
     gap: spacing.sm,
     marginBottom: spacing.sm,
-  },
-  monthRow: {
-    flexDirection: 'row',
   },
   filtersCard: {
     gap: spacing.sm,
@@ -479,9 +488,11 @@ const styles = StyleSheet.create({
     ...typography.caption,
     fontFamily: 'Inter_400Regular',
     color: colors.textSecondary,
+    textTransform: 'capitalize',
   },
   exportActions: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
     gap: spacing.xs,
   },
   listTitle: {

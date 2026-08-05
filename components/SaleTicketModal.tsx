@@ -1,10 +1,17 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, StyleSheet, Modal, Pressable, ScrollView } from 'react-native';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Button } from '@/components/ui/Button';
-import { SaleTicketData, shareSaleTicket, shareSaleTicketWhatsApp, exportSaleTicketFile } from '@/utils/saleTicket';
+import { PdfPreviewModal, PdfPreviewState } from '@/components/ui/PdfPreviewModal';
+import {
+  SaleTicketData,
+  shareSaleTicket,
+  shareSaleTicketWhatsApp,
+  exportSaleTicketFile,
+  buildSaleTicketHtml,
+  normalizeWhatsAppPhone,
+} from '@/utils/saleTicket';
 import { formatCurrency, formatDate } from '@/utils/format';
-import { getPaymentMethodLabel } from '@/constants/payments';
 import { showAlert } from '@/utils/alert';
 import { colors, radius, spacing, typography } from '@/constants/theme';
 
@@ -16,7 +23,11 @@ type Props = {
 };
 
 export function SaleTicketModal({ visible, sale, onClose, title = 'Venta registrada' }: Props) {
+  const [pdfPreview, setPdfPreview] = useState<PdfPreviewState>(null);
+
   if (!sale) return null;
+
+  const hasPhone = !!normalizeWhatsAppPhone(sale.customer?.phone);
 
   const handleShare = async () => {
     try {
@@ -28,6 +39,12 @@ export function SaleTicketModal({ visible, sale, onClose, title = 'Venta registr
 
   const handleWhatsApp = async () => {
     try {
+      if (!hasPhone) {
+        showAlert(
+          'Sin teléfono',
+          'Esta venta no tiene teléfono de cliente. Se abrirá WhatsApp sin destinatario.'
+        );
+      }
       await shareSaleTicketWhatsApp(sale);
     } catch {
       showAlert('Error', 'No se pudo abrir WhatsApp');
@@ -42,7 +59,15 @@ export function SaleTicketModal({ visible, sale, onClose, title = 'Venta registr
     }
   };
 
+  const handlePdf = () => {
+    setPdfPreview({
+      html: buildSaleTicketHtml(sale),
+      title: 'Presupuesto',
+    });
+  };
+
   return (
+    <>
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <Pressable style={styles.overlay} onPress={onClose}>
         <Pressable style={styles.modal} onPress={() => undefined}>
@@ -58,6 +83,9 @@ export function SaleTicketModal({ visible, sale, onClose, title = 'Venta registr
             <Text style={styles.meta}>{formatDate(sale.date)}</Text>
             {sale.customer?.name ? (
               <Text style={styles.meta}>Cliente: {sale.customer.name}</Text>
+            ) : null}
+            {sale.customer?.phone ? (
+              <Text style={styles.meta}>Tel: {sale.customer.phone}</Text>
             ) : null}
 
             <View style={styles.divider} />
@@ -92,20 +120,46 @@ export function SaleTicketModal({ visible, sale, onClose, title = 'Venta registr
               <Text style={styles.totalLabel}>Total</Text>
               <Text style={styles.totalValue}>{formatCurrency(sale.total)}</Text>
             </View>
-            <Text style={styles.payment}>
-              {getPaymentMethodLabel(sale.paymentMethod, sale.paymentMethodLabel)}
-            </Text>
           </ScrollView>
 
           <View style={styles.actions}>
             <Button title="WhatsApp" onPress={handleWhatsApp} size="sm" style={styles.actionBtn} />
-            <Button title="Compartir" onPress={handleShare} variant="secondary" size="sm" style={styles.actionBtn} />
-            <Button title="Archivo" onPress={handleExport} variant="outline" size="sm" style={styles.actionBtn} />
+            <Button
+              title="PDF"
+              onPress={handlePdf}
+              variant="secondary"
+              size="sm"
+              style={styles.actionBtn}
+            />
+          </View>
+          <View style={styles.actions}>
+            <Button
+              title="Compartir"
+              onPress={handleShare}
+              variant="outline"
+              size="sm"
+              style={styles.actionBtn}
+            />
+            <Button
+              title="Archivo"
+              onPress={handleExport}
+              variant="outline"
+              size="sm"
+              style={styles.actionBtn}
+            />
           </View>
           <Button title="Listo" onPress={onClose} style={styles.doneBtn} />
         </Pressable>
       </Pressable>
     </Modal>
+
+    <PdfPreviewModal
+      visible={!!pdfPreview}
+      html={pdfPreview?.html ?? null}
+      title={pdfPreview?.title}
+      onClose={() => setPdfPreview(null)}
+    />
+    </>
   );
 }
 
@@ -202,17 +256,10 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter_700Bold',
     color: colors.accent,
   },
-  payment: {
-    ...typography.caption,
-    fontFamily: 'Inter_500Medium',
-    color: colors.textMuted,
-    marginTop: spacing.sm,
-    textAlign: 'center',
-  },
   actions: {
     flexDirection: 'row',
     gap: spacing.xs,
-    marginTop: spacing.md,
+    marginTop: spacing.sm,
   },
   actionBtn: { flex: 1 },
   doneBtn: { marginTop: spacing.sm },

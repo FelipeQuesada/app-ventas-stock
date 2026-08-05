@@ -6,6 +6,8 @@ import {
   ScrollView,
   RefreshControl,
   Alert,
+  Modal,
+  Pressable,
 } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useAuth } from '@/context/AuthContext';
@@ -53,17 +55,19 @@ export default function CajaScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [processingGuardo, setProcessingGuardo] = useState(false);
   const [processingRetiro, setProcessingRetiro] = useState(false);
   const [cajaCambio, setCajaCambio] = useState('');
   const [cajaTotal, setCajaTotal] = useState(0);
   const [totalGuardado, setTotalGuardado] = useState(0);
   const [montoGuardo, setMontoGuardo] = useState('');
   const [montoRetiro, setMontoRetiro] = useState('');
+  const [retiroVisible, setRetiroVisible] = useState(false);
 
   const cajaCambioAmount = parseFloat(cajaCambio) || 0;
+  const guardoPendiente = parseFloat(montoGuardo) || 0;
+  const totalGuardadoPreview = totalGuardado + Math.max(0, guardoPendiente);
   const ganancia = cajaTotal - cajaCambioAmount;
-  const cambioCierre = cajaTotal - totalGuardado;
+  const cambioCierre = cajaTotal - totalGuardadoPreview;
 
   const loadData = useCallback(async () => {
     try {
@@ -104,30 +108,6 @@ export default function CajaScreen() {
     setTotalGuardado(newTotal);
   };
 
-  const handleAgregarGuardado = async () => {
-    const amount = parseFloat(montoGuardo);
-    if (isNaN(amount) || amount <= 0) {
-      Alert.alert('Error', 'Ingresá un monto válido para guardar');
-      return;
-    }
-    if (amount + totalGuardado > cajaTotal) {
-      Alert.alert('Error', 'No podés guardar más de lo disponible en caja total');
-      return;
-    }
-
-    setProcessingGuardo(true);
-    try {
-      const newTotal = totalGuardado + amount;
-      await persistTotalGuardado(newTotal);
-      setMontoGuardo('');
-      Alert.alert('Guardado', `Se agregaron ${formatCurrency(amount)} a caja central`);
-    } catch {
-      Alert.alert('Error', 'No se pudo registrar el guardado');
-    } finally {
-      setProcessingGuardo(false);
-    }
-  };
-
   const handleRetiro = async () => {
     const amount = parseFloat(montoRetiro);
     if (isNaN(amount) || amount <= 0) {
@@ -144,6 +124,7 @@ export default function CajaScreen() {
       const newTotal = totalGuardado - amount;
       await persistTotalGuardado(newTotal);
       setMontoRetiro('');
+      setRetiroVisible(false);
       Alert.alert('Retiro registrado', `Se descontaron ${formatCurrency(amount)} del total guardado`);
     } catch {
       Alert.alert('Error', 'No se pudo registrar el retiro');
@@ -153,13 +134,20 @@ export default function CajaScreen() {
   };
 
   const handleSave = async () => {
-    const cajaCambioAmount = parseFloat(cajaCambio);
+    const cajaCambioValue = parseFloat(cajaCambio);
+    const guardoAmount = parseFloat(montoGuardo) || 0;
 
-    if (isNaN(cajaCambioAmount) || cajaCambioAmount < 0) {
+    if (isNaN(cajaCambioValue) || cajaCambioValue < 0) {
       Alert.alert('Error', 'Ingresá un monto válido para caja cambio');
       return;
     }
-    if (totalGuardado > cajaTotal) {
+    if (guardoAmount < 0) {
+      Alert.alert('Error', 'Ingresá un monto válido para guardar');
+      return;
+    }
+
+    const finalTotalGuardado = totalGuardado + guardoAmount;
+    if (finalTotalGuardado > cajaTotal) {
       Alert.alert('Error', 'El total guardado no puede superar la caja total');
       return;
     }
@@ -168,15 +156,17 @@ export default function CajaScreen() {
     try {
       await saveCaja({
         date: today,
-        cajaCambio: cajaCambioAmount,
+        cajaCambio: cajaCambioValue,
         cajaTotal,
-        totalGuardado,
+        totalGuardado: finalTotalGuardado,
         updatedBy: user!.uid,
         updatedByName: profile?.name,
       });
+      setTotalGuardado(finalTotalGuardado);
+      setMontoGuardo('');
       Alert.alert(
         'Caja guardada',
-        `Cambio para mañana: ${formatCurrency(cajaTotal - totalGuardado)}`
+        `Cambio para mañana: ${formatCurrency(cajaTotal - finalTotalGuardado)}`
       );
     } catch {
       Alert.alert('Error', 'No se pudo guardar el cierre de caja');
@@ -215,6 +205,13 @@ export default function CajaScreen() {
         />
       </View>
 
+      <Button
+        title="Retirar dinero"
+        variant="outline"
+        onPress={() => setRetiroVisible(true)}
+        style={styles.withdrawButton}
+      />
+
       <Card style={styles.card}>
         <Input
           label="Caja cambio"
@@ -237,7 +234,7 @@ export default function CajaScreen() {
       </Card>
 
       <Card style={styles.card}>
-        <CajaRow label="Total guardado" value={formatCurrency(totalGuardado)} highlight />
+        <CajaRow label="Total guardado" value={formatCurrency(totalGuardadoPreview)} highlight />
         <Text style={styles.hint}>Acumulado en caja central (guardados − retiros)</Text>
 
         <View style={styles.divider} />
@@ -249,32 +246,9 @@ export default function CajaScreen() {
           keyboardType="decimal-pad"
           placeholder="0"
         />
-        <Button
-          title="Agregar a caja central"
-          onPress={handleAgregarGuardado}
-          loading={processingGuardo}
-          size="sm"
-          style={styles.actionButton}
-        />
-
-        <View style={styles.divider} />
-
-        <Input
-          label="Retiro de caja"
-          value={montoRetiro}
-          onChangeText={setMontoRetiro}
-          keyboardType="decimal-pad"
-          placeholder="0"
-        />
-        <Text style={styles.hint}>Se descuenta del total guardado</Text>
-        <Button
-          title="Registrar retiro"
-          onPress={handleRetiro}
-          loading={processingRetiro}
-          variant="outline"
-          size="sm"
-          style={styles.actionButton}
-        />
+        <Text style={styles.hint}>
+          Se suma al total guardado al tocar “Guardar cierre de caja”
+        </Text>
 
         <View style={styles.divider} />
 
@@ -293,6 +267,58 @@ export default function CajaScreen() {
         size="lg"
         style={styles.saveButton}
       />
+
+      <Modal
+        visible={retiroVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setRetiroVisible(false)}
+      >
+        <Pressable style={styles.modalOverlay} onPress={() => setRetiroVisible(false)}>
+          <Pressable style={styles.withdrawModal} onPress={() => undefined}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Retirar dinero</Text>
+              <Pressable onPress={() => setRetiroVisible(false)} hitSlop={8}>
+                <Text style={styles.closeButton}>×</Text>
+              </Pressable>
+            </View>
+
+            <Text style={styles.availableLabel}>Disponible en caja central</Text>
+            <Text style={styles.availableAmount}>{formatCurrency(totalGuardado)}</Text>
+
+            <Input
+              label="Monto a retirar"
+              value={montoRetiro}
+              onChangeText={setMontoRetiro}
+              keyboardType="decimal-pad"
+              placeholder="0"
+              autoFocus
+            />
+            <Text style={styles.withdrawHint}>
+              El monto se descontará del total guardado.
+            </Text>
+
+            <View style={styles.modalActions}>
+              <Button
+                title="Cancelar"
+                variant="outline"
+                onPress={() => {
+                  setMontoRetiro('');
+                  setRetiroVisible(false);
+                }}
+                style={styles.modalAction}
+              />
+              <Button
+                title="Confirmar retiro"
+                onPress={handleRetiro}
+                loading={processingRetiro}
+                variant="danger"
+                style={styles.modalAction}
+              />
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
     </ScrollView>
   );
 }
@@ -376,10 +402,69 @@ const styles = StyleSheet.create({
     backgroundColor: colors.border,
     marginVertical: spacing.sm,
   },
-  actionButton: {
-    marginBottom: spacing.sm,
+  withdrawButton: {
+    marginBottom: spacing.md,
+    borderColor: colors.danger,
   },
   saveButton: {
     marginTop: spacing.sm,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: colors.overlay,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: spacing.md,
+  },
+  withdrawModal: {
+    width: '100%',
+    maxWidth: 460,
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: spacing.md,
+  },
+  modalTitle: {
+    ...typography.h2,
+    fontFamily: 'Inter_700Bold',
+    color: colors.text,
+  },
+  closeButton: {
+    fontSize: 30,
+    lineHeight: 30,
+    color: colors.textSecondary,
+  },
+  availableLabel: {
+    ...typography.caption,
+    fontFamily: 'Inter_500Medium',
+    color: colors.textSecondary,
+    textAlign: 'center',
+  },
+  availableAmount: {
+    ...typography.h2,
+    fontFamily: 'Inter_700Bold',
+    color: colors.primary,
+    textAlign: 'center',
+    marginTop: spacing.xs,
+    marginBottom: spacing.lg,
+  },
+  withdrawHint: {
+    ...typography.caption,
+    fontFamily: 'Inter_400Regular',
+    color: colors.textMuted,
+    marginTop: -spacing.sm,
+    marginBottom: spacing.md,
+  },
+  modalActions: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  modalAction: {
+    flex: 1,
   },
 });

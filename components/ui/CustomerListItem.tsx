@@ -7,10 +7,20 @@ import { colors, radius, spacing, typography } from '@/constants/theme';
 interface CustomerListItemProps {
   customer: Customer;
   onPress: () => void;
+  onEdit: () => void;
   onDelete: () => void;
+  onWhatsApp?: () => void;
+  whatsAppDisabled?: boolean;
 }
 
-export function CustomerListItem({ customer, onPress, onDelete }: CustomerListItemProps) {
+export function CustomerListItem({
+  customer,
+  onPress,
+  onEdit,
+  onDelete,
+  onWhatsApp,
+  whatsAppDisabled,
+}: CustomerListItemProps) {
   const subtitle = [customer.email, customer.phone].filter(Boolean).join(' · ') || 'Sin contacto';
 
   return (
@@ -25,9 +35,42 @@ export function CustomerListItem({ customer, onPress, onDelete }: CustomerListIt
         <Text style={styles.subtitle} numberOfLines={1}>
           {subtitle}
         </Text>
+        {whatsAppDisabled && (
+          <Text style={styles.noPhone}>Sin teléfono</Text>
+        )}
       </View>
+      {onWhatsApp && (
+        <TouchableOpacity
+          style={[styles.waButton, whatsAppDisabled && styles.waButtonDisabled]}
+          onPress={(event) => {
+            event.stopPropagation?.();
+            if (!whatsAppDisabled) onWhatsApp();
+          }}
+          disabled={whatsAppDisabled}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        >
+          <MaterialIcons
+            name="chat"
+            size={20}
+            color={whatsAppDisabled ? colors.textMuted : colors.white}
+          />
+          <Text style={[styles.waText, whatsAppDisabled && styles.waTextDisabled]}>
+            Enviar
+          </Text>
+        </TouchableOpacity>
+      )}
       <TouchableOpacity
-        style={styles.deleteButton}
+        style={styles.iconButton}
+        onPress={(event) => {
+          event.stopPropagation?.();
+          onEdit();
+        }}
+        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+      >
+        <MaterialIcons name="edit" size={20} color={colors.primary} />
+      </TouchableOpacity>
+      <TouchableOpacity
+        style={styles.iconButton}
         onPress={(event) => {
           event.stopPropagation?.();
           onDelete();
@@ -50,7 +93,7 @@ const styles = StyleSheet.create({
     borderColor: colors.border,
     padding: spacing.md,
     marginBottom: spacing.sm,
-    gap: spacing.md,
+    gap: spacing.sm,
   },
   avatar: {
     width: 44,
@@ -74,7 +117,37 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     marginTop: 2,
   },
-  deleteButton: {
+  noPhone: {
+    ...typography.caption,
+    fontFamily: 'Inter_400Regular',
+    color: colors.textMuted,
+    marginTop: 2,
+    fontSize: 11,
+  },
+  waButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#25D366',
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 6,
+    borderRadius: radius.md,
+  },
+  waButtonDisabled: {
+    backgroundColor: colors.background,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  waText: {
+    ...typography.caption,
+    fontFamily: 'Inter_600SemiBold',
+    color: colors.white,
+    fontSize: 12,
+  },
+  waTextDisabled: {
+    color: colors.textMuted,
+  },
+  iconButton: {
     padding: spacing.xs,
   },
 });

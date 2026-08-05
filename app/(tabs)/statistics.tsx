@@ -24,9 +24,13 @@ import {
   StatsRankList,
 } from '@/components/ui/ChartCard';
 import { LoadingScreen } from '@/components/ui/EmptyState';
-import { getSales, getMonthSales } from '@/services/sales';
+import { getSales, getMonthSales, getDaySales } from '@/services/sales';
 import { getProducts } from '@/services/products';
-import { exportDaySalesToExcel, exportMonthSalesToExcel } from '@/services/export';
+import {
+  exportDaySalesToExcel,
+  exportMonthSalesToExcel,
+  buildSalesPdfHtml,
+} from '@/services/export';
 import {
   CHART_COLORS,
   getDailyRevenueInMonth,
@@ -48,6 +52,7 @@ import {
 import { Product, Sale } from '@/types';
 import { formatCurrency } from '@/utils/format';
 import { showAlert } from '@/utils/alert';
+import { PdfPreviewModal, PdfPreviewState } from '@/components/ui/PdfPreviewModal';
 import { colors, spacing, typography, radius } from '@/constants/theme';
 
 type StatCategory = 'general' | 'ventas' | 'stock' | 'productos' | 'categorias' | 'pagos';
@@ -82,6 +87,7 @@ export default function StatisticsScreen() {
   const [selectedMonth, setSelectedMonth] = useState(startOfMonth(new Date()));
   const [sales, setSales] = useState<Sale[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
+  const [pdfPreview, setPdfPreview] = useState<PdfPreviewState>(null);
 
   const loadData = useCallback(async () => {
     try {
@@ -134,6 +140,33 @@ export default function StatisticsScreen() {
     } finally {
       setExporting(false);
     }
+  };
+
+  const handleExportMonthPdf = () => {
+    const monthSalesData = getMonthSales(sales, selectedMonth);
+    if (monthSalesData.length === 0) {
+      showAlert('Error', 'No hay ventas en este mes para exportar');
+      return;
+    }
+    const title = `Ventas ${monthLabel}`;
+    setPdfPreview({
+      html: buildSalesPdfHtml(monthSalesData, title),
+      title,
+    });
+  };
+
+  const handleExportDayPdf = () => {
+    const daySales = getDaySales(sales, new Date());
+    if (daySales.length === 0) {
+      showAlert('Error', 'No hay ventas en este día para exportar');
+      return;
+    }
+    const dayLabel = format(new Date(), 'dd/MM/yyyy');
+    const title = `Ventas ${dayLabel}`;
+    setPdfPreview({
+      html: buildSalesPdfHtml(daySales, title),
+      title,
+    });
   };
 
   if (loading) return <LoadingScreen />;
@@ -336,6 +369,7 @@ export default function StatisticsScreen() {
   };
 
   return (
+    <>
     <ScrollView
       style={styles.container}
       contentContainerStyle={styles.content}
@@ -384,24 +418,34 @@ export default function StatisticsScreen() {
 
       {activeCategory === 'general' && (
         <Card style={styles.exportCard}>
-          <View style={styles.exportInfo}>
-            <Text style={styles.exportTitle}>Exportar reportes</Text>
-            <Text style={styles.exportSubtitle}>
-              Excel del mes ({monthLabel}) o del día de hoy
-            </Text>
-          </View>
-          <View style={{ flexDirection: 'row', gap: 8 }}>
+          <Text style={styles.exportTitle}>Exportar reportes</Text>
+          <Text style={styles.exportSubtitle}>
+            Excel o PDF del mes ({monthLabel}) y del día de hoy
+          </Text>
+          <View style={styles.exportActions}>
             <Button
-              title="Mes"
+              title="Excel mes"
               onPress={handleExport}
               loading={exporting}
               variant="secondary"
               size="sm"
             />
             <Button
-              title="Hoy"
+              title="Excel hoy"
               onPress={handleExportDay}
               loading={exporting}
+              size="sm"
+            />
+            <Button
+              title="PDF mes"
+              onPress={handleExportMonthPdf}
+              variant="outline"
+              size="sm"
+            />
+            <Button
+              title="PDF hoy"
+              onPress={handleExportDayPdf}
+              variant="outline"
               size="sm"
             />
           </View>
@@ -410,6 +454,14 @@ export default function StatisticsScreen() {
 
       <View style={styles.sectionContent}>{renderCategoryContent()}</View>
     </ScrollView>
+
+    <PdfPreviewModal
+      visible={!!pdfPreview}
+      html={pdfPreview?.html ?? null}
+      title={pdfPreview?.title}
+      onClose={() => setPdfPreview(null)}
+    />
+    </>
   );
 }
 
@@ -453,11 +505,8 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   exportCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: spacing.md,
     marginBottom: spacing.sm,
+    gap: spacing.sm,
   },
   exportInfo: {
     flex: 1,
@@ -472,7 +521,11 @@ const styles = StyleSheet.create({
     ...typography.caption,
     fontFamily: 'Inter_400Regular',
     color: colors.textSecondary,
-    textTransform: 'capitalize',
+  },
+  exportActions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
   },
   sectionContent: {
     gap: spacing.sm,

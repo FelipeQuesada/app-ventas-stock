@@ -6,13 +6,17 @@ import {
   Modal,
   Pressable,
   TouchableOpacity,
+  Linking,
+  Text,
 } from 'react-native';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
+import type { Href } from 'expo-router';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { SearchBar } from '@/components/ui/SearchBar';
 import { CustomerListItem } from '@/components/ui/CustomerListItem';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
+import { Card } from '@/components/ui/Card';
 import { EmptyState, LoadingScreen } from '@/components/ui/EmptyState';
 import {
   createCustomer,
@@ -20,16 +24,23 @@ import {
   getCustomers,
   updateCustomer,
 } from '@/services/customers';
+import { exportCustomersToExcel, buildCustomersPdfHtml } from '@/services/export';
+import { buildWhatsAppUrl, normalizeWhatsAppPhone } from '@/utils/saleTicket';
 import { Customer } from '@/types';
 import { showAlert, showConfirm } from '@/utils/alert';
-import { colors, radius, spacing } from '@/constants/theme';
+import { PdfPreviewModal, PdfPreviewState } from '@/components/ui/PdfPreviewModal';
+import { colors, radius, spacing, typography } from '@/constants/theme';
 
 const emptyForm = { name: '', email: '', phone: '' };
 
 export default function CustomersScreen() {
+  const router = useRouter();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [search, setSearch] = useState('');
+  const [broadcastMessage, setBroadcastMessage] = useState('');
   const [loading, setLoading] = useState(true);
+  const [exporting, setExporting] = useState(false);
+  const [pdfPreview, setPdfPreview] = useState<PdfPreviewState>(null);
   const [modalVisible, setModalVisible] = useState(false);
   const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
   const [form, setForm] = useState(emptyForm);
@@ -121,24 +132,116 @@ export default function CustomersScreen() {
     }
   };
 
+  const handleExportExcel = async () => {
+    setExporting(true);
+    try {
+      await exportCustomersToExcel(customers);
+      showAlert('Listo', 'Excel de clientes descargado');
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'No se pudo exportar';
+      showAlert('Error', message);
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleExportPdf = () => {
+    if (customers.length === 0) {
+      showAlert('Error', 'No hay clientes para exportar');
+      return;
+    }
+    setPdfPreview({
+      html: buildCustomersPdfHtml(customers),
+      title: 'Lista de clientes',
+    });
+  };
+
+  const handleWhatsApp = async (customer: Customer) => {
+    const phone = normalizeWhatsAppPhone(customer.phone);
+    if (!phone) {
+      showAlert('Sin teléfono', 'Este cliente no tiene un teléfono válido');
+      return;
+    }
+    const text = broadcastMessage.trim();
+    if (!text) {
+      showAlert('Mensaje vacío', 'Escribí un mensaje para enviar a los clientes');
+      return;
+    }
+    const url = buildWhatsAppUrl(customer.phone, text);
+    try {
+      await Linking.openURL(url);
+    } catch {
+      showAlert('Error', 'No se pudo abrir WhatsApp');
+    }
+  };
+
   if (loading) return <LoadingScreen />;
 
-  return (
-    <View style={styles.container}>
+  const listHeader = (
+    <View style={styles.headerSection}>
       <View style={styles.searchContainer}>
         <SearchBar value={search} onChangeText={setSearch} placeholder="Buscar clientes..." />
       </View>
 
+      <Card style={styles.exportCard}>
+        <Text style={styles.sectionTitle}>Exportar</Text>
+        <Text style={styles.sectionSubtitle}>Lista completa de clientes</Text>
+        <View style={styles.exportActions}>
+          <Button
+            title="Excel"
+            onPress={handleExportExcel}
+            loading={exporting}
+            variant="secondary"
+            size="sm"
+            style={styles.exportBtn}
+          />
+          <Button
+            title="PDF"
+            onPress={handleExportPdf}
+            loading={exporting}
+            variant="outline"
+            size="sm"
+            style={styles.exportBtn}
+          />
+        </View>
+      </Card>
+
+      <Card style={styles.broadcastCard}>
+        <Text style={styles.sectionTitle}>Mensaje para clientes</Text>
+        <Text style={styles.sectionSubtitle}>
+          Escribí el texto y tocá Enviar en cada cliente con teléfono
+        </Text>
+        <Input
+          value={broadcastMessage}
+          onChangeText={setBroadcastMessage}
+          placeholder="Ej: ¡Hola! Tenemos novedades en Advance Coat..."
+          multiline
+          numberOfLines={3}
+          style={styles.messageInput}
+        />
+      </Card>
+    </View>
+  );
+
+  return (
+    <View style={styles.container}>
       <FlatList
         data={filtered}
         keyExtractor={(item) => item.id}
-        renderItem={({ item }) => (
-          <CustomerListItem
-            customer={item}
-            onPress={() => openEditModal(item)}
-            onDelete={() => handleDelete(item)}
-          />
-        )}
+        ListHeaderComponent={listHeader}
+        renderItem={({ item }) => {
+          const hasPhone = !!normalizeWhatsAppPhone(item.phone);
+          return (
+            <CustomerListItem
+              customer={item}
+              onPress={() => router.push(`/customer/${item.id}` as Href)}
+              onEdit={() => openEditModal(item)}
+              onDelete={() => handleDelete(item)}
+              onWhatsApp={() => handleWhatsApp(item)}
+              whatsAppDisabled={!hasPhone}
+            />
+          );
+        }}
         contentContainerStyle={styles.list}
         ListEmptyComponent={
           <EmptyState
@@ -190,6 +293,13 @@ export default function CustomersScreen() {
           </Pressable>
         </Pressable>
       </Modal>
+
+      <PdfPreviewModal
+        visible={!!pdfPreview}
+        html={pdfPreview?.html ?? null}
+        title={pdfPreview?.title}
+        onClose={() => setPdfPreview(null)}
+      />
     </View>
   );
 }
@@ -199,9 +309,40 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
+  headerSection: {
+    marginBottom: spacing.sm,
+  },
   searchContainer: {
-    padding: spacing.md,
-    paddingBottom: 0,
+    paddingBottom: spacing.sm,
+  },
+  exportCard: {
+    marginBottom: spacing.sm,
+  },
+  broadcastCard: {
+    marginBottom: spacing.sm,
+  },
+  sectionTitle: {
+    ...typography.body,
+    fontFamily: 'Inter_600SemiBold',
+    color: colors.text,
+  },
+  sectionSubtitle: {
+    ...typography.caption,
+    fontFamily: 'Inter_400Regular',
+    color: colors.textSecondary,
+    marginTop: 2,
+    marginBottom: spacing.sm,
+  },
+  exportActions: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+  },
+  exportBtn: {
+    flex: 1,
+  },
+  messageInput: {
+    minHeight: 72,
+    textAlignVertical: 'top',
   },
   list: {
     padding: spacing.md,

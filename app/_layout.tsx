@@ -4,6 +4,7 @@ import { Stack, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
+import { CartProvider } from '@/context/CartContext';
 import { HeaderTitle } from '@/components/HeaderTitle';
 import { colors } from '@/constants/theme';
 
@@ -61,83 +62,93 @@ export default function RootLayout() {
 
   return (
     <AuthProvider>
-      <StatusBar style="dark" />
-      <AuthGate>
-        <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
-          <Stack.Screen name="(auth)" />
-          <Stack.Screen name="(tabs)" />
-          <Stack.Screen
-            name="product/[id]"
-            options={{
-              ...stackHeaderOptions,
-              title: 'Producto',
-            }}
-          />
-          <Stack.Screen
-            name="stock"
-            options={{
-              ...stackHeaderOptions,
-              title: 'Control de Stock',
-            }}
-          />
-          <Stack.Screen
-            name="caja"
-            options={{
-              ...stackHeaderOptions,
-              title: 'Caja',
-              headerBackTitle: 'Volver',
-            }}
-          />
-          <Stack.Screen
-            name="sales-list"
-            options={{
-              ...stackHeaderOptions,
-              title: 'Ventas',
-              headerBackTitle: 'Volver',
-            }}
-          />
-          <Stack.Screen
-            name="customers"
-            options={{
-              ...stackHeaderOptions,
-              title: 'Clientes',
-              headerBackTitle: 'Volver',
-            }}
-          />
-          <Stack.Screen
-            name="caja-list"
-            options={{
-              ...stackHeaderOptions,
-              title: 'Historial de caja',
-              headerBackTitle: 'Volver',
-            }}
-          />
-          <Stack.Screen
-            name="caja-edit/[date]"
-            options={{
-              ...stackHeaderOptions,
-              title: 'Editar caja',
-              headerBackTitle: 'Volver',
-            }}
-          />
-          <Stack.Screen
-            name="sale/[id]"
-            options={{
-              ...stackHeaderOptions,
-              title: 'Editar venta',
-              headerBackTitle: 'Volver',
-            }}
-          />
-          <Stack.Screen
-            name="users"
-            options={{
-              ...stackHeaderOptions,
-              title: 'Usuarios',
-              headerBackTitle: 'Volver',
-            }}
-          />
-        </Stack>
-      </AuthGate>
+      <CartProvider>
+        <StatusBar style="dark" />
+        <AuthGate>
+          <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
+            <Stack.Screen name="(auth)" />
+            <Stack.Screen name="(tabs)" />
+            <Stack.Screen
+              name="product/[id]"
+              options={{
+                ...stackHeaderOptions,
+                title: 'Producto',
+              }}
+            />
+            <Stack.Screen
+              name="stock"
+              options={{
+                ...stackHeaderOptions,
+                title: 'Control de Stock',
+              }}
+            />
+            <Stack.Screen
+              name="caja"
+              options={{
+                ...stackHeaderOptions,
+                title: 'Caja',
+                headerBackTitle: 'Volver',
+              }}
+            />
+            <Stack.Screen
+              name="sales-list"
+              options={{
+                ...stackHeaderOptions,
+                title: 'Ventas',
+                headerBackTitle: 'Volver',
+              }}
+            />
+            <Stack.Screen
+              name="customers"
+              options={{
+                ...stackHeaderOptions,
+                title: 'Clientes',
+                headerBackTitle: 'Volver',
+              }}
+            />
+            <Stack.Screen
+              name="customer/[id]"
+              options={{
+                ...stackHeaderOptions,
+                title: 'Historial del cliente',
+                headerBackTitle: 'Volver',
+              }}
+            />
+            <Stack.Screen
+              name="caja-list"
+              options={{
+                ...stackHeaderOptions,
+                title: 'Historial de caja',
+                headerBackTitle: 'Volver',
+              }}
+            />
+            <Stack.Screen
+              name="caja-edit/[date]"
+              options={{
+                ...stackHeaderOptions,
+                title: 'Editar caja',
+                headerBackTitle: 'Volver',
+              }}
+            />
+            <Stack.Screen
+              name="sale/[id]"
+              options={{
+                ...stackHeaderOptions,
+                title: 'Editar venta',
+                headerBackTitle: 'Volver',
+              }}
+            />
+            <Stack.Screen
+              name="users"
+              options={{
+                ...stackHeaderOptions,
+                title: 'Usuarios',
+                headerBackTitle: 'Volver',
+              }}
+            />
+          </Stack>
+        </AuthGate>
+      </CartProvider>
     </AuthProvider>
   );
 }

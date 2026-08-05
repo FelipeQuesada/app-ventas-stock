@@ -14,7 +14,7 @@ import { db } from '@/lib/firebase';
 import { Sale, SaleItem, PaymentMethod, SaleCustomer, DiscountType } from '@/types';
 import { saveCustomer } from '@/services/customers';
 import { aggregateProductQuantities, isExtraItem } from '@/utils/sale';
-
+import { normalizePhoneKey } from '@/utils/phone';
 const COLLECTION = 'sales';
 
 function mapSale(id: string, data: Record<string, unknown>): Sale {
@@ -298,6 +298,52 @@ export function getDaySales(sales: Sale[], date = new Date()): Sale[] {
   const start = new Date(date.getFullYear(), date.getMonth(), date.getDate());
   const end = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 23, 59, 59, 999);
   return sales.filter((s) => s.date >= start && s.date <= end);
+}
+
+export function getSalesByCustomerPhone(sales: Sale[], phone: string): Sale[] {
+  const key = normalizePhoneKey(phone);
+  if (!key) return [];
+  return sales.filter((sale) => normalizePhoneKey(sale.customer?.phone) === key);
+}
+
+export interface CustomerPurchaseStats {
+  sales: Sale[];
+  saleCount: number;
+  totalSpent: number;
+  topProduct: { name: string; quantity: number } | null;
+}
+
+export function getCustomerPurchaseStats(sales: Sale[], phone: string): CustomerPurchaseStats {
+  const customerSales = getSalesByCustomerPhone(sales, phone);
+  const totalSpent = customerSales.reduce((sum, sale) => sum + sale.total, 0);
+
+  const qtyByProduct = new Map<string, number>();
+  for (const sale of customerSales) {
+    for (const item of sale.items ?? []) {
+      if (item.isExtra) continue;
+      const name = item.productName || 'Producto';
+      qtyByProduct.set(name, (qtyByProduct.get(name) ?? 0) + item.quantity);
+    }
+  }
+
+  let topProduct: CustomerPurchaseStats['topProduct'] = null;
+  for (const [name, quantity] of qtyByProduct) {
+    if (!topProduct || quantity > topProduct.quantity) {
+      topProduct = { name, quantity };
+    }
+  }
+
+  return {
+    sales: customerSales,
+    saleCount: customerSales.length,
+    totalSpent,
+    topProduct,
+  };
+}
+
+export async function fetchCustomerPurchaseStats(phone: string): Promise<CustomerPurchaseStats> {
+  const sales = await getSales();
+  return getCustomerPurchaseStats(sales, phone);
 }
 
 export { calculateDiscount } from '@/utils/discount';

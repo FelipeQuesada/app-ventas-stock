@@ -20,10 +20,11 @@ import { EmptyState, LoadingScreen } from '@/components/ui/EmptyState';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { deleteCaja, getCajaHistory, getMonthCaja } from '@/services/caja';
-import { exportMonthCajaToExcel } from '@/services/export';
+import { exportMonthCajaToExcel, buildCajaPdfHtml } from '@/services/export';
 import { DailyCaja } from '@/types/caja';
 import { formatCurrency, formatDate } from '@/utils/format';
 import { showAlert, showConfirm } from '@/utils/alert';
+import { PdfPreviewModal, PdfPreviewState } from '@/components/ui/PdfPreviewModal';
 import { colors, radius, spacing, typography } from '@/constants/theme';
 
 export default function CajaListScreen() {
@@ -34,6 +35,7 @@ export default function CajaListScreen() {
   const [exporting, setExporting] = useState(false);
   const [selectedMonth, setSelectedMonth] = useState(startOfMonth(new Date()));
   const [selected, setSelected] = useState<DailyCaja | null>(null);
+  const [pdfPreview, setPdfPreview] = useState<PdfPreviewState>(null);
 
   const loadRecords = useCallback(async () => {
     try {
@@ -93,6 +95,18 @@ export default function CajaListScreen() {
     }
   };
 
+  const handleExportPdf = () => {
+    if (monthRecords.length === 0) {
+      showAlert('Error', 'No hay cierres de caja en este mes para exportar');
+      return;
+    }
+    const title = `Caja ${monthLabel}`;
+    setPdfPreview({
+      html: buildCajaPdfHtml(monthRecords, title),
+      title,
+    });
+  };
+
   const handleDelete = async (record: DailyCaja) => {
     const confirmed = await showConfirm(
       'Eliminar registro',
@@ -117,19 +131,25 @@ export default function CajaListScreen() {
       <MonthPickerField value={selectedMonth} onChange={setSelectedMonth} />
 
       <Card style={styles.exportCard}>
-        <View style={styles.exportInfo}>
-          <Text style={styles.exportTitle}>Exportar caja</Text>
-          <Text style={styles.exportSubtitle}>
-            Excel de {monthLabel} con resumen y cierres diarios
-          </Text>
+        <Text style={styles.exportTitle}>Exportar caja</Text>
+        <Text style={styles.exportSubtitle}>
+          Excel o PDF de {monthLabel} con resumen y cierres diarios
+        </Text>
+        <View style={styles.exportActions}>
+          <Button
+            title="Excel"
+            onPress={handleExport}
+            loading={exporting}
+            variant="secondary"
+            size="sm"
+          />
+          <Button
+            title="PDF"
+            onPress={handleExportPdf}
+            variant="outline"
+            size="sm"
+          />
         </View>
-        <Button
-          title="Excel"
-          onPress={handleExport}
-          loading={exporting}
-          variant="secondary"
-          size="sm"
-        />
       </Card>
 
       <Text style={styles.listTitle}>
@@ -228,6 +248,13 @@ export default function CajaListScreen() {
           </Pressable>
         </Pressable>
       </Modal>
+
+      <PdfPreviewModal
+        visible={!!pdfPreview}
+        html={pdfPreview?.html ?? null}
+        title={pdfPreview?.title}
+        onClose={() => setPdfPreview(null)}
+      />
     </View>
   );
 }
@@ -273,19 +300,17 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
   },
   exportCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: spacing.md,
+    gap: spacing.sm,
   },
-  exportInfo: {
-    flex: 1,
+  exportActions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
   },
   exportTitle: {
     ...typography.label,
     fontFamily: 'Inter_600SemiBold',
     color: colors.text,
-    marginBottom: spacing.xs,
   },
   exportSubtitle: {
     ...typography.caption,

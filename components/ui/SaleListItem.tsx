@@ -2,7 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Sale } from '@/types';
-import { formatCurrency, formatShortDate } from '@/utils/format';
+import { formatCurrency, formatShortDateTime, getSaleDisplayDate } from '@/utils/format';
 import { getPaymentMethodLabel } from '@/constants/payments';
 import { colors, radius, spacing, typography } from '@/constants/theme';
 
@@ -16,12 +16,13 @@ interface SaleListItemProps {
 export function SaleListItem({ sale, onPress, onEdit, onDelete }: SaleListItemProps) {
   const itemCount = sale.items.reduce((sum, item) => sum + item.quantity, 0);
   const customerLabel = sale.customer.name || sale.customer.email || sale.customer.phone || 'Sin cliente';
+  const displayDate = getSaleDisplayDate(sale);
 
   return (
     <TouchableOpacity style={styles.container} onPress={onPress} activeOpacity={0.7}>
       <View style={styles.info}>
         <View style={styles.headerRow}>
-          <Text style={styles.date}>{formatShortDate(sale.date)}</Text>
+          <Text style={styles.date}>{formatShortDateTime(displayDate)}</Text>
           <Text style={styles.total}>{formatCurrency(sale.total)}</Text>
         </View>
         <Text style={styles.customer} numberOfLines={1}>

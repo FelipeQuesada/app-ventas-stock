@@ -7,14 +7,17 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
+import type { Href } from 'expo-router';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useAuth } from '@/context/AuthContext';
+import { useCart } from '@/context/CartContext';
 import { SearchBar } from '@/components/ui/SearchBar';
 import { ProductFilters } from '@/components/ProductFilters';
 import { ProductListItem } from '@/components/ui/ProductListItem';
 import { SaleItemRow } from '@/components/ui/SaleItemRow';
 import { PaymentMethodPicker } from '@/components/ui/PaymentMethodPicker';
 import { DatePickerField } from '@/components/ui/DatePickerField';
+import { SelectField } from '@/components/ui/SelectField';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { EmptyState, LoadingScreen } from '@/components/ui/EmptyState';
@@ -25,10 +28,14 @@ import {
   getSale,
   getSales,
   calculateDiscount,
+  fetchCustomerPurchaseStats,
 } from '@/services/sales';
-import { Product, Sale, SaleItem, PaymentMethod, DiscountType } from '@/types';
-import { getPaymentMethodLabel } from '@/constants/payments';
+import { findCustomerByPhone } from '@/services/customers';
+import { Product, Sale, SaleItem, PaymentMethod, DiscountType, Customer } from '@/types';
+import { getPaymentMethodLabel, getPaymentMethodAlias } from '@/constants/payments';
+import { SALE_SELLERS } from '@/constants/sellers';
 import { formatCurrency } from '@/utils/format';
+import { normalizePhoneKey } from '@/utils/phone';
 import { createExtraItem, isExtraItem } from '@/utils/sale';
 import {
   filterProductsForSale,
@@ -49,6 +56,7 @@ interface SaleFormProps {
 
 export function SaleForm({ mode, saleId }: SaleFormProps) {
   const { user, profile } = useAuth();
+  const cart = useCart();
   const router = useRouter();
   const isEdit = mode === 'edit';
 
@@ -58,7 +66,7 @@ export function SaleForm({ mode, saleId }: SaleFormProps) {
   const [initialLoading, setInitialLoading] = useState(isEdit);
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
-  const [selectedItems, setSelectedItems] = useState<SaleItem[]>([]);
+  const [editItems, setEditItems] = useState<SaleItem[]>([]);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | null>(null);
   const [saleDate, setSaleDate] = useState(new Date());
   const [loading, setLoading] = useState(false);
@@ -66,6 +74,10 @@ export function SaleForm({ mode, saleId }: SaleFormProps) {
   const [customerName, setCustomerName] = useState('');
   const [customerEmail, setCustomerEmail] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
+  const [sellerName, setSellerName] = useState('');
+  const [matchedCustomer, setMatchedCustomer] = useState<Customer | null>(null);
+  const [customerLookupHint, setCustomerLookupHint] = useState('');
+  const [lookingUpCustomer, setLookingUpCustomer] = useState(false);
 
   const [discountType, setDiscountType] = useState<DiscountType | null>(null);
   const [discountValue, setDiscountValue] = useState('');
@@ -78,6 +90,9 @@ export function SaleForm({ mode, saleId }: SaleFormProps) {
   const [extraPrice, setExtraPrice] = useState('');
   const [ticketSale, setTicketSale] = useState<SaleTicketData | null>(null);
   const [pendingCount, setPendingCount] = useState(0);
+
+  const selectedItems = isEdit ? editItems : cart.items;
+  const setSelectedItems = isEdit ? setEditItems : cart.setItems;
 
   const loadProducts = useCallback(async () => {
     const [productsData, salesData] = await Promise.all([
@@ -115,6 +130,7 @@ export function SaleForm({ mode, saleId }: SaleFormProps) {
         setCustomerName(sale.customer.name);
         setCustomerEmail(sale.customer.email);
         setCustomerPhone(sale.customer.phone);
+        setSellerName(sale.createdByName ?? '');
         setDiscountType(sale.discountType ?? null);
         setDiscountValue(sale.discountValue ? String(sale.discountValue) : '');
         setAmountPaid(sale.amountPaid ? String(sale.amountPaid) : '');
@@ -129,6 +145,56 @@ export function SaleForm({ mode, saleId }: SaleFormProps) {
       active = false;
     };
   }, [isEdit, saleId, loadProducts, router]);
+
+  useEffect(() => {
+    const phoneKey = normalizePhoneKey(customerPhone);
+    if (!phoneKey) {
+      setMatchedCustomer(null);
+      setCustomerLookupHint('');
+      return;
+    }
+
+    let active = true;
+    setLookingUpCustomer(true);
+    const timer = setTimeout(async () => {
+      try {
+        const found = await findCustomerByPhone(customerPhone);
+        if (!active) return;
+        if (found) {
+          setMatchedCustomer(found);
+          setCustomerName((current) => current.trim() || found.name);
+          setCustomerEmail((current) => current.trim() || found.email);
+          const stats = await fetchCustomerPurchaseStats(found.phone || customerPhone);
+          if (!active) return;
+          if (stats.saleCount > 0) {
+            const top = stats.topProduct
+              ? ` · Más compró: ${stats.topProduct.name}`
+              : '';
+            setCustomerLookupHint(
+              `Cliente encontrado · ${stats.saleCount} compra(s) · Total ${formatCurrency(stats.totalSpent)}${top}`
+            );
+          } else {
+            setCustomerLookupHint('Cliente registrado (sin compras previas)');
+          }
+        } else {
+          setMatchedCustomer(null);
+          setCustomerLookupHint('Cliente nuevo — se guardará con este teléfono');
+        }
+      } catch {
+        if (active) {
+          setMatchedCustomer(null);
+          setCustomerLookupHint('');
+        }
+      } finally {
+        if (active) setLookingUpCustomer(false);
+      }
+    }, 450);
+
+    return () => {
+      active = false;
+      clearTimeout(timer);
+    };
+  }, [customerPhone]);
 
   useFocusEffect(
     useCallback(() => {
@@ -202,6 +268,13 @@ export function SaleForm({ mode, saleId }: SaleFormProps) {
   const change = isCash && paidAmount >= total ? paidAmount - total : 0;
 
   const addProduct = (product: Product) => {
+    if (!isEdit) {
+      cart.addProduct(product);
+      setSearch('');
+      setSelectedCategory(null);
+      return;
+    }
+
     const availableStock = getAvailableStock(product.id);
     const existing = selectedItems.find((i) => i.productId === product.id);
 
@@ -240,6 +313,11 @@ export function SaleForm({ mode, saleId }: SaleFormProps) {
       }
     }
 
+    if (!isEdit) {
+      cart.updateQuantity(productId, quantity, getAvailableStock(productId));
+      return;
+    }
+
     setSelectedItems(
       selectedItems.map((current) =>
         current.productId === productId
@@ -254,6 +332,10 @@ export function SaleForm({ mode, saleId }: SaleFormProps) {
   };
 
   const updateSubtotal = (productId: string, newSubtotal: number) => {
+    if (!isEdit) {
+      cart.updateSubtotal(productId, newSubtotal);
+      return;
+    }
     setSelectedItems(
       selectedItems.map((item) =>
         item.productId === productId
@@ -268,6 +350,10 @@ export function SaleForm({ mode, saleId }: SaleFormProps) {
   };
 
   const removeItem = (productId: string) => {
+    if (!isEdit) {
+      cart.removeItem(productId);
+      return;
+    }
     setSelectedItems(selectedItems.filter((i) => i.productId !== productId));
   };
 
@@ -301,12 +387,15 @@ export function SaleForm({ mode, saleId }: SaleFormProps) {
   };
 
   const resetForm = () => {
-    setSelectedItems([]);
+    if (!isEdit) cart.clear();
+    else setEditItems([]);
     setPaymentMethod(null);
     setSaleDate(new Date());
     setCustomerName('');
     setCustomerEmail('');
     setCustomerPhone('');
+    setMatchedCustomer(null);
+    setCustomerLookupHint('');
     setDiscountType(null);
     setDiscountValue('');
     setAmountPaid('');
@@ -314,8 +403,15 @@ export function SaleForm({ mode, saleId }: SaleFormProps) {
     loadProducts();
   };
 
-  const buildSaleInput = () => ({
-    date: saleDate,
+  const buildSaleInput = () => {
+    const date = new Date(saleDate);
+    if (!isEdit) {
+      const now = new Date();
+      date.setHours(now.getHours(), now.getMinutes(), now.getSeconds(), now.getMilliseconds());
+    }
+
+    return {
+    date,
     items: selectedItems,
     paymentMethod: paymentMethod!,
     paymentMethodLabel: getPaymentMethodLabel(paymentMethod!),
@@ -332,12 +428,17 @@ export function SaleForm({ mode, saleId }: SaleFormProps) {
     amountPaid: isCash ? paidAmount : undefined,
     change: isCash ? change : undefined,
     createdBy: user!.uid,
-    createdByName: profile?.name,
-  });
+    createdByName: sellerName.trim() || profile?.name,
+  };
+  };
 
   const handleSubmit = async () => {
     if (selectedItems.length === 0) {
       showAlert('Error', 'Agregá al menos un producto o extra');
+      return;
+    }
+    if (!sellerName.trim()) {
+      showAlert('Error', 'Seleccioná el vendedor');
       return;
     }
     if (!paymentMethod) {
@@ -418,12 +519,51 @@ export function SaleForm({ mode, saleId }: SaleFormProps) {
 
       <DatePickerField value={saleDate} onChange={setSaleDate} />
 
+      <SelectField
+        label="Vendedor"
+        value={sellerName}
+        options={
+          sellerName && !(SALE_SELLERS as readonly string[]).includes(sellerName)
+            ? [sellerName, ...SALE_SELLERS]
+            : [...SALE_SELLERS]
+        }
+        onChange={setSellerName}
+        placeholder="Elegí quién vende"
+      />
+
       <Text style={styles.sectionTitle}>Datos del cliente</Text>
       <Input
-        label="Nombre (opcional)"
+        label="Teléfono (identificador)"
+        value={customerPhone}
+        onChangeText={setCustomerPhone}
+        placeholder="11 2345 6789"
+        keyboardType="phone-pad"
+      />
+      {!!customerLookupHint && (
+        <View style={styles.customerHint}>
+          <MaterialIcons
+            name={matchedCustomer ? 'person' : 'person-add'}
+            size={16}
+            color={matchedCustomer ? colors.primary : colors.textSecondary}
+          />
+          <Text style={styles.customerHintText}>
+            {lookingUpCustomer ? 'Buscando cliente...' : customerLookupHint}
+          </Text>
+          {matchedCustomer && (
+            <TouchableOpacity
+              onPress={() => router.push(`/customer/${matchedCustomer.id}` as Href)}
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            >
+              <Text style={styles.customerHintLink}>Ver historial</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+      )}
+      <Input
+        label="Nombre y apellido"
         value={customerName}
         onChangeText={setCustomerName}
-        placeholder="Nombre y apellido"
+        placeholder="Se completa si ya compró"
         autoCapitalize="words"
       />
       <Input
@@ -433,13 +573,6 @@ export function SaleForm({ mode, saleId }: SaleFormProps) {
         placeholder="cliente@email.com"
         keyboardType="email-address"
         autoCapitalize="none"
-      />
-      <Input
-        label="Teléfono (opcional)"
-        value={customerPhone}
-        onChangeText={setCustomerPhone}
-        placeholder="11 2345 6789"
-        keyboardType="phone-pad"
       />
 
       <SearchBar
@@ -580,6 +713,15 @@ export function SaleForm({ mode, saleId }: SaleFormProps) {
         }}
       />
 
+      {!!getPaymentMethodAlias(paymentMethod) && (
+        <View style={styles.aliasCard}>
+          <Text style={styles.aliasLabel}>Alias para transferir</Text>
+          <Text style={styles.aliasValue} selectable>
+            {getPaymentMethodAlias(paymentMethod)}
+          </Text>
+        </View>
+      )}
+
       <View style={styles.summaryCard}>
         <View style={styles.summaryRow}>
           <Text style={styles.summaryLabel}>Subtotal</Text>
@@ -672,6 +814,31 @@ const styles = StyleSheet.create({
     color: colors.text,
     marginBottom: spacing.sm,
     marginTop: spacing.sm,
+  },
+  customerHint: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
+    gap: spacing.xs,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  customerHintText: {
+    ...typography.caption,
+    fontFamily: 'Inter_400Regular',
+    color: colors.textSecondary,
+    flex: 1,
+    minWidth: 140,
+  },
+  customerHintLink: {
+    ...typography.caption,
+    fontFamily: 'Inter_600SemiBold',
+    color: colors.primary,
   },
   searchResults: {
     marginBottom: spacing.md,
@@ -767,6 +934,26 @@ const styles = StyleSheet.create({
     padding: spacing.md,
     marginBottom: spacing.md,
     gap: spacing.sm,
+  },
+  aliasCard: {
+    backgroundColor: colors.primary + '10',
+    borderRadius: radius.lg,
+    borderWidth: 1,
+    borderColor: colors.primary + '33',
+    padding: spacing.md,
+    marginBottom: spacing.md,
+    alignItems: 'center',
+    gap: spacing.xs,
+  },
+  aliasLabel: {
+    ...typography.caption,
+    fontFamily: 'Inter_500Medium',
+    color: colors.textSecondary,
+  },
+  aliasValue: {
+    ...typography.h2,
+    fontFamily: 'Inter_700Bold',
+    color: colors.primary,
   },
   summaryRow: {
     flexDirection: 'row',

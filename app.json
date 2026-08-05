@@ -2,7 +2,7 @@
   "expo": {
     "name": "Advance Coat Ventas",
     "slug": "advance-coat-ventas",
-    "version": "1.0.0",
+    "version": "1.1.0",
     "orientation": "default",
     "icon": "./assets/images/icon.png",
     "scheme": "appventasadvancecoat",
@@ -21,7 +21,7 @@
       "permissions": [
         "android.permission.RECORD_AUDIO"
       ],
-      "package": "com.anonymous.advancecoatventas"
+      "package": "com.advancecoat.ventas"
     },
     "web": {
       "bundler": "metro",
@@ -33,9 +33,9 @@
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/splash-icon.png",
+          "image": "./assets/images/logo-advance.png",
           "resizeMode": "contain",
-          "backgroundColor": "#F8F9FC"
+          "backgroundColor": "#FFFFFF"
         }
       ],
       [
@@ -48,6 +48,12 @@
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "42e15491-2a3d-4015-9c44-c6130aeacb33"
+      }
     }
   }
 }

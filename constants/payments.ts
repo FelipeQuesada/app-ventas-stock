@@ -1,9 +1,9 @@
 import { PaymentMethod } from '@/types';
 
-export const PAYMENT_METHODS: { value: PaymentMethod; label: string; icon: string }[] = [
-  { value: 'transferencia_feli', label: 'Transferencia Feli', icon: 'account-balance' },
-  { value: 'transferencia_mateo', label: 'Transferencia Mateo', icon: 'account-balance' },
-  { value: 'transferencia_paula', label: 'Transferencia Paula', icon: 'account-balance' },
+export const PAYMENT_METHODS: { value: PaymentMethod; label: string; icon: string; alias?: string }[] = [
+  { value: 'transferencia_feli', label: 'Transferencia Feli', icon: 'account-balance', alias: 'feliquesada' },
+  { value: 'transferencia_mateo', label: 'Transferencia Mateo', icon: 'account-balance', alias: 'matequesada' },
+  { value: 'transferencia_paula', label: 'Transferencia Paula', icon: 'account-balance', alias: 'Paularuben.mp' },
   { value: 'efectivo', label: 'Efectivo', icon: 'payments' },
   { value: 'debito', label: 'Débito', icon: 'credit-card' },
   { value: 'credito', label: 'Crédito', icon: 'credit-card' },
@@ -20,4 +20,9 @@ export function getPaymentMethodLabel(method: string, storedLabel?: string): str
   const found = PAYMENT_METHODS.find((pm) => pm.value === method);
   if (found) return found.label;
   return LEGACY_LABELS[method] ?? method;
+}
+
+export function getPaymentMethodAlias(method: PaymentMethod | null | undefined): string | null {
+  if (!method) return null;
+  return PAYMENT_METHODS.find((pm) => pm.value === method)?.alias ?? null;
 }
