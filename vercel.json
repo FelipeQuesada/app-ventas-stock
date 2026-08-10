@@ -2,7 +2,7 @@
   "installCommand": "npm install",
   "buildCommand": "npm run web:build",
   "outputDirectory": "web/dist",
-  "framework": null,
+  "framework": "vite",
   "rewrites": [
     {
       "source": "/(.*)",
