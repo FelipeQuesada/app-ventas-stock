@@ -7,7 +7,7 @@ import type { ReactNode } from 'react';
 // do not have access to the DOM or browser APIs.
 export default function Root({ children }: { children: ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="es">
       <head>
         <meta charSet="utf-8" />
         <meta httpEquiv="X-UA-Compatible" content="IE=edge" />
@@ -18,6 +18,14 @@ export default function Root({ children }: { children: ReactNode }) {
           However, body scrolling is often nice to have for mobile web. If you want to enable it, remove this line.
         */}
         <ScrollViewStyleReset />
+
+        {/* Inter vía CDN: Vercel no sirve bien los .ttf de assets/node_modules del export. */}
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
+        <link
+          href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+          rel="stylesheet"
+        />
 
         {/* Using raw CSS styles as an escape-hatch to ensure the background color never flickers in dark-mode. */}
         <style dangerouslySetInnerHTML={{ __html: responsiveBackground }} />
@@ -31,7 +39,13 @@ export default function Root({ children }: { children: ReactNode }) {
 const responsiveBackground = `
 body {
   background-color: #fff;
+  font-family: Inter, system-ui, sans-serif;
 }
+/* Alias a los nombres que usa @expo-google-fonts/inter en RN */
+@font-face { font-family: 'Inter_400Regular'; src: local('Inter'), local('Inter Regular'); font-weight: 400; font-style: normal; }
+@font-face { font-family: 'Inter_500Medium'; src: local('Inter Medium'), local('Inter'); font-weight: 500; font-style: normal; }
+@font-face { font-family: 'Inter_600SemiBold'; src: local('Inter SemiBold'), local('Inter'); font-weight: 600; font-style: normal; }
+@font-face { font-family: 'Inter_700Bold'; src: local('Inter Bold'), local('Inter'); font-weight: 700; font-style: normal; }
 @media (prefers-color-scheme: dark) {
   body {
     background-color: #000;

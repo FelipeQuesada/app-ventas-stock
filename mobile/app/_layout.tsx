@@ -1,4 +1,5 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect } from 'react';
+import { Platform } from 'react-native';
 import { useFonts, Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
@@ -41,24 +42,33 @@ function AuthGate({ children }: { children: React.ReactNode }) {
 }
 
 export default function RootLayout() {
-  const [fontsLoaded, fontError] = useFonts({
-    Inter_400Regular,
-    Inter_500Medium,
-    Inter_600SemiBold,
-    Inter_700Bold,
-  });
+  // En web las fuentes van por CDN (+html.tsx). Los .ttf del export no se suben bien a Vercel.
+  const [fontsLoaded, fontError] = useFonts(
+    Platform.OS === 'web'
+      ? ({} as Record<string, never>)
+      : {
+          Inter_400Regular,
+          Inter_500Medium,
+          Inter_600SemiBold,
+          Inter_700Bold,
+        }
+  );
+
+  const ready = Platform.OS === 'web' || fontsLoaded || !!fontError;
 
   useEffect(() => {
-    if (fontError) throw fontError;
+    if (fontError) {
+      console.warn('No se pudieron cargar las fuentes Inter; se usan las del sistema.', fontError);
+    }
   }, [fontError]);
 
   useEffect(() => {
-    if (fontsLoaded) {
+    if (ready) {
       SplashScreen.hideAsync();
     }
-  }, [fontsLoaded]);
+  }, [ready]);
 
-  if (!fontsLoaded) return null;
+  if (!ready) return null;
 
   return (
     <AuthProvider>

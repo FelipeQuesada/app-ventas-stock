@@ -1,7 +1,6 @@
 {
-  "installCommand": "npm install",
-  "buildCommand": "npm run web:build",
-  "outputDirectory": "web/dist",
+  "buildCommand": "cd ../.. && npm run web:build",
+  "outputDirectory": "dist",
   "framework": null,
   "rewrites": [
     {

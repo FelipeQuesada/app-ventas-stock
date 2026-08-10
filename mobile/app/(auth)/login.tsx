@@ -18,6 +18,9 @@ import { colors, spacing, typography } from '@/constants/theme';
 
 type Mode = 'login' | 'register';
 
+/** En web no se permite registro público; solo login. */
+const ALLOW_REGISTER = Platform.OS !== 'web';
+
 export default function LoginScreen() {
   const router = useRouter();
   const [mode, setMode] = useState<Mode>('login');
@@ -170,16 +173,18 @@ export default function LoginScreen() {
             </TouchableOpacity>
           )}
 
-          <View style={styles.switchRow}>
-            <Text style={styles.switchText}>
-              {isLogin ? '¿No tenés cuenta?' : '¿Ya tenés cuenta?'}
-            </Text>
-            <TouchableOpacity onPress={() => switchMode(isLogin ? 'register' : 'login')}>
-              <Text style={styles.switchLink}>
-                {isLogin ? 'Registrate' : 'Iniciar sesión'}
+          {ALLOW_REGISTER && (
+            <View style={styles.switchRow}>
+              <Text style={styles.switchText}>
+                {isLogin ? '¿No tenés cuenta?' : '¿Ya tenés cuenta?'}
               </Text>
-            </TouchableOpacity>
-          </View>
+              <TouchableOpacity onPress={() => switchMode(isLogin ? 'register' : 'login')}>
+                <Text style={styles.switchLink}>
+                  {isLogin ? 'Registrate' : 'Iniciar sesión'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
         </View>
       </ScrollView>
     </KeyboardAvoidingView>

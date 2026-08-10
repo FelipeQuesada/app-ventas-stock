@@ -3,11 +3,19 @@
 # dependencies
 node_modules/
 
-# Expo
+# Expo / mobile
+mobile/.expo/
+mobile/dist/
+mobile/expo-env.d.ts
 .expo/
+
+# Web build
+web/dist/
 dist/
+web-dist/
+out-web/
 web-build/
-expo-env.d.ts
+web-dist-deploy.zip
 
 # Native
 .kotlin/
@@ -17,6 +25,10 @@ expo-env.d.ts
 *.p12
 *.key
 *.mobileprovision
+/ios
+/android
+mobile/ios
+mobile/android
 
 # Metro
 .metro-health-check*
@@ -30,13 +42,15 @@ yarn-error.*
 .DS_Store
 *.pem
 
-# local env files
+# env
 .env
 .env*.local
+.env*
+!.env.example
+!mobile/.env.example
+!web/.env.example
 
 # typescript
 *.tsbuildinfo
 
-# generated native folders
-/ios
-/android
+.vercel

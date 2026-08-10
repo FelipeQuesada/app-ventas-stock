@@ -1,0 +1,12 @@
+# Tipografías de Expo viven en el export; no bloquear .vercel/output (prebuilt).
+node_modules
+.expo
+.git
+ios
+android
+.env
+.env.*
+!.env.example
+coverage
+*.log
+.DS_Store
