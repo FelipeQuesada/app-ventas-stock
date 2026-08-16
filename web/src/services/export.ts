@@ -101,14 +101,13 @@ function buildCajaRows(records: DailyCaja[]) {
   }));
 }
 
-function buildCajaSummaryRows(records: DailyCaja[], month: Date) {
-  const monthLabel = format(month, 'MMMM yyyy', { locale: es });
+function buildCajaSummaryRows(records: DailyCaja[], periodLabel: string) {
   const totalGanancia = records.reduce((sum, record) => sum + record.ganancia, 0);
   const totalCaja = records.reduce((sum, record) => sum + record.cajaTotal, 0);
   const totalGuardado = records.reduce((sum, record) => sum + record.totalGuardado, 0);
 
   return [
-    { Concepto: 'Período', Valor: monthLabel },
+    { Concepto: 'Período', Valor: periodLabel },
     { Concepto: 'Cierres registrados', Valor: records.length },
     { Concepto: 'Ganancia total ($)', Valor: totalGanancia },
     { Concepto: 'Caja total acumulada ($)', Valor: totalCaja },
@@ -173,14 +172,22 @@ export async function exportMonthCajaToExcel(
   month: Date = new Date()
 ): Promise<void> {
   const monthRecords = getMonthCaja(records, month);
-  if (monthRecords.length === 0) {
-    throw new Error('No hay cierres de caja en este mes para exportar');
+  const monthLabel = format(month, 'MMMM yyyy', { locale: es });
+  await exportCajaRecordsToExcel(monthRecords, monthLabel, `caja-${format(month, 'yyyy-MM')}.xlsx`);
+}
+
+export async function exportCajaRecordsToExcel(
+  records: DailyCaja[],
+  periodLabel: string,
+  fileName = `caja-${format(new Date(), 'yyyy-MM-dd')}.xlsx`
+): Promise<void> {
+  if (records.length === 0) {
+    throw new Error('No hay cierres de caja en este período para exportar');
   }
 
-  const fileName = `caja-${format(month, 'yyyy-MM')}.xlsx`;
   const workbook = XLSX.utils.book_new();
-  appendSheet(workbook, buildCajaSummaryRows(monthRecords, month), 'Resumen');
-  appendSheet(workbook, buildCajaRows(monthRecords), 'Cierres');
+  appendSheet(workbook, buildCajaSummaryRows(records, periodLabel), 'Resumen');
+  appendSheet(workbook, buildCajaRows(records), 'Cierres');
   saveWorkbook(workbook, fileName);
 }
 
@@ -251,6 +258,16 @@ export async function exportMonthCajaToPdf(
   }
   const monthLabel = format(month, 'MMMM yyyy', { locale: es });
   printHtml(buildCajaPdfHtml(monthRecords, `Caja ${monthLabel}`));
+}
+
+export async function exportCajaRecordsToPdf(
+  records: DailyCaja[],
+  periodLabel: string
+): Promise<void> {
+  if (records.length === 0) {
+    throw new Error('No hay cierres de caja en este período para exportar');
+  }
+  printHtml(buildCajaPdfHtml(records, `Caja ${periodLabel}`));
 }
 
 export async function exportDaySalesToExcel(

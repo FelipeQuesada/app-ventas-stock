@@ -6,6 +6,9 @@ import {
   calculateChange,
 } from '../discount';
 import {
+  calculateCajaTotal,
+  buildSinMovimientoCaja,
+  buildCajaCierreMessage,
   calculateCajaGanancia,
   calculateCambioCierre,
   canSaveToCentral,
@@ -41,7 +44,40 @@ describe('descuentos', () => {
 });
 
 describe('caja', () => {
+  it('suma ventas efectivo + cambio en caja total', () => {
+    expect(calculateCajaTotal(50400, 17670)).toBe(68070);
+  });
+
+  it('arma cierre sin movimiento arrastrando el cambio', () => {
+    expect(buildSinMovimientoCaja(17670)).toEqual({
+      cajaCambio: 17670,
+      cajaTotal: 17670,
+      totalGuardado: 0,
+      ganancia: 0,
+      cambioCierre: 17670,
+      sinMovimiento: true,
+    });
+  });
+
+  it('arma el mensaje de cierre de caja', () => {
+    const text = buildCajaCierreMessage({
+      date: new Date(2026, 7, 15),
+      cajaCambio: 17670,
+      cajaTotal: 68070,
+      ganancia: 50400,
+      totalGuardado: 40000,
+      cambioCierre: 28070,
+    });
+    expect(text).toContain('Cambio caja:');
+    expect(text).toContain('Caja total:');
+    expect(text).toContain('Ganancia:');
+    expect(text).toContain('Guardo:');
+    expect(text).toContain('Dejo en caja:');
+  });
+
   it('calcula ganancia y cambio de cierre', () => {
+    // ganancia = (ventas + cambio) − cambio = ventas del día
+    expect(calculateCajaGanancia(calculateCajaTotal(50400, 17670), 17670)).toBe(50400);
     expect(calculateCajaGanancia(50000, 10000)).toBe(40000);
     expect(calculateCambioCierre(50000, 30000)).toBe(20000);
   });

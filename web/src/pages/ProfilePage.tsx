@@ -6,6 +6,7 @@ import {
   Users,
   Wallet,
   BarChart3,
+  Shield,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { signOutUser } from '../services/auth';
@@ -27,6 +28,18 @@ export function ProfilePage() {
           {profile?.role === 'admin' ? 'Administrador' : 'Empleado'}
         </span>
       </div>
+
+      {profile?.role === 'admin' && (
+        <Link to="/admin" className="card" style={{ display: 'block', marginBottom: 20 }}>
+          <div className="row" style={{ gap: 12 }}>
+            <Shield size={18} color="var(--accent)" />
+            <div>
+              <strong>Panel de administración</strong>
+              <div className="muted">Usuarios y configuración (solo web)</div>
+            </div>
+          </div>
+        </Link>
+      )}
 
       <div className="card" style={{ marginBottom: 20 }}>
         <h3 className="card-title">Accesos rápidos</h3>

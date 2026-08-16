@@ -166,6 +166,9 @@ export function PeriodFilter({ value, onChange }: PeriodFilterProps) {
                   style={styles.otherRow}
                   onPress={() => {
                     setDraftPreset('custom');
+                    setRangeStart(null);
+                    setRangeEnd(null);
+                    setVisibleMonth(startOfMonth(new Date()));
                     setScreen('calendar');
                   }}
                   activeOpacity={0.7}

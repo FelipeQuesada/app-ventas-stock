@@ -1,7 +1,7 @@
 import { Platform } from 'react-native';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getAuth, initializeAuth } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
+import { getFirestore, initializeFirestore } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -34,5 +34,21 @@ function createAuth() {
 }
 
 export const auth = createAuth();
-export const db = getFirestore(app);
+
+function createDb() {
+  // En Android/tablet el canal por defecto de Firestore suele fallar (unavailable)
+  // aunque Auth y la web anden. Long polling usa HTTPS simple, como el browser.
+  if (Platform.OS === 'web') {
+    return getFirestore(app);
+  }
+  try {
+    return initializeFirestore(app, {
+      experimentalForceLongPolling: true,
+    });
+  } catch {
+    return getFirestore(app);
+  }
+}
+
+export const db = createDb();
 export const storage = getStorage(app);

@@ -2,6 +2,7 @@ import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { CartProvider } from './context/CartContext';
 import { AuthGate } from './components/AuthGate';
+import { AdminGate } from './components/AdminGate';
 import { LoginPage } from './pages/LoginPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { ProductsPage } from './pages/ProductsPage';
@@ -15,8 +16,10 @@ import { CajaPage } from './pages/CajaPage';
 import { CajaListPage } from './pages/CajaListPage';
 import { CajaEditPage } from './pages/CajaEditPage';
 import { StatisticsPage } from './pages/StatisticsPage';
-import { UsersPage } from './pages/UsersPage';
 import { ProfilePage } from './pages/ProfilePage';
+import { AdminSetupPage } from './pages/admin/AdminSetupPage';
+import { AdminDashboardPage } from './pages/admin/AdminDashboardPage';
+import { AdminUsersPage } from './pages/admin/AdminUsersPage';
 
 export default function App() {
   return (
@@ -25,6 +28,13 @@ export default function App() {
         <CartProvider>
           <Routes>
             <Route path="/login" element={<LoginPage />} />
+            <Route path="/admin/setup" element={<AdminSetupPage />} />
+
+            <Route element={<AdminGate />}>
+              <Route path="/admin" element={<AdminDashboardPage />} />
+              <Route path="/admin/users" element={<AdminUsersPage />} />
+            </Route>
+
             <Route element={<AuthGate />}>
               <Route path="/" element={<DashboardPage />} />
               <Route path="/products" element={<ProductsPage />} />
@@ -39,8 +49,8 @@ export default function App() {
               <Route path="/caja/list" element={<CajaListPage />} />
               <Route path="/caja/edit/:date" element={<CajaEditPage />} />
               <Route path="/statistics" element={<StatisticsPage />} />
-              <Route path="/users" element={<UsersPage />} />
               <Route path="/profile" element={<ProfilePage />} />
+              <Route path="/users" element={<Navigate to="/admin/users" replace />} />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

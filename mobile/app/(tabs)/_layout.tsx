@@ -3,7 +3,6 @@ import { Platform } from 'react-native';
 import { Tabs } from 'expo-router';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { HeaderCajaButton } from '@/components/HeaderCajaButton';
 import { HeaderTitle } from '@/components/HeaderTitle';
 import { colors, typography } from '@/constants/theme';
 
@@ -42,7 +41,6 @@ export default function TabLayout() {
         name="index"
         options={{
           title: 'Inicio',
-          headerRight: () => <HeaderCajaButton />,
           tabBarIcon: ({ color, size }) => (
             <MaterialIcons name="dashboard" size={size} color={color} />
           ),
@@ -68,8 +66,18 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="caja"
+        options={{
+          title: 'Caja',
+          tabBarIcon: ({ color, size }) => (
+            <MaterialIcons name="account-balance-wallet" size={size} color={color} />
+          ),
+        }}
+      />
+      <Tabs.Screen
         name="statistics"
         options={{
+          href: null,
           title: 'Estadísticas',
           tabBarIcon: ({ color, size }) => (
             <MaterialIcons name="bar-chart" size={size} color={color} />

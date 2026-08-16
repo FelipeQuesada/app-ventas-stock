@@ -1,18 +1,22 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Download, FileText, Pencil, Trash2 } from 'lucide-react';
-import type { DailyCaja } from '@advance-coat/shared';
-import { formatCurrency, formatShortDate, formatMonthYear } from '@advance-coat/shared';
-import { getCajaHistory, deleteCaja, getMonthCaja } from '../services/caja';
-import { exportMonthCajaToExcel, exportMonthCajaToPdf } from '../services/export';
+import type { DailyCaja, PeriodSelection } from '@advance-coat/shared';
+import {
+  formatCurrency,
+  formatShortDate,
+  createDefaultPeriod,
+  isDateInRange,
+  formatPeriodLabel,
+} from '@advance-coat/shared';
+import { getCajaHistory, deleteCaja } from '../services/caja';
+import { exportCajaRecordsToExcel, exportCajaRecordsToPdf } from '../services/export';
+import { PeriodFilter } from '../components/PeriodFilter';
 
 export function CajaListPage() {
   const [records, setRecords] = useState<DailyCaja[]>([]);
   const [loading, setLoading] = useState(true);
-  const [month, setMonth] = useState(() => {
-    const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
-  });
+  const [period, setPeriod] = useState<PeriodSelection>(() => createDefaultPeriod());
 
   async function load() {
     setLoading(true);
@@ -27,12 +31,12 @@ export function CajaListPage() {
     void load();
   }, []);
 
-  const monthDate = useMemo(() => {
-    const [y, m] = month.split('-').map(Number);
-    return new Date(y, m - 1, 1);
-  }, [month]);
+  const filtered = useMemo(
+    () => records.filter((r) => isDateInRange(r.date, period.range)),
+    [records, period]
+  );
 
-  const filtered = useMemo(() => getMonthCaja(records, monthDate), [records, monthDate]);
+  const periodLabel = formatPeriodLabel(period);
 
   async function handleDelete(record: DailyCaja) {
     if (!window.confirm(`¿Eliminar caja del ${formatShortDate(record.date)}?`)) return;
@@ -47,7 +51,9 @@ export function CajaListPage() {
       <div className="page-header">
         <div>
           <h3 style={{ margin: 0 }}>Historial de caja</h3>
-          <p>{formatMonthYear(monthDate)}</p>
+          <p>
+            {periodLabel} · {filtered.length} cierres
+          </p>
         </div>
         <div className="actions">
           <Link to="/caja" className="btn btn-ghost btn-sm">
@@ -57,7 +63,7 @@ export function CajaListPage() {
             type="button"
             className="btn btn-ghost btn-sm"
             onClick={() =>
-              void exportMonthCajaToExcel(records, monthDate).catch((e) =>
+              void exportCajaRecordsToExcel(filtered, periodLabel).catch((e) =>
                 window.alert(e.message)
               )
             }
@@ -68,7 +74,9 @@ export function CajaListPage() {
             type="button"
             className="btn btn-ghost btn-sm"
             onClick={() =>
-              void exportMonthCajaToPdf(records, monthDate).catch((e) => window.alert(e.message))
+              void exportCajaRecordsToPdf(filtered, periodLabel).catch((e) =>
+                window.alert(e.message)
+              )
             }
           >
             <FileText size={14} /> PDF
@@ -76,51 +84,63 @@ export function CajaListPage() {
         </div>
       </div>
 
-      <div className="toolbar">
-        <input type="month" value={month} onChange={(e) => setMonth(e.target.value)} />
-      </div>
+      <PeriodFilter value={period} onChange={setPeriod} />
 
-      <div className="table-wrap">
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>Fecha</th>
-              <th>Cambio</th>
-              <th>Total</th>
-              <th>Ganancia</th>
-              <th>Guardado</th>
-              <th>Cierre</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map((r) => (
-              <tr key={r.id}>
-                <td>{formatShortDate(r.date)}</td>
-                <td>{formatCurrency(r.cajaCambio)}</td>
-                <td>{formatCurrency(r.cajaTotal)}</td>
-                <td>{formatCurrency(r.ganancia)}</td>
-                <td>{formatCurrency(r.totalGuardado)}</td>
-                <td>{formatCurrency(r.cambioCierre)}</td>
-                <td>
-                  <div className="actions">
-                    <Link to={`/caja/edit/${r.id}`} className="btn btn-ghost btn-sm">
-                      <Pencil size={14} />
-                    </Link>
-                    <button
-                      type="button"
-                      className="btn btn-ghost btn-sm"
-                      onClick={() => void handleDelete(r)}
-                    >
-                      <Trash2 size={14} color="#EF4444" />
-                    </button>
-                  </div>
-                </td>
+      {filtered.length === 0 ? (
+        <div className="empty-state card">
+          <h3>Sin cierres</h3>
+          <p>No hay cierres de caja en este período.</p>
+        </div>
+      ) : (
+        <div className="table-wrap">
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Fecha</th>
+                <th>Cambio</th>
+                <th>Total</th>
+                <th>Ganancia</th>
+                <th>Guardado</th>
+                <th>Cierre</th>
+                <th></th>
               </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {filtered.map((r) => (
+                <tr key={r.id}>
+                  <td>
+                    {formatShortDate(r.date)}
+                    {r.sinMovimiento ? (
+                      <span className="muted" style={{ display: 'block', fontSize: 12 }}>
+                        Sin movimiento
+                      </span>
+                    ) : null}
+                  </td>
+                  <td>{formatCurrency(r.cajaCambio)}</td>
+                  <td>{formatCurrency(r.cajaTotal)}</td>
+                  <td>{formatCurrency(r.ganancia)}</td>
+                  <td>{formatCurrency(r.totalGuardado)}</td>
+                  <td>{formatCurrency(r.cambioCierre)}</td>
+                  <td>
+                    <div className="actions">
+                      <Link to={`/caja/edit/${r.id}`} className="btn btn-ghost btn-sm">
+                        <Pencil size={14} />
+                      </Link>
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-sm"
+                        onClick={() => void handleDelete(r)}
+                      >
+                        <Trash2 size={14} color="#EF4444" />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }

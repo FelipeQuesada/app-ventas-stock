@@ -27,6 +27,7 @@ export function CajaListItem({ caja, onPress, onEdit, onDelete }: CajaListItemPr
         <Text style={styles.meta}>
           Cambio cierre: {formatCurrency(caja.cambioCierre)}
         </Text>
+        {caja.sinMovimiento ? <Text style={styles.noMovement}>Sin movimiento</Text> : null}
       </View>
       <View style={styles.actions}>
         <TouchableOpacity
@@ -96,6 +97,12 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter_400Regular',
     color: colors.textSecondary,
     marginTop: 2,
+  },
+  noMovement: {
+    ...typography.caption,
+    fontFamily: 'Inter_600SemiBold',
+    color: colors.success,
+    marginTop: spacing.xs,
   },
   actions: {
     flexDirection: 'row',

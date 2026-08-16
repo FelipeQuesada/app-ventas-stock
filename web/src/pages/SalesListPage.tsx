@@ -7,19 +7,17 @@ import {
   formatShortDateTime,
   getSaleDisplayDate,
   getPaymentMethodLabel,
-  PERIOD_PRESETS,
   createDefaultPeriod,
-  getPresetRange,
   isDateInRange,
   formatPeriodLabel,
   buildSaleTicketText,
   buildSaleTicketHtml,
   buildWhatsAppUrl,
   type PeriodSelection,
-  type PeriodPresetId,
 } from '@advance-coat/shared';
 import { getSales, deleteSale } from '../services/sales';
 import { exportSalesInRangeToExcel, exportSalesInRangeToPdf, printHtml } from '../services/export';
+import { PeriodFilter } from '../components/PeriodFilter';
 import { useAuth } from '../context/AuthContext';
 
 export function SalesListPage() {
@@ -27,8 +25,6 @@ export function SalesListPage() {
   const [sales, setSales] = useState<Sale[]>([]);
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState<PeriodSelection>(createDefaultPeriod());
-  const [customStart, setCustomStart] = useState('');
-  const [customEnd, setCustomEnd] = useState('');
 
   async function load() {
     setLoading(true);
@@ -49,20 +45,6 @@ export function SalesListPage() {
   );
 
   const total = filtered.reduce((sum, s) => sum + s.total, 0);
-
-  function setPreset(id: Exclude<PeriodPresetId, 'custom'>) {
-    setPeriod({ preset: id, range: getPresetRange(id) });
-  }
-
-  function applyCustom() {
-    if (!customStart || !customEnd) return;
-    const start = new Date(customStart + 'T00:00:00');
-    const end = new Date(customEnd + 'T23:59:59');
-    setPeriod({
-      preset: 'custom',
-      range: { start: start <= end ? start : end, end: start <= end ? end : start },
-    });
-  }
 
   async function handleDelete(sale: Sale) {
     if (!window.confirm(`¿Eliminar la venta de ${formatCurrency(sale.total)}?`)) return;
@@ -126,26 +108,7 @@ export function SalesListPage() {
         </div>
       </div>
 
-      <div className="chip-group" style={{ marginBottom: 12 }}>
-        {PERIOD_PRESETS.map((p) => (
-          <button
-            key={p.id}
-            type="button"
-            className={`chip ${period.preset === p.id ? 'active' : ''}`}
-            onClick={() => setPreset(p.id)}
-          >
-            {p.label}
-          </button>
-        ))}
-      </div>
-
-      <div className="toolbar">
-        <input type="date" value={customStart} onChange={(e) => setCustomStart(e.target.value)} />
-        <input type="date" value={customEnd} onChange={(e) => setCustomEnd(e.target.value)} />
-        <button type="button" className="btn btn-ghost btn-sm" onClick={applyCustom}>
-          Filtrar fechas
-        </button>
-      </div>
+      <PeriodFilter value={period} onChange={setPeriod} />
 
       {filtered.length === 0 ? (
         <div className="empty-state card">

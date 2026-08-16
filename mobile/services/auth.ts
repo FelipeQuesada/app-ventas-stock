@@ -53,17 +53,40 @@ export function getAuthErrorMessage(error: unknown): string {
     case 'unavailable':
     case 'failed-precondition':
       return 'Firestore no está disponible. Verificá que creaste la base de datos en Firebase Console.';
+    case 'auth/not-authorized':
+    case 'auth/user-disabled-app':
+      return message || 'Tu usuario no tiene acceso. Contactá al administrador.';
     default:
       if (message.includes('Firestore')) {
         return `Error de base de datos: ${message}`;
       }
-      return 'Ocurrió un error. Intentá de nuevo.';
+      return message || 'Ocurrió un error. Intentá de nuevo.';
   }
+}
+
+function accessError(code: string, message: string) {
+  const err = new Error(message) as Error & { code: string };
+  err.code = code;
+  return err;
 }
 
 export async function signIn(email: string, password: string) {
   const result = await signInWithEmailAndPassword(auth, email.trim(), password);
-  await ensureUserProfile(result.user);
+  const profile = await getUserProfile(result.user.uid);
+  if (!profile) {
+    await signOut(auth);
+    throw accessError(
+      'auth/not-authorized',
+      'Tu cuenta no tiene acceso. Pedile al administrador que te cree el usuario.'
+    );
+  }
+  if (profile.active === false) {
+    await signOut(auth);
+    throw accessError(
+      'auth/user-disabled-app',
+      'Tu usuario está desactivado. Contactá al administrador.'
+    );
+  }
   return result.user;
 }
 
@@ -90,6 +113,7 @@ export async function getUserProfile(uid: string): Promise<UserProfile | null> {
     email: data.email,
     name: data.name,
     role: data.role as UserRole,
+    active: data.active !== false,
     createdAt: data.createdAt?.toDate?.(),
   };
 }
@@ -104,6 +128,7 @@ export async function listUsers(): Promise<UserProfile[]> {
       email: data.email as string,
       name: data.name as string,
       role: data.role as UserRole,
+      active: data.active !== false,
       createdAt: data.createdAt?.toDate?.(),
     };
   });
@@ -118,6 +143,7 @@ export async function createUserProfile(
     email: user.email ?? '',
     name,
     role,
+    active: true,
     createdAt: serverTimestamp(),
   });
 }
@@ -214,12 +240,25 @@ export async function updateUserRole(
   role: UserRole,
   actor: { userId: string; userName?: string }
 ): Promise<void> {
-  await updateDoc(doc(db, 'users', uid), { role });
+  await updateUser(uid, { role }, actor);
+}
+
+export async function updateUser(
+  uid: string,
+  data: { name?: string; role?: UserRole; active?: boolean },
+  actor: { userId: string; userName?: string }
+): Promise<void> {
+  await updateDoc(doc(db, 'users', uid), data);
+  const parts = [
+    data.name ? `nombre: ${data.name}` : null,
+    data.role ? `rol: ${data.role}` : null,
+    data.active === false ? 'desactivado' : data.active === true ? 'activado' : null,
+  ].filter(Boolean);
   await logAudit({
     action: 'user_update',
     entityType: 'user',
     entityId: uid,
-    summary: `Rol actualizado a ${role}`,
+    summary: `Usuario actualizado (${parts.join(', ')})`,
     userId: actor.userId,
     userName: actor.userName,
   });

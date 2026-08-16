@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { onAuthStateChanged, User } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
-import { getUserProfile, ensureUserProfile } from '@/services/auth';
+import { getUserProfile, signOutUser } from '@/services/auth';
 import { UserProfile } from '@/types';
 
 interface AuthContextType {
@@ -25,9 +25,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const loadProfile = useCallback(async (firebaseUser: User) => {
     try {
-      let p = await getUserProfile(firebaseUser.uid);
-      if (!p) {
-        p = await ensureUserProfile(firebaseUser);
+      const p = await getUserProfile(firebaseUser.uid);
+      if (!p || p.active === false) {
+        await signOutUser();
+        setProfile(null);
+        return;
       }
       setProfile(p);
     } catch (error) {

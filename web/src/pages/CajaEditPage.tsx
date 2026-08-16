@@ -4,10 +4,12 @@ import { ArrowLeft } from 'lucide-react';
 import {
   formatCurrency,
   formatShortDate,
+  calculateCajaTotal,
   calculateCajaGanancia,
   calculateCambioCierre,
 } from '@advance-coat/shared';
-import { getCajaByDate, parseCajaId, saveCaja } from '../services/caja';
+import { getCajaByDate, getCashTotalForDate, parseCajaId, saveCaja } from '../services/caja';
+import { getSales } from '../services/sales';
 import { useAuth } from '../context/AuthContext';
 
 export function CajaEditPage() {
@@ -17,8 +19,8 @@ export function CajaEditPage() {
   const date = dateParam ? parseCajaId(dateParam) : null;
 
   const [cajaCambio, setCajaCambio] = useState('');
-  const [cajaTotal, setCajaTotal] = useState('');
   const [totalGuardado, setTotalGuardado] = useState('');
+  const [cashSales, setCashSales] = useState(0);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -32,14 +34,14 @@ export function CajaEditPage() {
     let cancelled = false;
     (async () => {
       try {
-        const existing = await getCajaByDate(date);
+        const [existing, sales] = await Promise.all([getCajaByDate(date), getSales()]);
         if (!existing) {
           setError('No hay caja para esa fecha');
           return;
         }
         if (!cancelled) {
+          setCashSales(getCashTotalForDate(sales, date));
           setCajaCambio(String(existing.cajaCambio));
-          setCajaTotal(String(existing.cajaTotal));
           setTotalGuardado(String(existing.totalGuardado));
         }
       } finally {
@@ -52,7 +54,7 @@ export function CajaEditPage() {
   }, [dateParam]);
 
   const cambioNum = Number(cajaCambio) || 0;
-  const totalNum = Number(cajaTotal) || 0;
+  const totalNum = calculateCajaTotal(cashSales, cambioNum);
   const guardadoNum = Number(totalGuardado) || 0;
 
   async function handleSave(e: React.FormEvent) {
@@ -89,7 +91,7 @@ export function CajaEditPage() {
   }
 
   return (
-    <div style={{ maxWidth: 560 }}>
+    <div className="caja-page">
       <Link to="/caja/list" className="btn btn-ghost btn-sm" style={{ marginBottom: 12 }}>
         <ArrowLeft size={14} /> Volver
       </Link>
@@ -107,12 +109,11 @@ export function CajaEditPage() {
         </div>
         <div className="field">
           <label>Caja total</label>
-          <input
-            type="number"
-            value={cajaTotal}
-            onChange={(e) => setCajaTotal(e.target.value)}
-            required
-          />
+          <input type="number" value={totalNum} readOnly disabled />
+          <p className="hint" style={{ marginTop: 6 }}>
+            Ventas efectivo ({formatCurrency(cashSales)}) + cambio ({formatCurrency(cambioNum)}) —
+            no se puede editar
+          </p>
         </div>
         <div className="field">
           <label>Total guardado</label>

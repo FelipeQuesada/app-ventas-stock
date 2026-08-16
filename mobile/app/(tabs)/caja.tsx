@@ -8,10 +8,12 @@ import {
   Alert,
   Modal,
   Pressable,
+  Share,
+  Linking,
+  Platform,
 } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useAuth } from '@/context/AuthContext';
-import { BackButton } from '@/components/BackButton';
 import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
@@ -25,6 +27,15 @@ import {
   updateTotalGuardado,
 } from '@/services/caja';
 import { formatCurrency, formatDate } from '@/utils/format';
+import {
+  buildSinMovimientoCaja,
+  calculateCajaTotal,
+  buildCajaCierreMessage,
+  buildCajaRetiroMessage,
+  CAJA_WHATSAPP_PHONE,
+} from '@/utils/caja';
+import { buildWhatsAppUrl } from '@/utils/saleTicket';
+import { showAlert, showConfirm } from '@/utils/alert';
 import { colors, spacing, typography, radius } from '@/constants/theme';
 
 function CajaRow({
@@ -57,17 +68,20 @@ export default function CajaScreen() {
   const [saving, setSaving] = useState(false);
   const [processingRetiro, setProcessingRetiro] = useState(false);
   const [cajaCambio, setCajaCambio] = useState('');
-  const [cajaTotal, setCajaTotal] = useState(0);
+  const [cashSales, setCashSales] = useState(0);
   const [totalGuardado, setTotalGuardado] = useState(0);
   const [montoGuardo, setMontoGuardo] = useState('');
   const [montoRetiro, setMontoRetiro] = useState('');
   const [retiroVisible, setRetiroVisible] = useState(false);
+  const [sinMovimiento, setSinMovimiento] = useState(false);
 
   const cajaCambioAmount = parseFloat(cajaCambio) || 0;
+  const cajaTotal = calculateCajaTotal(cashSales, cajaCambioAmount);
   const guardoPendiente = parseFloat(montoGuardo) || 0;
   const totalGuardadoPreview = totalGuardado + Math.max(0, guardoPendiente);
   const ganancia = cajaTotal - cajaCambioAmount;
   const cambioCierre = cajaTotal - totalGuardadoPreview;
+  const canMarkNoMovement = cashSales === 0;
 
   const loadData = useCallback(async () => {
     try {
@@ -77,10 +91,10 @@ export default function CajaScreen() {
         getCajaCambioFromPreviousDay(today),
       ]);
 
-      const cashTotal = getTodayCashTotal(sales);
-      setCajaTotal(cashTotal);
+      setCashSales(getTodayCashTotal(sales));
       setCajaCambio((todayCaja?.cajaCambio ?? previousCambio).toString());
       setTotalGuardado(todayCaja?.totalGuardado ?? 0);
+      setSinMovimiento(todayCaja?.sinMovimiento === true);
     } catch (error) {
       console.error('Error loading caja:', error);
       Alert.alert('Error', 'No se pudo cargar la información de caja');
@@ -108,6 +122,49 @@ export default function CajaScreen() {
     setTotalGuardado(newTotal);
   };
 
+  const offerShareMessage = (title: string, message: string) => {
+    const openWhatsApp = async () => {
+      const url = buildWhatsAppUrl(CAJA_WHATSAPP_PHONE, message);
+      const canOpen = await Linking.canOpenURL(url);
+      if (canOpen) {
+        await Linking.openURL(url);
+        return;
+      }
+      await Share.share({ message, title });
+    };
+
+    if (Platform.OS === 'web') {
+      const sendWhatsApp = window.confirm(
+        `${title}\n\n${message}\n\nAceptar: enviar por WhatsApp\nCancelar: otras opciones`
+      );
+      if (sendWhatsApp) {
+        void openWhatsApp();
+        return;
+      }
+      const shareOrCopy = window.confirm('¿Copiar / compartir el mensaje?');
+      if (shareOrCopy) {
+        void Share.share({ message, title });
+      }
+      return;
+    }
+
+    Alert.alert(title, message, [
+      { text: 'Cerrar', style: 'cancel' },
+      {
+        text: 'Copiar / compartir',
+        onPress: () => {
+          void Share.share({ message, title });
+        },
+      },
+      {
+        text: 'WhatsApp',
+        onPress: () => {
+          void openWhatsApp();
+        },
+      },
+    ]);
+  };
+
   const handleRetiro = async () => {
     const amount = parseFloat(montoRetiro);
     if (isNaN(amount) || amount <= 0) {
@@ -125,7 +182,10 @@ export default function CajaScreen() {
       await persistTotalGuardado(newTotal);
       setMontoRetiro('');
       setRetiroVisible(false);
-      Alert.alert('Retiro registrado', `Se descontaron ${formatCurrency(amount)} del total guardado`);
+      offerShareMessage(
+        'Retiro registrado',
+        buildCajaRetiroMessage({ date: today, amount, totalGuardado: newTotal })
+      );
     } catch {
       Alert.alert('Error', 'No se pudo registrar el retiro');
     } finally {
@@ -159,17 +219,67 @@ export default function CajaScreen() {
         cajaCambio: cajaCambioValue,
         cajaTotal,
         totalGuardado: finalTotalGuardado,
+        sinMovimiento: false,
         updatedBy: user!.uid,
         updatedByName: profile?.name,
       });
+      const leftInCaja = cajaTotal - finalTotalGuardado;
       setTotalGuardado(finalTotalGuardado);
       setMontoGuardo('');
-      Alert.alert(
+      setSinMovimiento(false);
+      offerShareMessage(
         'Caja guardada',
-        `Cambio para mañana: ${formatCurrency(cajaTotal - finalTotalGuardado)}`
+        buildCajaCierreMessage({
+          date: today,
+          cajaCambio: cajaCambioValue,
+          cajaTotal,
+          ganancia: cajaTotal - cajaCambioValue,
+          totalGuardado: finalTotalGuardado,
+          cambioCierre: leftInCaja,
+        })
       );
     } catch {
       Alert.alert('Error', 'No se pudo guardar el cierre de caja');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleNoMovement = async () => {
+    if (!canMarkNoMovement) {
+      showAlert('No disponible', 'Hay ventas en efectivo hoy. No se puede marcar sin movimiento.');
+      return;
+    }
+
+    const confirmed = await showConfirm(
+      'Sin movimiento de caja',
+      '¿Confirmás que hoy no hubo movimiento de caja? El cambio de apertura queda igual para mañana.',
+      'Confirmar'
+    );
+    if (!confirmed) return;
+
+    setSaving(true);
+    try {
+      const payload = buildSinMovimientoCaja(cajaCambioAmount);
+      await saveCaja({
+        date: today,
+        ...payload,
+        updatedBy: user!.uid,
+        updatedByName: profile?.name,
+      });
+      setTotalGuardado(0);
+      setMontoGuardo('');
+      setSinMovimiento(true);
+      offerShareMessage(
+        'Sin movimiento registrado',
+        buildCajaCierreMessage({
+          date: today,
+          ...payload,
+          sinMovimiento: true,
+        })
+      );
+    } catch {
+      showAlert('Error', 'No se pudo registrar el cierre sin movimiento');
     } finally {
       setSaving(false);
     }
@@ -191,11 +301,13 @@ export default function CajaScreen() {
         />
       }
     >
-      <BackButton />
       <View style={styles.headerRow}>
         <View style={styles.headerText}>
           <Text style={styles.date}>{formatDate(today)}</Text>
           <Text style={styles.subtitle}>Resumen de caja en efectivo del día</Text>
+          {sinMovimiento ? (
+            <Text style={styles.noMovementBadge}>Registrado: sin movimiento</Text>
+          ) : null}
         </View>
         <Button
           title="Historial"
@@ -224,13 +336,18 @@ export default function CajaScreen() {
 
         <View style={styles.divider} />
 
+        <CajaRow label="Ventas efectivo hoy" value={formatCurrency(cashSales)} />
+        <Text style={styles.hint}>Solo ventas del día en efectivo</Text>
+
+        <View style={styles.divider} />
+
         <CajaRow label="Caja total" value={formatCurrency(cajaTotal)} />
-        <Text style={styles.hint}>Total ingresado en efectivo hoy</Text>
+        <Text style={styles.hint}>Ventas en efectivo + caja cambio</Text>
 
         <View style={styles.divider} />
 
         <CajaRow label="Ganancia" value={formatCurrency(ganancia)} highlight accent />
-        <Text style={styles.hint}>Caja total − Caja cambio</Text>
+        <Text style={styles.hint}>Caja total − Caja cambio (= ventas efectivo)</Text>
       </Card>
 
       <Card style={styles.card}>
@@ -267,6 +384,17 @@ export default function CajaScreen() {
         size="lg"
         style={styles.saveButton}
       />
+
+      {canMarkNoMovement ? (
+        <Button
+          title="No hubo movimiento de caja"
+          onPress={handleNoMovement}
+          loading={saving}
+          variant="outline"
+          size="lg"
+          style={styles.noMovementButton}
+        />
+      ) : null}
 
       <Modal
         visible={retiroVisible}
@@ -354,6 +482,12 @@ const styles = StyleSheet.create({
     color: colors.textSecondary,
     marginTop: spacing.xs,
   },
+  noMovementBadge: {
+    ...typography.caption,
+    fontFamily: 'Inter_600SemiBold',
+    color: colors.success,
+    marginTop: spacing.xs,
+  },
   card: {
     marginBottom: spacing.md,
   },
@@ -407,6 +541,9 @@ const styles = StyleSheet.create({
     borderColor: colors.danger,
   },
   saveButton: {
+    marginTop: spacing.sm,
+  },
+  noMovementButton: {
     marginTop: spacing.sm,
   },
   modalOverlay: {

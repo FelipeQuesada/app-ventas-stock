@@ -7,7 +7,16 @@ import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { DatePickerField } from '@/components/ui/DatePickerField';
 import { LoadingScreen } from '@/components/ui/EmptyState';
-import { deleteCaja, getCajaByDate, parseCajaId, saveCaja } from '@/services/caja';
+import {
+  deleteCaja,
+  getCajaByDate,
+  getCashTotalForDate,
+  getCajaCambioFromPreviousDay,
+  parseCajaId,
+  saveCaja,
+} from '@/services/caja';
+import { getSales } from '@/services/sales';
+import { calculateCajaTotal } from '@/utils/caja';
 import { formatCurrency, formatDate } from '@/utils/format';
 import { showAlert, showConfirm } from '@/utils/alert';
 import { colors, spacing, typography, radius } from '@/constants/theme';
@@ -39,50 +48,79 @@ export default function CajaEditScreen() {
   const { user, profile } = useAuth();
   const isNew = dateParam === 'new';
 
-  const [loading, setLoading] = useState(!isNew);
+  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [cajaDate, setCajaDate] = useState(new Date());
   const [cajaCambio, setCajaCambio] = useState('');
-  const [cajaTotal, setCajaTotal] = useState('');
+  const [cashSales, setCashSales] = useState(0);
   const [totalGuardado, setTotalGuardado] = useState('');
 
   useEffect(() => {
-    if (isNew) return;
+    let cancelled = false;
 
-    const parsedDate = parseCajaId(dateParam!);
-    if (!parsedDate) {
-      showAlert('Error', 'Fecha de caja no válida');
-      router.back();
-      return;
-    }
+    (async () => {
+      try {
+        if (isNew) {
+          const [sales, previousCambio] = await Promise.all([
+            getSales(),
+            getCajaCambioFromPreviousDay(new Date()),
+          ]);
+          if (cancelled) return;
+          setCashSales(getCashTotalForDate(sales, new Date()));
+          setCajaCambio(previousCambio.toString());
+          return;
+        }
 
-    setCajaDate(parsedDate);
+        const parsedDate = parseCajaId(dateParam!);
+        if (!parsedDate) {
+          showAlert('Error', 'Fecha de caja no válida');
+          router.back();
+          return;
+        }
 
-    getCajaByDate(parsedDate)
-      .then((record) => {
+        setCajaDate(parsedDate);
+        const [record, sales] = await Promise.all([getCajaByDate(parsedDate), getSales()]);
+        if (cancelled) return;
+        setCashSales(getCashTotalForDate(sales, parsedDate));
         if (record) {
           setCajaCambio(record.cajaCambio.toString());
-          setCajaTotal(record.cajaTotal.toString());
           setTotalGuardado(record.totalGuardado.toString());
         }
-      })
-      .catch(() => showAlert('Error', 'No se pudo cargar el registro'))
-      .finally(() => setLoading(false));
+      } catch {
+        showAlert('Error', 'No se pudo cargar el registro');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [isNew, dateParam, router]);
 
   const cajaCambioAmount = parseFloat(cajaCambio.replace(',', '.')) || 0;
-  const cajaTotalAmount = parseFloat(cajaTotal.replace(',', '.')) || 0;
+  const cajaTotalAmount = calculateCajaTotal(cashSales, cajaCambioAmount);
   const totalGuardadoAmount = parseFloat(totalGuardado.replace(',', '.')) || 0;
   const ganancia = cajaTotalAmount - cajaCambioAmount;
   const cambioCierre = cajaTotalAmount - totalGuardadoAmount;
 
+  const handleDateChange = async (next: Date) => {
+    setCajaDate(next);
+    try {
+      const sales = await getSales();
+      setCashSales(getCashTotalForDate(sales, next));
+      if (isNew) {
+        const previousCambio = await getCajaCambioFromPreviousDay(next);
+        setCajaCambio(previousCambio.toString());
+      }
+    } catch {
+      // keep current values
+    }
+  };
+
   const handleSave = async () => {
     if (isNaN(cajaCambioAmount) || cajaCambioAmount < 0) {
       showAlert('Error', 'Ingresá un monto válido para caja cambio');
-      return;
-    }
-    if (isNaN(cajaTotalAmount) || cajaTotalAmount < 0) {
-      showAlert('Error', 'Ingresá un monto válido para caja total');
       return;
     }
     if (isNaN(totalGuardadoAmount) || totalGuardadoAmount < 0) {
@@ -144,7 +182,7 @@ export default function CajaEditScreen() {
         }}
       />
       <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-        <DatePickerField value={cajaDate} onChange={setCajaDate} />
+        <DatePickerField value={cajaDate} onChange={handleDateChange} />
 
         <Card style={styles.card}>
           <Input
@@ -156,14 +194,10 @@ export default function CajaEditScreen() {
           />
           <Text style={styles.hint}>Efectivo que quedó del día anterior</Text>
 
-          <Input
-            label="Caja total"
-            value={cajaTotal}
-            onChangeText={setCajaTotal}
-            keyboardType="decimal-pad"
-            placeholder="0"
-          />
-          <Text style={styles.hint}>Total ingresado en efectivo del día</Text>
+          <CajaRow label="Caja total" value={formatCurrency(cajaTotalAmount)} highlight />
+          <Text style={styles.hint}>
+            Ventas efectivo ({formatCurrency(cashSales)}) + cambio — no editable
+          </Text>
 
           <Input
             label="Total guardado"

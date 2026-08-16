@@ -2,9 +2,10 @@ import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
 import { AppShell } from './AppShell';
+import { OWNER_ADMIN_EMAIL } from '../services/auth';
 
 export function AuthGate() {
-  const { user, loading } = useAuth();
+  const { user, profile, loading } = useAuth();
   const location = useLocation();
 
   if (loading) {
@@ -13,6 +14,14 @@ export function AuthGate() {
 
   if (!user) {
     return <Navigate to="/login" replace state={{ from: location.pathname }} />;
+  }
+
+  if (!profile) {
+    const email = user.email?.toLowerCase() ?? '';
+    if (email === OWNER_ADMIN_EMAIL) {
+      return <Navigate to="/admin/setup" replace />;
+    }
+    return <Navigate to="/login" replace />;
   }
 
   return (

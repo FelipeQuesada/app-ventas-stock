@@ -13,10 +13,22 @@ service cloud.firestore {
       return isAuthenticated() && userDoc().role == 'admin';
     }
 
+    function isOwnerBootstrap() {
+      return isAuthenticated()
+        && request.auth.token.email == 'felimq09@gmail.com'
+        && request.resource.data.email == 'felimq09@gmail.com'
+        && request.resource.data.role == 'admin'
+        && request.resource.data.active == true;
+    }
+
     match /users/{userId} {
       allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
-      allow create: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
-      allow update: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
+      allow create: if isAdmin()
+        || (request.auth.uid == userId && isOwnerBootstrap());
+      allow update: if isAdmin()
+        || (request.auth.uid == userId
+            && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role']))
+        || (request.auth.uid == userId && isOwnerBootstrap());
     }
 
     match /products/{productId} {

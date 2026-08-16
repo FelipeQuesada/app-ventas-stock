@@ -1,18 +1,17 @@
 import { useEffect, useState } from 'react';
-import { Navigate } from 'react-router-dom';
 import { Plus, Pencil, X } from 'lucide-react';
 import type { UserProfile, UserRole } from '@advance-coat/shared';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../../context/AuthContext';
 import {
   listUsers,
   createUserAsAdmin,
   updateUser,
   getAuthErrorMessage,
-} from '../services/auth';
+} from '../../services/auth';
 
 type FormMode = 'create' | 'edit';
 
-export function UsersPage() {
+export function AdminUsersPage() {
   const { user, profile } = useAuth();
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
@@ -36,12 +35,8 @@ export function UsersPage() {
   }
 
   useEffect(() => {
-    if (profile?.role === 'admin') void load();
-  }, [profile?.role]);
-
-  if (profile && profile.role !== 'admin') {
-    return <Navigate to="/" replace />;
-  }
+    void load();
+  }, []);
 
   function openCreate() {
     setMode('create');
@@ -116,7 +111,7 @@ export function UsersPage() {
       <div className="page-header">
         <div>
           <h3 style={{ margin: 0 }}>Usuarios</h3>
-          <p>Solo el admin puede crear y administrar accesos</p>
+          <p>Altas, roles y activación de accesos</p>
         </div>
         <button type="button" className="btn btn-primary" onClick={openCreate}>
           <Plus size={16} /> Nuevo usuario

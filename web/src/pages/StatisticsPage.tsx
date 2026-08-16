@@ -15,16 +15,14 @@ import {
 import type { Product, Sale } from '@advance-coat/shared';
 import {
   formatCurrency,
-  PERIOD_PRESETS,
   createDefaultPeriod,
-  getPresetRange,
   isDateInRange,
   formatPeriodLabel,
   type PeriodSelection,
-  type PeriodPresetId,
 } from '@advance-coat/shared';
 import { getSales } from '../services/sales';
 import { getProducts } from '../services/products';
+import { PeriodFilter } from '../components/PeriodFilter';
 import {
   getTopProducts,
   getPaymentMethodRevenueStats,
@@ -81,23 +79,7 @@ export function StatisticsPage() {
         </div>
       </div>
 
-      <div className="chip-group" style={{ marginBottom: 20 }}>
-        {PERIOD_PRESETS.map((p) => (
-          <button
-            key={p.id}
-            type="button"
-            className={`chip ${period.preset === p.id ? 'active' : ''}`}
-            onClick={() =>
-              setPeriod({
-                preset: p.id as Exclude<PeriodPresetId, 'custom'>,
-                range: getPresetRange(p.id as Exclude<PeriodPresetId, 'custom'>),
-              })
-            }
-          >
-            {p.label}
-          </button>
-        ))}
-      </div>
+      <PeriodFilter value={period} onChange={setPeriod} />
 
       <div className="kpi-grid">
         <div className="kpi-card">

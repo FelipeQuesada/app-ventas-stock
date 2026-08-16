@@ -10,7 +10,7 @@ import {
   Users,
   Wallet,
   BarChart3,
-  UserCog,
+  Shield,
   User,
   Menu,
   X,
@@ -22,7 +22,7 @@ const BOTTOM_NAV = [
   { to: '/', label: 'Inicio', icon: LayoutDashboard, end: true },
   { to: '/sales', label: 'Ventas', icon: ShoppingCart },
   { to: '/products', label: 'Productos', icon: Package },
-  { to: '/caja', label: 'Caja', icon: Wallet },
+  { to: '/caja', label: 'Caja', icon: Wallet, end: true },
 ];
 
 const DRAWER_NAV = [
@@ -32,10 +32,10 @@ const DRAWER_NAV = [
   { to: '/sales', label: 'Nueva venta', icon: ShoppingCart },
   { to: '/sales-list', label: 'Historial ventas', icon: ListOrdered },
   { to: '/customers', label: 'Clientes', icon: Users },
-  { to: '/caja', label: 'Caja', icon: Wallet },
+  { to: '/caja', label: 'Caja', icon: Wallet, end: true },
   { to: '/caja/list', label: 'Historial caja', icon: ListOrdered },
   { to: '/statistics', label: 'Estadísticas', icon: BarChart3 },
-  { to: '/users', label: 'Usuarios', icon: UserCog, adminOnly: true },
+  { to: '/admin', label: 'Panel admin', icon: Shield, adminOnly: true },
   { to: '/profile', label: 'Perfil', icon: User },
 ];
 
@@ -44,7 +44,7 @@ const TITLES: Record<string, string> = {
   '/products': 'Productos',
   '/products/new': 'Nuevo producto',
   '/stock': 'Stock',
-  '/sales': 'Nueva venta',
+  '/sales': 'Registrar venta',
   '/sales-list': 'Historial de ventas',
   '/customers': 'Clientes',
   '/caja': 'Caja del día',
@@ -69,11 +69,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const isAdmin = profile?.role === 'admin';
 
   const drawerItems = DRAWER_NAV.filter((item) => !item.adminOnly || isAdmin);
-  const moreActive = !BOTTOM_NAV.some(
-    (item) =>
+  const moreActive = !BOTTOM_NAV.some((item) => {
+    if (item.end) return location.pathname === item.to;
+    return (
       item.to === location.pathname ||
       (item.to !== '/' && location.pathname.startsWith(item.to))
-  );
+    );
+  });
 
   return (
     <div className="app-shell">

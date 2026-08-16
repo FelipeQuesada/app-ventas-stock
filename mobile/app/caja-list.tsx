@@ -10,19 +10,23 @@ import {
   TouchableOpacity,
 } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { format, startOfMonth } from 'date-fns';
-import { es } from 'date-fns/locale';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { SearchBar } from '@/components/ui/SearchBar';
-import { MonthPickerField } from '@/components/ui/MonthPickerField';
+import { PeriodFilter } from '@/components/ui/PeriodFilter';
 import { CajaListItem } from '@/components/ui/CajaListItem';
 import { EmptyState, LoadingScreen } from '@/components/ui/EmptyState';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
-import { deleteCaja, getCajaHistory, getMonthCaja } from '@/services/caja';
-import { exportMonthCajaToExcel, buildCajaPdfHtml } from '@/services/export';
+import { deleteCaja, getCajaHistory } from '@/services/caja';
+import { exportCajaRecordsToExcel, buildCajaPdfHtml } from '@/services/export';
 import { DailyCaja } from '@/types/caja';
 import { formatCurrency, formatDate } from '@/utils/format';
+import {
+  createDefaultPeriod,
+  formatPeriodLabel,
+  isDateInRange,
+  PeriodSelection,
+} from '@/utils/datePeriod';
 import { showAlert, showConfirm } from '@/utils/alert';
 import { PdfPreviewModal, PdfPreviewState } from '@/components/ui/PdfPreviewModal';
 import { colors, radius, spacing, typography } from '@/constants/theme';
@@ -33,7 +37,7 @@ export default function CajaListScreen() {
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
-  const [selectedMonth, setSelectedMonth] = useState(startOfMonth(new Date()));
+  const [period, setPeriod] = useState<PeriodSelection>(() => createDefaultPeriod());
   const [selected, setSelected] = useState<DailyCaja | null>(null);
   const [pdfPreview, setPdfPreview] = useState<PdfPreviewState>(null);
 
@@ -55,18 +59,18 @@ export default function CajaListScreen() {
     }, [loadRecords])
   );
 
-  const monthRecords = useMemo(
-    () => getMonthCaja(records, selectedMonth),
-    [records, selectedMonth]
+  const periodRecords = useMemo(
+    () => records.filter((record) => isDateInRange(record.date, period.range)),
+    [records, period]
   );
 
-  const monthLabel = format(selectedMonth, 'MMMM yyyy', { locale: es });
+  const periodLabel = formatPeriodLabel(period);
 
   const filtered = useMemo(() => {
     const term = search.toLowerCase().trim();
-    if (!term) return monthRecords;
+    if (!term) return periodRecords;
 
-    return monthRecords.filter((record) => {
+    return periodRecords.filter((record) => {
       const dateText = formatDate(record.date).toLowerCase();
       const amounts = [
         formatCurrency(record.cajaTotal),
@@ -80,13 +84,13 @@ export default function CajaListScreen() {
 
       return dateText.includes(term) || amounts.includes(term) || record.id.includes(term);
     });
-  }, [monthRecords, search]);
+  }, [periodRecords, search]);
 
   const handleExport = async () => {
     setExporting(true);
     try {
-      await exportMonthCajaToExcel(records, selectedMonth);
-      showAlert('Listo', `El Excel de caja de ${monthLabel} se descargó correctamente`);
+      await exportCajaRecordsToExcel(filtered, periodLabel);
+      showAlert('Listo', `El Excel de caja de ${periodLabel} se descargó correctamente`);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'No se pudo exportar';
       showAlert('Error', message);
@@ -96,13 +100,13 @@ export default function CajaListScreen() {
   };
 
   const handleExportPdf = () => {
-    if (monthRecords.length === 0) {
-      showAlert('Error', 'No hay cierres de caja en este mes para exportar');
+    if (filtered.length === 0) {
+      showAlert('Error', 'No hay cierres de caja en este período para exportar');
       return;
     }
-    const title = `Caja ${monthLabel}`;
+    const title = `Caja ${periodLabel}`;
     setPdfPreview({
-      html: buildCajaPdfHtml(monthRecords, title),
+      html: buildCajaPdfHtml(filtered, title),
       title,
     });
   };
@@ -128,12 +132,12 @@ export default function CajaListScreen() {
 
   const listHeader = (
     <View style={styles.headerSection}>
-      <MonthPickerField value={selectedMonth} onChange={setSelectedMonth} />
+      <PeriodFilter value={period} onChange={setPeriod} />
 
       <Card style={styles.exportCard}>
         <Text style={styles.exportTitle}>Exportar caja</Text>
         <Text style={styles.exportSubtitle}>
-          Excel o PDF de {monthLabel} con resumen y cierres diarios
+          Excel o PDF de {periodLabel} con resumen y cierres diarios
         </Text>
         <View style={styles.exportActions}>
           <Button
@@ -143,17 +147,12 @@ export default function CajaListScreen() {
             variant="secondary"
             size="sm"
           />
-          <Button
-            title="PDF"
-            onPress={handleExportPdf}
-            variant="outline"
-            size="sm"
-          />
+          <Button title="PDF" onPress={handleExportPdf} variant="outline" size="sm" />
         </View>
       </Card>
 
       <Text style={styles.listTitle}>
-        Cierres de {monthLabel} ({filtered.length})
+        Cierres de {periodLabel} ({filtered.length})
       </Text>
     </View>
   );
@@ -216,6 +215,9 @@ export default function CajaListScreen() {
 
                 <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
                   <DetailRow label="Fecha" value={formatDate(selected.date)} />
+                  {selected.sinMovimiento ? (
+                    <DetailRow label="Estado" value="Sin movimiento" accent />
+                  ) : null}
                   <DetailRow label="Caja cambio" value={formatCurrency(selected.cajaCambio)} />
                   <DetailRow label="Caja total" value={formatCurrency(selected.cajaTotal)} highlight />
                   <DetailRow label="Ganancia" value={formatCurrency(selected.ganancia)} accent />

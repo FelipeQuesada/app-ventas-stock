@@ -7,7 +7,10 @@
     "shared"
   ],
   "scripts": {
+    "start": "npm run start --workspace=mobile",
     "mobile": "npm run start --workspace=mobile",
+    "mobile:web": "npm run web --workspace=mobile",
+    "dev": "npm run web",
     "mobile:apk": "npm run build:apk --workspace=mobile",
     "web": "npm run dev --workspace=web",
     "web:build": "npm run build --workspace=web",

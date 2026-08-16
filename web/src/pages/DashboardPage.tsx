@@ -191,7 +191,7 @@ export function DashboardPage() {
       </div>
 
       {lowStock.length > 0 && (
-        <div className="card">
+        <div className="card hide-below-desktop">
           <h3 className="card-title">Productos con poco stock</h3>
           <p className="card-subtitle">Menos de 10 unidades</p>
           <div className="table-wrap">

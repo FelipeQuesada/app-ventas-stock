@@ -14,7 +14,6 @@ import { format, parseISO, subDays, isValid } from 'date-fns';
 import type { DailyCaja, Sale } from '@advance-coat/shared';
 import { calculateCajaGanancia, calculateCambioCierre } from '@advance-coat/shared';
 import { db } from '../lib/firebase';
-import { getTodaySales } from './sales';
 import { logAudit } from './audit';
 
 const COLLECTION = 'caja';
@@ -61,6 +60,7 @@ function mapCaja(id: string, data: Record<string, unknown>): DailyCaja {
     totalGuardado,
     guardo: data.guardo as number | undefined,
     cambioCierre: data.cambioCierre as number,
+    sinMovimiento: data.sinMovimiento === true,
     updatedBy: data.updatedBy as string,
     updatedByName: data.updatedByName as string | undefined,
     updatedAt: (data.updatedAt as Timestamp)?.toDate?.() ?? new Date(),
@@ -68,9 +68,14 @@ function mapCaja(id: string, data: Record<string, unknown>): DailyCaja {
 }
 
 export function getTodayCashTotal(sales: Sale[]): number {
-  const todaySales = getTodaySales(sales);
-  return todaySales
-    .filter((sale) => sale.paymentMethod === 'efectivo')
+  return getCashTotalForDate(sales, new Date());
+}
+
+export function getCashTotalForDate(sales: Sale[], date: Date): number {
+  const start = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const end = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 23, 59, 59, 999);
+  return sales
+    .filter((sale) => sale.paymentMethod === 'efectivo' && sale.date >= start && sale.date <= end)
     .reduce((sum, sale) => sum + sale.total, 0);
 }
 
@@ -93,6 +98,7 @@ export interface SaveCajaInput {
   cajaCambio: number;
   cajaTotal: number;
   totalGuardado: number;
+  sinMovimiento?: boolean;
   updatedBy: string;
   updatedByName?: string;
 }
@@ -101,6 +107,7 @@ export async function saveCaja(input: SaveCajaInput): Promise<void> {
   const ganancia = calculateCajaGanancia(input.cajaTotal, input.cajaCambio);
   const cambioCierre = calculateCambioCierre(input.cajaTotal, input.totalGuardado);
   const id = dateToId(input.date);
+  const sinMovimiento = input.sinMovimiento === true;
 
   await setDoc(doc(db, COLLECTION, id), {
     date: Timestamp.fromDate(input.date),
@@ -110,6 +117,7 @@ export async function saveCaja(input: SaveCajaInput): Promise<void> {
     totalGuardado: input.totalGuardado,
     guardo: input.totalGuardado,
     cambioCierre,
+    sinMovimiento,
     updatedBy: input.updatedBy,
     updatedByName: input.updatedByName ?? '',
     updatedAt: serverTimestamp(),
@@ -119,7 +127,9 @@ export async function saveCaja(input: SaveCajaInput): Promise<void> {
     action: 'caja_save',
     entityType: 'caja',
     entityId: id,
-    summary: `Caja guardada — total $${input.cajaTotal}, ganancia $${ganancia}`,
+    summary: sinMovimiento
+      ? `Caja sin movimiento — cambio $${input.cajaCambio}`
+      : `Caja guardada — total $${input.cajaTotal}, ganancia $${ganancia}`,
     userId: input.updatedBy,
     userName: input.updatedByName,
   });
