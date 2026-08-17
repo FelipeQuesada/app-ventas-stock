@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, Navigate, useNavigate } from 'react-router-dom';
 import { Shield, Eye, EyeOff } from 'lucide-react';
 import {
   bootstrapOwnerAdmin,
@@ -13,7 +13,7 @@ import { useAuth } from '../../context/AuthContext';
 
 export function AdminSetupPage() {
   const navigate = useNavigate();
-  const { user, profile, refreshProfile, profileError } = useAuth();
+  const { user, profile, loading, refreshProfile, profileError } = useAuth();
   const sessionEmail = user?.email?.trim().toLowerCase() ?? '';
   const needsProfileOnly = !!user && !profile && sessionEmail === OWNER_ADMIN_EMAIL;
   const [name, setName] = useState('Felipe Quesada');
@@ -81,6 +81,14 @@ export function AdminSetupPage() {
     } catch (err) {
       setError(getAuthErrorMessage(err));
     }
+  }
+
+  if (loading) {
+    return <div className="loading-screen">Cargando perfil…</div>;
+  }
+
+  if (profile) {
+    return <Navigate to="/" replace />;
   }
 
   if (needsProfileOnly) {

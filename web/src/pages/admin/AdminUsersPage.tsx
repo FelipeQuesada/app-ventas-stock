@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Plus, Pencil, X } from 'lucide-react';
+import { Plus, Pencil, X, Eye, EyeOff } from 'lucide-react';
 import type { UserProfile, UserRole } from '@advance-coat/shared';
 import { useAuth } from '../../context/AuthContext';
 import {
@@ -20,6 +20,7 @@ export function AdminUsersPage() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [role, setRole] = useState<UserRole>('employee');
   const [active, setActive] = useState(true);
   const [error, setError] = useState('');
@@ -44,6 +45,7 @@ export function AdminUsersPage() {
     setName('');
     setEmail('');
     setPassword('');
+    setShowPassword(false);
     setRole('employee');
     setActive(true);
     setError('');
@@ -55,6 +57,7 @@ export function AdminUsersPage() {
     setName(u.name);
     setEmail(u.email);
     setPassword('');
+    setShowPassword(false);
     setRole(u.role);
     setActive(u.active !== false);
     setError('');
@@ -63,6 +66,7 @@ export function AdminUsersPage() {
   function closeForm() {
     setMode(null);
     setEditingUid(null);
+    setShowPassword(false);
     setError('');
   }
 
@@ -119,7 +123,7 @@ export function AdminUsersPage() {
       </div>
 
       {mode && (
-        <form className="card" style={{ marginBottom: 16, maxWidth: 520 }} onSubmit={handleSubmit}>
+        <form className="card" style={{ marginBottom: 16 }} onSubmit={handleSubmit}>
           <div className="row" style={{ justifyContent: 'space-between', marginBottom: 12 }}>
             <h3 className="card-title" style={{ margin: 0 }}>
               {mode === 'create' ? 'Crear usuario' : 'Editar usuario'}
@@ -145,13 +149,24 @@ export function AdminUsersPage() {
           {mode === 'create' && (
             <div className="field">
               <label>Contraseña temporal</label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                minLength={6}
-              />
+              <div className="password-field">
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  minLength={6}
+                  autoComplete="new-password"
+                />
+                <button
+                  type="button"
+                  className="password-toggle"
+                  onClick={() => setShowPassword((v) => !v)}
+                  aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
             </div>
           )}
           <div className="field">

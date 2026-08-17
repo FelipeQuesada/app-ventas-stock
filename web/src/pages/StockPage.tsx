@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Minus, Plus } from 'lucide-react';
+import { Minus, Plus, Search } from 'lucide-react';
 import type { Product } from '@advance-coat/shared';
-import { getStockLevel, getStockLabel } from '@advance-coat/shared';
+import { formatCurrency, getStockLevel, getStockLabel } from '@advance-coat/shared';
 import { subscribeProducts, updateProductStock } from '../services/products';
 import { useAuth } from '../context/AuthContext';
 
@@ -9,26 +9,45 @@ export function StockPage() {
   const { user, profile } = useAuth();
   const [products, setProducts] = useState<Product[]>([]);
   const [search, setSearch] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [live, setLive] = useState(false);
 
   useEffect(() => {
     const unsub = subscribeProducts(
-      setProducts,
+      (data) => {
+        setProducts(data);
+        setLive(true);
+      },
       (err) => setError(err.message)
     );
     return unsub;
   }, []);
 
+  const categories = useMemo(
+    () => [...new Set(products.map((product) => product.category).filter(Boolean))].sort(),
+    [products]
+  );
+
   const filtered = useMemo(() => {
+    let result = products;
+    if (selectedCategory) {
+      result = result.filter((product) => product.category === selectedCategory);
+    }
     const term = search.toLowerCase().trim();
-    if (!term) return products;
-    return products.filter(
-      (p) =>
-        p.name.toLowerCase().includes(term) ||
-        p.category.toLowerCase().includes(term)
-    );
-  }, [products, search]);
+    if (!term) return result;
+    return result.filter((product) => product.name.toLowerCase().includes(term));
+  }, [products, search, selectedCategory]);
+
+  const grouped = useMemo(() => {
+    const groups = new Map<string, Product[]>();
+    for (const product of filtered) {
+      const category = product.category || 'Sin categoría';
+      groups.set(category, [...(groups.get(category) ?? []), product]);
+    }
+    return [...groups.entries()].sort(([a], [b]) => a.localeCompare(b));
+  }, [filtered]);
 
   async function adjust(product: Product, delta: number) {
     const next = Math.max(0, product.stock + delta);
@@ -48,106 +67,98 @@ export function StockPage() {
     }
   }
 
-  async function setExact(product: Product, value: string) {
-    const next = Math.max(0, Number(value) || 0);
-    if (next === product.stock) return;
-    setSavingId(product.id);
-    try {
-      await updateProductStock(product.id, next, {
-        userId: user?.uid ?? '',
-        userName: profile?.name,
-        previousStock: product.stock,
-        productName: product.name,
-      });
-    } catch (err) {
-      window.alert(err instanceof Error ? err.message : 'No se pudo actualizar');
-    } finally {
-      setSavingId(null);
-    }
-  }
-
   return (
-    <div>
-      <div className="page-header">
-        <div>
-          <h3 style={{ margin: 0 }}>Control de stock</h3>
-          <p>Actualización en tiempo real</p>
+    <div className="stock-app-page">
+      <section className="stock-app-toolbar">
+        {live && (
+          <div className="stock-live">
+            <span />
+            En vivo
+          </div>
+        )}
+
+        <div className="stock-search">
+          <Search size={18} />
+          <input
+            placeholder="Buscar por nombre..."
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+          />
         </div>
-      </div>
+
+        <div className="stock-categories" aria-label="Filtrar por categoría">
+          <button
+            type="button"
+            className={selectedCategory === null ? 'active' : ''}
+            onClick={() => setSelectedCategory(null)}
+          >
+            Todas
+          </button>
+          {categories.map((category) => (
+            <button
+              type="button"
+              key={category}
+              className={selectedCategory === category ? 'active' : ''}
+              onClick={() => setSelectedCategory(category)}
+            >
+              {category}
+            </button>
+          ))}
+        </div>
+      </section>
 
       {error && <p className="error-text">{error}</p>}
 
-      <div className="toolbar">
-        <input
-          className="search-input"
-          placeholder="Buscar…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
-      </div>
-
-      <div className="table-wrap">
-        <table className="data-table">
-          <thead>
-            <tr>
-              <th>Producto</th>
-              <th>Categoría</th>
-              <th>Estado</th>
-              <th>Cantidad</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filtered.map((p) => {
-              const level = getStockLevel(p.stock);
-              return (
-                <tr key={p.id}>
-                  <td><strong>{p.name}</strong></td>
-                  <td>{p.category}</td>
-                  <td>
-                    <span
-                      className={`badge ${
-                        level === 'high'
-                          ? 'badge-success'
-                          : level === 'low'
-                            ? 'badge-warning'
-                            : 'badge-danger'
-                      }`}
-                    >
-                      {getStockLabel(level)}
-                    </span>
-                  </td>
-                  <td>
-                    <div className="qty-controls">
+      <div className="stock-sections">
+        {grouped.map(([category, items]) => (
+          <section className="stock-category-section" key={category}>
+            <h3>{category}</h3>
+            <div className="stock-product-list">
+              {items.map((product) => {
+                const level = getStockLevel(product.stock);
+                return (
+                  <article className="stock-product-row" key={product.id}>
+                    <div className="stock-product-info">
+                      <strong>{product.name}</strong>
+                      <span>{formatCurrency(product.price)}</span>
+                      <small className={`stock-level stock-level-${level}`}>
+                        {getStockLabel(level)}
+                      </small>
+                    </div>
+                    <div className="stock-stepper">
                       <button
                         type="button"
-                        className="btn btn-ghost btn-icon btn-sm"
-                        disabled={savingId === p.id || p.stock <= 0}
-                        onClick={() => void adjust(p, -1)}
+                        disabled={savingId === product.id || product.stock <= 0}
+                        onClick={() => void adjust(product, -1)}
+                        aria-label={`Restar stock de ${product.name}`}
                       >
-                        <Minus size={14} />
+                        <Minus size={18} />
                       </button>
-                      <input
-                        type="number"
-                        min={0}
-                        value={p.stock}
-                        disabled={savingId === p.id}
-                        onChange={(e) => void setExact(p, e.target.value)}
-                      />
+                      <strong className={`stock-count stock-count-${level}`}>
+                        {product.stock}
+                      </strong>
                       <button
                         type="button"
-                        className="btn btn-ghost btn-icon btn-sm"
-                        disabled={savingId === p.id}
-                        onClick={() => void adjust(p, 1)}
+                        disabled={savingId === product.id}
+                        onClick={() => void adjust(product, 1)}
+                        aria-label={`Sumar stock de ${product.name}`}
                       >
-                        <Plus size={14} />
+                        <Plus size={18} />
                       </button>
                     </div>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+                  </article>
+                );
+              })}
+            </div>
+          </section>
+        ))}
+
+        {grouped.length === 0 && (
+          <div className="empty-state">
+            <strong>No encontramos productos</strong>
+            <p>Probá con otra búsqueda o categoría.</p>
+          </div>
+        )}
       </div>
     </div>
   );
