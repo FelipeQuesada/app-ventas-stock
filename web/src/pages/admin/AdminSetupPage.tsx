@@ -3,15 +3,19 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Shield, Eye, EyeOff } from 'lucide-react';
 import {
   bootstrapOwnerAdmin,
+  completeOwnerAdminProfile,
   getAuthErrorMessage,
   resetPassword,
+  signOutUser,
   OWNER_ADMIN_EMAIL,
 } from '../../services/auth';
 import { useAuth } from '../../context/AuthContext';
 
 export function AdminSetupPage() {
   const navigate = useNavigate();
-  const { refreshProfile } = useAuth();
+  const { user, profile, refreshProfile, profileError } = useAuth();
+  const sessionEmail = user?.email?.trim().toLowerCase() ?? '';
+  const needsProfileOnly = !!user && !profile && sessionEmail === OWNER_ADMIN_EMAIL;
   const [name, setName] = useState('Felipe Quesada');
   const [email, setEmail] = useState(OWNER_ADMIN_EMAIL);
   const [password, setPassword] = useState('');
@@ -52,6 +56,22 @@ export function AdminSetupPage() {
     }
   }
 
+  async function handleCompleteProfile() {
+    setSaving(true);
+    setError('');
+    setInfo('');
+    try {
+      await completeOwnerAdminProfile(name);
+      await refreshProfile?.();
+      setDone(true);
+      setTimeout(() => navigate('/admin', { replace: true }), 800);
+    } catch (err) {
+      setError(getAuthErrorMessage(err));
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function handleReset() {
     setError('');
     setInfo('');
@@ -61,6 +81,59 @@ export function AdminSetupPage() {
     } catch (err) {
       setError(getAuthErrorMessage(err));
     }
+  }
+
+  if (needsProfileOnly) {
+    return (
+      <div className="admin-setup-page">
+        <div className="admin-setup-card">
+          <div className="admin-setup-header">
+            <div className="admin-brand-icon">
+              <Shield size={22} />
+            </div>
+            <div>
+              <h1>Falta tu perfil de admin</h1>
+              <p>
+                Ya iniciaste sesión como {sessionEmail}, pero todavía no existe tu perfil en la base
+                de datos. No hace falta la contraseña de nuevo.
+              </p>
+            </div>
+          </div>
+
+          <div className="field">
+            <label>Nombre</label>
+            <input value={name} onChange={(e) => setName(e.target.value)} required />
+          </div>
+
+          {profileError && (
+            <p className="muted" style={{ marginTop: 0 }}>
+              Firestore respondió: {profileError}
+            </p>
+          )}
+          {error && <p className="error-text">{error}</p>}
+          {done && <p className="success-text">Perfil creado. Entrando al panel…</p>}
+
+          <button
+            type="button"
+            className="btn btn-primary"
+            style={{ width: '100%' }}
+            disabled={saving || done}
+            onClick={() => void handleCompleteProfile()}
+          >
+            {saving ? 'Creando…' : 'Crear mi perfil de admin'}
+          </button>
+
+          <button
+            type="button"
+            className="btn btn-ghost"
+            style={{ width: '100%', marginTop: 10 }}
+            onClick={() => void signOutUser()}
+          >
+            Cerrar sesión
+          </button>
+        </div>
+      </div>
+    );
   }
 
   return (

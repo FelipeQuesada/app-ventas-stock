@@ -216,6 +216,41 @@ export async function bootstrapOwnerAdmin(
   return profile;
 }
 
+/**
+ * Crea el perfil admin del dueño cuando ya hay sesión iniciada.
+ * Sirve cuando el usuario de Auth existe pero el documento en Firestore falta.
+ */
+export async function completeOwnerAdminProfile(name: string): Promise<UserProfile> {
+  const current = auth.currentUser;
+  if (!current) {
+    throw accessError('auth/not-authorized', 'No hay sesión iniciada.');
+  }
+  const currentEmail = current.email?.trim().toLowerCase() ?? '';
+  if (currentEmail !== OWNER_ADMIN_EMAIL) {
+    throw accessError(
+      'auth/not-authorized',
+      'Este setup solo está habilitado para el administrador autorizado.'
+    );
+  }
+
+  await setDoc(
+    doc(db, 'users', current.uid),
+    {
+      email: currentEmail,
+      name: name.trim() || current.displayName || 'Administrador',
+      role: 'admin',
+      active: true,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true }
+  );
+
+  const profile = await getUserProfile(current.uid);
+  if (!profile) throw new Error('No se pudo crear el perfil de administrador');
+  return profile;
+}
+
 export async function ensureUserProfile(user: User, name?: string): Promise<UserProfile> {
   const existing = await getUserProfile(user.uid);
   if (existing) return existing;
