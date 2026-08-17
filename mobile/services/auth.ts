@@ -47,9 +47,9 @@ export function getAuthErrorMessage(error: unknown): string {
     case 'auth/invalid-credential':
     case 'auth/wrong-password':
     case 'auth/user-not-found':
-      return 'Email o contraseña incorrectos.';
+      return 'Email o contraseña incorrectos. Revisá el email o usá "¿Olvidaste tu contraseña?".';
     case 'permission-denied':
-      return 'Firestore bloqueó el guardado. Creá la base de datos en Firebase Console y publicá las reglas de firestore.rules.';
+      return 'Firestore bloqueó el acceso a tu perfil. Publicá las reglas de firestore.rules en Firebase Console.';
     case 'unavailable':
     case 'failed-precondition':
       return 'Firestore no está disponible. Verificá que creaste la base de datos en Firebase Console.';
@@ -72,7 +72,13 @@ function accessError(code: string, message: string) {
 
 export async function signIn(email: string, password: string) {
   const result = await signInWithEmailAndPassword(auth, email.trim(), password);
-  const profile = await getUserProfile(result.user.uid);
+  let profile: UserProfile | null;
+  try {
+    profile = await getUserProfile(result.user.uid);
+  } catch (err) {
+    await signOut(auth);
+    throw err;
+  }
   if (!profile) {
     await signOut(auth);
     throw accessError(

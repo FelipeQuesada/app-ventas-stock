@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Shield } from 'lucide-react';
+import { Shield, Eye, EyeOff } from 'lucide-react';
 import {
   bootstrapOwnerAdmin,
   getAuthErrorMessage,
@@ -15,6 +15,9 @@ export function AdminSetupPage() {
   const [name, setName] = useState('Felipe Quesada');
   const [email, setEmail] = useState(OWNER_ADMIN_EMAIL);
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [info, setInfo] = useState('');
@@ -26,6 +29,11 @@ export function AdminSetupPage() {
     setSaving(true);
     setError('');
     setInfo('');
+    if (password !== confirmPassword) {
+      setError('Las contraseñas no coinciden.');
+      setSaving(false);
+      return;
+    }
     try {
       await bootstrapOwnerAdmin(email, password, name);
       await refreshProfile?.();
@@ -83,15 +91,47 @@ export function AdminSetupPage() {
         </div>
         <div className="field">
           <label>Contraseña</label>
-          <input
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            minLength={6}
-            placeholder="Tu contraseña segura"
-            autoComplete="new-password"
-          />
+          <div className="password-field">
+            <input
+              type={showPassword ? 'text' : 'password'}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              minLength={6}
+              placeholder="Tu contraseña segura"
+              autoComplete="new-password"
+            />
+            <button
+              type="button"
+              className="password-toggle"
+              onClick={() => setShowPassword((v) => !v)}
+              aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+            >
+              {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+            </button>
+          </div>
+        </div>
+        <div className="field">
+          <label>Confirmar contraseña</label>
+          <div className="password-field">
+            <input
+              type={showConfirm ? 'text' : 'password'}
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              required
+              minLength={6}
+              placeholder="Repetí la contraseña"
+              autoComplete="new-password"
+            />
+            <button
+              type="button"
+              className="password-toggle"
+              onClick={() => setShowConfirm((v) => !v)}
+              aria-label={showConfirm ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+            >
+              {showConfirm ? <EyeOff size={18} /> : <Eye size={18} />}
+            </button>
+          </div>
         </div>
 
         {error && <p className="error-text">{error}</p>}

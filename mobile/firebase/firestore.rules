@@ -5,12 +5,16 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function userDoc() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    function ownProfilePath() {
+      return /databases/$(database)/documents/users/$(request.auth.uid);
+    }
+
+    function hasOwnProfile() {
+      return isAuthenticated() && exists(ownProfilePath());
     }
 
     function isAdmin() {
-      return isAuthenticated() && userDoc().role == 'admin';
+      return hasOwnProfile() && get(ownProfilePath()).data.role == 'admin';
     }
 
     function isOwnerBootstrap() {
@@ -22,7 +26,8 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-      allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
+      allow get: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
+      allow list: if isAdmin();
       allow create: if isAdmin()
         || (request.auth.uid == userId && isOwnerBootstrap());
       allow update: if isAdmin()
