@@ -177,7 +177,7 @@ export default function CajaListScreen() {
         )}
         contentContainerStyle={styles.list}
         ListEmptyComponent={
-          monthRecords.length === 0 ? (
+          periodRecords.length === 0 ? (
             <EmptyState
               icon="point-of-sale"
               title="No hay registros de caja"

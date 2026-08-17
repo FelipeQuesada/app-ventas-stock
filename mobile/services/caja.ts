@@ -7,10 +7,12 @@ import {
   deleteDoc,
   query,
   orderBy,
+  limit,
+  where,
   serverTimestamp,
   Timestamp,
 } from 'firebase/firestore';
-import { format, parseISO, subDays, isValid } from 'date-fns';
+import { format, parseISO, startOfDay, isValid } from 'date-fns';
 import { db } from '@/lib/firebase';
 import { DailyCaja } from '@/types/caja';
 import { Sale } from '@/types';
@@ -87,11 +89,28 @@ export async function getCajaByDate(date: Date): Promise<DailyCaja | null> {
   return mapCaja(snap.id, snap.data());
 }
 
+/** Cambio que quedó en el último cierre anterior, aunque no haya sido ayer. */
 export async function getCajaCambioFromPreviousDay(date: Date): Promise<number> {
-  const yesterday = subDays(date, 1);
-  const previous = await getCajaByDate(yesterday);
+  const previous = await getPreviousCaja(date);
   if (!previous) return 0;
-  return previous.cajaTotal - previous.totalGuardado;
+  return getCambioRemanente(previous);
+}
+
+export async function getPreviousCaja(date: Date): Promise<DailyCaja | null> {
+  const q = query(
+    collection(db, COLLECTION),
+    where('date', '<', Timestamp.fromDate(startOfDay(date))),
+    orderBy('date', 'desc'),
+    limit(1)
+  );
+  const snap = await getDocs(q);
+  const previous = snap.docs[0];
+  return previous ? mapCaja(previous.id, previous.data()) : null;
+}
+
+function getCambioRemanente(record: DailyCaja): number {
+  if (typeof record.cambioCierre === 'number') return record.cambioCierre;
+  return record.cajaTotal - record.totalGuardado;
 }
 
 export interface SaveCajaInput {
