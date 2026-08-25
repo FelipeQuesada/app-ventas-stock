@@ -68,12 +68,14 @@ export function SaleForm({ mode, saleId }: SaleFormProps) {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [editItems, setEditItems] = useState<SaleItem[]>([]);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | null>(null);
+  const [wantsInvoice, setWantsInvoice] = useState(false);
   const [saleDate, setSaleDate] = useState(new Date());
   const [loading, setLoading] = useState(false);
 
   const [customerName, setCustomerName] = useState('');
   const [customerEmail, setCustomerEmail] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
+  const [customerCuit, setCustomerCuit] = useState('');
   const [sellerName, setSellerName] = useState('');
   const [matchedCustomer, setMatchedCustomer] = useState<Customer | null>(null);
   const [customerLookupHint, setCustomerLookupHint] = useState('');
@@ -126,10 +128,12 @@ export function SaleForm({ mode, saleId }: SaleFormProps) {
         setOriginalItems(sale.items);
         setSelectedItems(sale.items);
         setPaymentMethod(sale.paymentMethod);
+        setWantsInvoice(sale.wantsInvoice === true);
         setSaleDate(sale.date);
         setCustomerName(sale.customer.name);
         setCustomerEmail(sale.customer.email);
         setCustomerPhone(sale.customer.phone);
+        setCustomerCuit(sale.customer.cuit ?? '');
         setSellerName(sale.createdByName ?? '');
         setDiscountType(sale.discountType ?? null);
         setDiscountValue(sale.discountValue ? String(sale.discountValue) : '');
@@ -164,6 +168,7 @@ export function SaleForm({ mode, saleId }: SaleFormProps) {
           setMatchedCustomer(found);
           setCustomerName((current) => current.trim() || found.name);
           setCustomerEmail((current) => current.trim() || found.email);
+          setCustomerCuit((current) => current.trim() || found.cuit || '');
           const stats = await fetchCustomerPurchaseStats(found.phone || customerPhone);
           if (!active) return;
           if (stats.saleCount > 0) {
@@ -264,6 +269,8 @@ export function SaleForm({ mode, saleId }: SaleFormProps) {
   );
   const total = Math.max(0, subtotal - discountAmount);
   const isCash = paymentMethod === 'efectivo';
+  const canAskInvoice =
+    paymentMethod === 'debito' || paymentMethod === 'credito' || paymentMethod === 'qr';
   const paidAmount = parseFloat(amountPaid.replace(',', '.')) || 0;
   const change = isCash && paidAmount >= total ? paidAmount - total : 0;
 
@@ -390,10 +397,12 @@ export function SaleForm({ mode, saleId }: SaleFormProps) {
     if (!isEdit) cart.clear();
     else setEditItems([]);
     setPaymentMethod(null);
+    setWantsInvoice(false);
     setSaleDate(new Date());
     setCustomerName('');
     setCustomerEmail('');
     setCustomerPhone('');
+    setCustomerCuit('');
     setMatchedCustomer(null);
     setCustomerLookupHint('');
     setDiscountType(null);
@@ -419,6 +428,7 @@ export function SaleForm({ mode, saleId }: SaleFormProps) {
       name: customerName.trim(),
       email: customerEmail.trim(),
       phone: customerPhone.trim(),
+      cuit: customerCuit.trim() || undefined,
     },
     subtotal,
     discountType: discountType ?? undefined,
@@ -429,6 +439,7 @@ export function SaleForm({ mode, saleId }: SaleFormProps) {
     change: isCash ? change : undefined,
     createdBy: user!.uid,
     createdByName: sellerName.trim() || profile?.name,
+    wantsInvoice: canAskInvoice && wantsInvoice,
   };
   };
 
@@ -448,6 +459,17 @@ export function SaleForm({ mode, saleId }: SaleFormProps) {
     if (isCash && paidAmount < total) {
       showAlert('Error', 'El monto pagado debe ser mayor o igual al total');
       return;
+    }
+    if (canAskInvoice && wantsInvoice) {
+      if (
+        !customerPhone.trim() ||
+        !customerName.trim() ||
+        !customerEmail.trim() ||
+        !customerCuit.trim()
+      ) {
+        showAlert('Error', 'Para factura completá teléfono, nombre, email y CUIT');
+        return;
+      }
     }
 
     setLoading(true);
@@ -533,7 +555,7 @@ export function SaleForm({ mode, saleId }: SaleFormProps) {
 
       <Text style={styles.sectionTitle}>Datos del cliente</Text>
       <Input
-        label="Teléfono (identificador)"
+        label={wantsInvoice ? 'Teléfono *' : 'Teléfono (identificador)'}
         value={customerPhone}
         onChangeText={setCustomerPhone}
         placeholder="11 2345 6789"
@@ -560,14 +582,14 @@ export function SaleForm({ mode, saleId }: SaleFormProps) {
         </View>
       )}
       <Input
-        label="Nombre y apellido"
+        label={wantsInvoice ? 'Nombre y apellido *' : 'Nombre y apellido'}
         value={customerName}
         onChangeText={setCustomerName}
         placeholder="Se completa si ya compró"
         autoCapitalize="words"
       />
       <Input
-        label="Email (opcional)"
+        label={wantsInvoice ? 'Email *' : 'Email (opcional)'}
         value={customerEmail}
         onChangeText={setCustomerEmail}
         placeholder="cliente@email.com"
@@ -710,6 +732,9 @@ export function SaleForm({ mode, saleId }: SaleFormProps) {
         onChange={(method) => {
           setPaymentMethod(method);
           if (method !== 'efectivo') setAmountPaid('');
+          if (method !== 'debito' && method !== 'credito' && method !== 'qr') {
+            setWantsInvoice(false);
+          }
         }}
       />
 
@@ -721,6 +746,42 @@ export function SaleForm({ mode, saleId }: SaleFormProps) {
           </Text>
         </View>
       )}
+
+      {canAskInvoice ? (
+        <>
+          <Text style={styles.sectionTitle}>Factura</Text>
+          <View style={styles.invoiceToggleRow}>
+            <TouchableOpacity
+              style={[styles.invoiceOption, !wantsInvoice && styles.invoiceOptionActive]}
+              onPress={() => setWantsInvoice(false)}
+            >
+              <Text style={[styles.invoiceOptionText, !wantsInvoice && styles.invoiceOptionTextActive]}>
+                Sin factura
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.invoiceOption, wantsInvoice && styles.invoiceOptionActive]}
+              onPress={() => setWantsInvoice(true)}
+            >
+              <Text style={[styles.invoiceOptionText, wantsInvoice && styles.invoiceOptionTextActive]}>
+                Con factura
+              </Text>
+            </TouchableOpacity>
+          </View>
+          {wantsInvoice ? (
+            <>
+              <Input
+                label="CUIT / CUIL *"
+                value={customerCuit}
+                onChangeText={setCustomerCuit}
+                placeholder="20-12345678-9"
+                keyboardType="number-pad"
+              />
+              <Text style={styles.hint}>Queda pendiente en el panel admin para emitir.</Text>
+            </>
+          ) : null}
+        </>
+      ) : null}
 
       <View style={styles.summaryCard}>
         <View style={styles.summaryRow}>
@@ -954,6 +1015,39 @@ const styles = StyleSheet.create({
     ...typography.h2,
     fontFamily: 'Inter_700Bold',
     color: colors.primary,
+  },
+  invoiceToggleRow: {
+    flexDirection: 'row',
+    gap: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  invoiceOption: {
+    flex: 1,
+    paddingVertical: spacing.sm,
+    paddingHorizontal: spacing.md,
+    borderRadius: radius.md,
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    backgroundColor: colors.surface,
+    alignItems: 'center',
+  },
+  invoiceOptionActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  invoiceOptionText: {
+    ...typography.bodySmall,
+    fontFamily: 'Inter_600SemiBold',
+    color: colors.textSecondary,
+  },
+  invoiceOptionTextActive: {
+    color: colors.white,
+  },
+  hint: {
+    ...typography.caption,
+    fontFamily: 'Inter_400Regular',
+    color: colors.textSecondary,
+    marginBottom: spacing.md,
   },
   summaryRow: {
     flexDirection: 'row',

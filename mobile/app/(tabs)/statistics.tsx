@@ -7,10 +7,11 @@ import {
   RefreshControl,
   TouchableOpacity,
 } from 'react-native';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { format, startOfMonth } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { useAuth } from '@/context/AuthContext';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { MonthPickerField } from '@/components/ui/MonthPickerField';
@@ -80,6 +81,8 @@ function SummaryCard({ label, value }: { label: string; value: string | number }
 }
 
 export default function StatisticsScreen() {
+  const { profile } = useAuth();
+  const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [exporting, setExporting] = useState(false);
@@ -105,8 +108,12 @@ export default function StatisticsScreen() {
 
   useFocusEffect(
     useCallback(() => {
+      if (profile?.role !== 'admin') {
+        router.replace('/(tabs)');
+        return;
+      }
       loadData();
-    }, [loadData])
+    }, [loadData, profile?.role, router])
   );
 
   const monthSales = useMemo(

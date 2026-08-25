@@ -46,6 +46,8 @@ export interface SaleCustomer {
   name: string;
   email: string;
   phone: string;
+  /** CUIT/CUIL — requerido si pide factura */
+  cuit?: string;
 }
 
 export interface Customer extends SaleCustomer {
@@ -70,6 +72,10 @@ export interface Sale {
   amountPaid?: number;
   change?: number;
   customerCount: number;
+  /** El cliente pidió factura */
+  wantsInvoice?: boolean;
+  /** Admin ya emitió / gestionó la factura */
+  invoiceIssued?: boolean;
   createdBy: string;
   createdByName?: string;
   createdAt: Date;

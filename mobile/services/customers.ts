@@ -25,6 +25,7 @@ function mapCustomer(id: string, data: Record<string, unknown>): Customer {
     name: (data.name as string) ?? '',
     email: (data.email as string) ?? '',
     phone: (data.phone as string) ?? '',
+    cuit: (data.cuit as string) || undefined,
     createdAt: (data.createdAt as Timestamp)?.toDate?.(),
   };
 }
@@ -34,6 +35,7 @@ function normalizeCustomer(customer: SaleCustomer): SaleCustomer {
     name: customer.name.trim(),
     email: customer.email.trim().toLowerCase(),
     phone: customer.phone.trim(),
+    cuit: customer.cuit?.trim() || undefined,
   };
 }
 
@@ -123,6 +125,7 @@ export async function saveCustomer(customer: SaleCustomer): Promise<string> {
       name: normalized.name || byPhone.name,
       email: normalized.email || byPhone.email,
       phone: normalized.phone || byPhone.phone,
+      cuit: normalized.cuit || byPhone.cuit || '',
       phoneKey: phoneKey ?? normalizePhoneKey(byPhone.phone) ?? '',
     });
     return byPhone.id;
@@ -135,6 +138,7 @@ export async function saveCustomer(customer: SaleCustomer): Promise<string> {
         name: normalized.name || byEmail.name,
         email: normalized.email,
         phone: normalized.phone || byEmail.phone,
+        cuit: normalized.cuit || byEmail.cuit || '',
         phoneKey: phoneKey ?? normalizePhoneKey(byEmail.phone) ?? '',
       });
       return byEmail.id;

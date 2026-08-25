@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom';
-import { Shield, Users, ArrowRight } from 'lucide-react';
+import { Shield, Users, ArrowRight, FileText } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
 export function AdminDashboardPage() {
@@ -21,6 +21,14 @@ export function AdminDashboardPage() {
       </div>
 
       <div className="admin-cards">
+        <Link to="/admin/invoices" className="admin-card-link card">
+          <FileText size={22} />
+          <div>
+            <strong>Ventas con factura</strong>
+            <span>Pendientes de emitir</span>
+          </div>
+          <ArrowRight size={18} />
+        </Link>
         <Link to="/admin/users" className="admin-card-link card">
           <Users size={22} />
           <div>

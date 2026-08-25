@@ -39,6 +39,8 @@ function mapSale(id: string, data: Record<string, unknown>): Sale {
     amountPaid: data.amountPaid as number | undefined,
     change: data.change as number | undefined,
     customerCount: (data.customerCount as number) ?? 1,
+    wantsInvoice: data.wantsInvoice === true,
+    invoiceIssued: data.invoiceIssued === true,
     createdBy: data.createdBy as string,
     createdByName: data.createdByName as string | undefined,
     createdAt: (data.createdAt as Timestamp)?.toDate?.() ?? new Date(),
@@ -49,6 +51,35 @@ export async function getSales(): Promise<Sale[]> {
   const q = query(collection(db, COLLECTION), orderBy('date', 'desc'));
   const snap = await getDocs(q);
   return snap.docs.map((d) => mapSale(d.id, d.data()));
+}
+
+/** Ventas donde el cliente pidió factura y aún no se marcó como emitida. */
+export async function getSalesNeedingInvoice(): Promise<Sale[]> {
+  const sales = await getSales();
+  return sales.filter((s) => s.wantsInvoice && !s.invoiceIssued);
+}
+
+export async function markSaleInvoiceIssued(
+  saleId: string,
+  issuedBy?: { userId: string; userName?: string }
+): Promise<void> {
+  const saleRef = doc(db, COLLECTION, saleId);
+  const batch = writeBatch(db);
+  batch.update(saleRef, {
+    invoiceIssued: true,
+    invoiceIssuedAt: serverTimestamp(),
+    invoiceIssuedBy: issuedBy?.userId ?? '',
+    invoiceIssuedByName: issuedBy?.userName ?? '',
+  });
+  await batch.commit();
+  await logAudit({
+    action: 'sale_update',
+    entityType: 'sale',
+    entityId: saleId,
+    summary: 'Factura marcada como emitida',
+    userId: issuedBy?.userId ?? '',
+    userName: issuedBy?.userName,
+  });
 }
 
 export async function getSalesByDateRange(start: Date, end: Date): Promise<Sale[]> {
@@ -77,6 +108,7 @@ export interface CreateSaleInput {
   change?: number;
   createdBy: string;
   createdByName?: string;
+  wantsInvoice?: boolean;
 }
 
 export async function createSale(input: CreateSaleInput): Promise<string> {
@@ -98,6 +130,7 @@ async function commitSaleCreate(input: CreateSaleInput): Promise<string> {
     name: input.customer.name.trim(),
     email: input.customer.email.trim().toLowerCase(),
     phone: input.customer.phone.trim(),
+    cuit: input.customer.cuit?.trim() || '',
   };
 
   if (normalizedCustomer.name || normalizedCustomer.email || normalizedCustomer.phone) {
@@ -131,6 +164,8 @@ async function commitSaleCreate(input: CreateSaleInput): Promise<string> {
     amountPaid: input.amountPaid ?? null,
     change: input.change ?? null,
     customerCount: 1,
+    wantsInvoice: input.wantsInvoice === true,
+    invoiceIssued: false,
     createdBy: input.createdBy,
     createdByName: input.createdByName ?? '',
     createdAt: serverTimestamp(),
@@ -155,6 +190,7 @@ export async function updateSale(
     name: input.customer.name.trim(),
     email: input.customer.email.trim().toLowerCase(),
     phone: input.customer.phone.trim(),
+    cuit: input.customer.cuit?.trim() || '',
   };
 
   if (normalizedCustomer.name || normalizedCustomer.email || normalizedCustomer.phone) {
@@ -204,6 +240,7 @@ export async function updateSale(
     total: input.total,
     amountPaid: input.amountPaid ?? null,
     change: input.change ?? null,
+    wantsInvoice: input.wantsInvoice === true,
     updatedBy: input.createdBy,
     updatedByName: input.createdByName ?? '',
     updatedAt: serverTimestamp(),

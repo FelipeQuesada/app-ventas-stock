@@ -38,6 +38,8 @@ function mapSale(id: string, data: Record<string, unknown>): Sale {
     amountPaid: data.amountPaid as number | undefined,
     change: data.change as number | undefined,
     customerCount: (data.customerCount as number) ?? 1,
+    wantsInvoice: data.wantsInvoice === true,
+    invoiceIssued: data.invoiceIssued === true,
     createdBy: data.createdBy as string,
     createdByName: data.createdByName as string | undefined,
     createdAt: (data.createdAt as Timestamp)?.toDate?.() ?? new Date(),
@@ -76,6 +78,7 @@ export interface CreateSaleInput {
   change?: number;
   createdBy: string;
   createdByName?: string;
+  wantsInvoice?: boolean;
 }
 
 export type CreateSaleOptions = {
@@ -119,6 +122,7 @@ async function commitSaleCreate(input: CreateSaleInput): Promise<string> {
     name: input.customer.name.trim(),
     email: input.customer.email.trim().toLowerCase(),
     phone: input.customer.phone.trim(),
+    cuit: input.customer.cuit?.trim() || '',
   };
 
   if (normalizedCustomer.name || normalizedCustomer.email || normalizedCustomer.phone) {
@@ -152,6 +156,8 @@ async function commitSaleCreate(input: CreateSaleInput): Promise<string> {
     amountPaid: input.amountPaid ?? null,
     change: input.change ?? null,
     customerCount: 1,
+    wantsInvoice: input.wantsInvoice === true,
+    invoiceIssued: false,
     createdBy: input.createdBy,
     createdByName: input.createdByName ?? '',
     createdAt: serverTimestamp(),
@@ -176,6 +182,7 @@ export async function updateSale(
     name: input.customer.name.trim(),
     email: input.customer.email.trim().toLowerCase(),
     phone: input.customer.phone.trim(),
+    cuit: input.customer.cuit?.trim() || '',
   };
 
   if (normalizedCustomer.name || normalizedCustomer.email || normalizedCustomer.phone) {
@@ -225,6 +232,7 @@ export async function updateSale(
     total: input.total,
     amountPaid: input.amountPaid ?? null,
     change: input.change ?? null,
+    wantsInvoice: input.wantsInvoice === true,
     updatedBy: input.createdBy,
     updatedByName: input.createdByName ?? '',
     updatedAt: serverTimestamp(),

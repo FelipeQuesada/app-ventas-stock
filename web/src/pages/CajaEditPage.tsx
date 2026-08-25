@@ -7,6 +7,7 @@ import {
   calculateCajaTotal,
   calculateCajaGanancia,
   calculateCambioCierre,
+  SALE_SELLERS,
 } from '@advance-coat/shared';
 import { getCajaByDate, getCashTotalForDate, parseCajaId, saveCaja } from '../services/caja';
 import { getSales } from '../services/sales';
@@ -20,6 +21,7 @@ export function CajaEditPage() {
 
   const [cajaCambio, setCajaCambio] = useState('');
   const [totalGuardado, setTotalGuardado] = useState('');
+  const [closedByName, setClosedByName] = useState('');
   const [cashSales, setCashSales] = useState(0);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -43,6 +45,7 @@ export function CajaEditPage() {
           setCashSales(getCashTotalForDate(sales, date));
           setCajaCambio(String(existing.cajaCambio));
           setTotalGuardado(String(existing.totalGuardado));
+          setClosedByName(existing.closedByName ?? '');
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -60,6 +63,7 @@ export function CajaEditPage() {
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
     if (!date || !user) return;
+    const closer = closedByName || SALE_SELLERS[0];
     setSaving(true);
     try {
       await saveCaja({
@@ -67,6 +71,8 @@ export function CajaEditPage() {
         cajaCambio: cambioNum,
         cajaTotal: totalNum,
         totalGuardado: guardadoNum,
+        depositoCentral: 0,
+        closedByName: closer,
         updatedBy: user.uid,
         updatedByName: profile?.name,
       });
@@ -116,13 +122,29 @@ export function CajaEditPage() {
           </p>
         </div>
         <div className="field">
-          <label>Total guardado</label>
+          <label>Total guardado (transferido ese día)</label>
           <input
             type="number"
             value={totalGuardado}
             onChange={(e) => setTotalGuardado(e.target.value)}
             required
           />
+        </div>
+        <div className="field">
+          <label>Quién cierra</label>
+          <select
+            className="select-input"
+            value={closedByName}
+            onChange={(e) => setClosedByName(e.target.value)}
+            required
+          >
+            <option value="">Seleccioná…</option>
+            {SALE_SELLERS.map((name) => (
+              <option key={name} value={name}>
+                {name}
+              </option>
+            ))}
+          </select>
         </div>
         <p className="muted">
           Ganancia: {formatCurrency(calculateCajaGanancia(totalNum, cambioNum))} · Cierre:{' '}

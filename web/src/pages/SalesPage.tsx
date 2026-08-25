@@ -39,7 +39,9 @@ export function SalesPage() {
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
   const [customerEmail, setCustomerEmail] = useState('');
+  const [customerCuit, setCustomerCuit] = useState('');
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('efectivo');
+  const [wantsInvoice, setWantsInvoice] = useState(false);
   const [discountType, setDiscountType] = useState<DiscountType | null>(null);
   const [discountValue, setDiscountValue] = useState('');
   const [amountPaid, setAmountPaid] = useState('');
@@ -69,7 +71,9 @@ export function SalesPage() {
             setCustomerName(sale.customer?.name ?? '');
             setCustomerPhone(sale.customer?.phone ?? '');
             setCustomerEmail(sale.customer?.email ?? '');
+            setCustomerCuit(sale.customer?.cuit ?? '');
             setPaymentMethod(sale.paymentMethod);
+            setWantsInvoice(sale.wantsInvoice === true);
             setDiscountType(sale.discountType ?? null);
             setDiscountValue(sale.discountValue != null ? String(sale.discountValue) : '');
             setAmountPaid(sale.amountPaid != null ? String(sale.amountPaid) : '');
@@ -117,6 +121,8 @@ export function SalesPage() {
   const total = calculateSaleTotal(subtotal, discountAmount);
   const paid = Number(amountPaid) || 0;
   const change = paymentMethod === 'efectivo' ? calculateChange(paid, total) : 0;
+  const canAskInvoice =
+    paymentMethod === 'debito' || paymentMethod === 'credito' || paymentMethod === 'qr';
 
   function addExtra() {
     if (!extraDesc.trim() || !extraPrice) return;
@@ -144,6 +150,12 @@ export function SalesPage() {
       setError('Sesión inválida');
       return;
     }
+    if (canAskInvoice && wantsInvoice) {
+      if (!customerPhone.trim() || !customerName.trim() || !customerEmail.trim() || !customerCuit.trim()) {
+        setError('Para factura completá teléfono, nombre, email y CUIT');
+        return;
+      }
+    }
 
     setSaving(true);
     try {
@@ -157,6 +169,7 @@ export function SalesPage() {
           name: customerName,
           email: customerEmail,
           phone: customerPhone,
+          cuit: customerCuit.trim() || undefined,
         },
         subtotal,
         discountType: discountType ?? undefined,
@@ -167,6 +180,7 @@ export function SalesPage() {
         change: paymentMethod === 'efectivo' ? change : undefined,
         createdBy: user.uid,
         createdByName: seller,
+        wantsInvoice: canAskInvoice && wantsInvoice,
       };
 
       if (editId) {
@@ -216,7 +230,7 @@ export function SalesPage() {
 
       <h4 className="sale-section-title">Datos del cliente</h4>
       <div className="field">
-        <label>Teléfono (identificador)</label>
+        <label>{wantsInvoice ? 'Teléfono *' : 'Teléfono (identificador)'}</label>
         <input
           value={customerPhone}
           onChange={(e) => setCustomerPhone(e.target.value)}
@@ -225,7 +239,7 @@ export function SalesPage() {
         />
       </div>
       <div className="field">
-        <label>Nombre y apellido</label>
+        <label>{wantsInvoice ? 'Nombre y apellido *' : 'Nombre y apellido'}</label>
         <input
           value={customerName}
           onChange={(e) => setCustomerName(e.target.value)}
@@ -233,7 +247,7 @@ export function SalesPage() {
         />
       </div>
       <div className="field">
-        <label>Email (opcional)</label>
+        <label>{wantsInvoice ? 'Email *' : 'Email (opcional)'}</label>
         <input
           type="email"
           value={customerEmail}
@@ -458,6 +472,9 @@ export function SalesPage() {
               onClick={() => {
                 setPaymentMethod(pm.value);
                 if (pm.value !== 'efectivo') setAmountPaid('');
+                if (pm.value !== 'debito' && pm.value !== 'credito' && pm.value !== 'qr') {
+                  setWantsInvoice(false);
+                }
               }}
             >
               <Icon size={18} strokeWidth={2} />
@@ -471,6 +488,42 @@ export function SalesPage() {
           <span className="muted">Alias para transferir</span>
           <strong>{selectedAlias}</strong>
         </div>
+      ) : null}
+
+      {canAskInvoice ? (
+        <>
+          <h4 className="sale-section-title">Factura</h4>
+          <div className="invoice-toggle-row">
+            <button
+              type="button"
+              className={`invoice-option ${!wantsInvoice ? 'active' : ''}`}
+              onClick={() => setWantsInvoice(false)}
+            >
+              Sin factura
+            </button>
+            <button
+              type="button"
+              className={`invoice-option ${wantsInvoice ? 'active' : ''}`}
+              onClick={() => setWantsInvoice(true)}
+            >
+              Con factura
+            </button>
+          </div>
+          {wantsInvoice ? (
+            <>
+              <div className="field" style={{ marginTop: 8 }}>
+                <label>CUIT / CUIL *</label>
+                <input
+                  value={customerCuit}
+                  onChange={(e) => setCustomerCuit(e.target.value)}
+                  placeholder="20-12345678-9"
+                  inputMode="numeric"
+                />
+              </div>
+              <p className="caja-hint">Queda pendiente en el panel admin para emitir.</p>
+            </>
+          ) : null}
+        </>
       ) : null}
 
       <div className="sale-summary-card">

@@ -56,9 +56,11 @@ export function ProfilePage() {
           <Link to="/caja" className="row" style={{ gap: 12 }}>
             <Wallet size={18} /> Caja
           </Link>
-          <Link to="/statistics" className="row" style={{ gap: 12 }}>
-            <BarChart3 size={18} /> Estadísticas
-          </Link>
+          {profile?.role === 'admin' && (
+            <Link to="/statistics" className="row" style={{ gap: 12 }}>
+              <BarChart3 size={18} /> Estadísticas
+            </Link>
+          )}
         </div>
       </div>
 

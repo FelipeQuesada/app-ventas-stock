@@ -34,7 +34,7 @@ const DRAWER_NAV = [
   { to: '/customers', label: 'Clientes', icon: Users },
   { to: '/caja', label: 'Caja', icon: Wallet, end: true },
   { to: '/caja/list', label: 'Historial caja', icon: ListOrdered },
-  { to: '/statistics', label: 'Estadísticas', icon: BarChart3 },
+  { to: '/statistics', label: 'Estadísticas', icon: BarChart3, adminOnly: true },
   { to: '/admin', label: 'Panel admin', icon: Shield, adminOnly: true },
   { to: '/profile', label: 'Perfil', icon: User },
 ];

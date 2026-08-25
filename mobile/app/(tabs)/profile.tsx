@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  Alert,
   TouchableOpacity,
 } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -14,6 +13,7 @@ import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { signOutUser, changeUserPassword } from '@/services/auth';
+import { showAlert, showConfirm } from '@/utils/alert';
 import { colors, spacing, typography, radius } from '@/constants/theme';
 
 export default function ProfileScreen() {
@@ -23,39 +23,44 @@ export default function ProfileScreen() {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
 
   const handleLogout = async () => {
-    Alert.alert('Cerrar sesión', '¿Estás seguro?', [
-      { text: 'Cancelar', style: 'cancel' },
-      {
-        text: 'Cerrar sesión',
-        style: 'destructive',
-        onPress: async () => {
-          await signOutUser();
-          router.replace('/(auth)/login');
-        },
-      },
-    ]);
+    const confirmed = await showConfirm('Cerrar sesión', '¿Estás seguro?', 'Cerrar sesión');
+    if (!confirmed) return;
+
+    setLoggingOut(true);
+    try {
+      await signOutUser();
+      router.replace('/(auth)/login');
+    } catch (error) {
+      showAlert('Error', error instanceof Error ? error.message : 'No se pudo cerrar sesión');
+    } finally {
+      setLoggingOut(false);
+    }
   };
 
   const handleChangePassword = async () => {
     if (newPassword.length < 6) {
-      Alert.alert('Error', 'La contraseña debe tener al menos 6 caracteres');
+      showAlert('Error', 'La contraseña debe tener al menos 6 caracteres');
       return;
     }
     if (newPassword !== confirmPassword) {
-      Alert.alert('Error', 'Las contraseñas no coinciden');
+      showAlert('Error', 'Las contraseñas no coinciden');
       return;
     }
     setLoading(true);
     try {
       await changeUserPassword(newPassword);
-      Alert.alert('Listo', 'Contraseña actualizada');
+      showAlert('Listo', 'Contraseña actualizada');
       setShowPasswordForm(false);
       setNewPassword('');
       setConfirmPassword('');
     } catch {
-      Alert.alert('Error', 'No se pudo cambiar la contraseña. Volvé a iniciar sesión e intentá de nuevo.');
+      showAlert(
+        'Error',
+        'No se pudo cambiar la contraseña. Volvé a iniciar sesión e intentá de nuevo.'
+      );
     } finally {
       setLoading(false);
     }
@@ -121,8 +126,9 @@ export default function ProfileScreen() {
 
       <Button
         title="Cerrar sesión"
-        onPress={handleLogout}
+        onPress={() => void handleLogout()}
         variant="outline"
+        loading={loggingOut}
         style={styles.logoutButton}
         textStyle={{ color: colors.danger }}
       />

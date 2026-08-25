@@ -48,6 +48,28 @@ service cloud.firestore {
       allow read, write: if isAuthenticated();
     }
 
+    // Caja central: get autenticado (depósitos al cerrar); list/UI saldo solo admin.
+    // Update: empleados solo pueden incrementar balance; retiros (decremento) solo admin.
+    match /cajaCentral/{docId} {
+      allow get: if isAuthenticated();
+      allow list: if isAdmin();
+      allow create: if isAuthenticated();
+      allow update: if isAuthenticated() && (
+        isAdmin()
+        || request.resource.data.balance >= resource.data.balance
+      );
+      allow delete: if isAdmin();
+    }
+
+    match /cajaCentralMovements/{movementId} {
+      allow read: if isAdmin();
+      allow create: if isAuthenticated() && (
+        request.resource.data.type == 'deposito'
+        || (request.resource.data.type == 'retiro' && isAdmin())
+      );
+      allow update, delete: if isAdmin();
+    }
+
     match /customers/{customerId} {
       allow read, create, update, delete: if isAuthenticated();
     }

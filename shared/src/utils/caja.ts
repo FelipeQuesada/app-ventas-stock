@@ -47,6 +47,7 @@ export interface CajaCierreMessageInput {
   totalGuardado: number;
   cambioCierre: number;
   sinMovimiento?: boolean;
+  closedByName?: string;
 }
 
 export function buildCajaCierreMessage(input: CajaCierreMessageInput): string {
@@ -60,6 +61,7 @@ export function buildCajaCierreMessage(input: CajaCierreMessageInput): string {
     lines.push('Sin movimiento de caja');
     lines.push(`Cambio caja: ${formatCurrency(input.cajaCambio)}`);
     lines.push(`Dejo en caja: ${formatCurrency(input.cambioCierre)}`);
+    if (input.closedByName) lines.push(`Cerró: ${input.closedByName}`);
     return lines.join('\n');
   }
 
@@ -69,6 +71,7 @@ export function buildCajaCierreMessage(input: CajaCierreMessageInput): string {
   lines.push('');
   lines.push(`Guardo: ${formatCurrency(input.totalGuardado)}`);
   lines.push(`Dejo en caja: ${formatCurrency(input.cambioCierre)}`);
+  if (input.closedByName) lines.push(`Cerró: ${input.closedByName}`);
   return lines.join('\n');
 }
 
@@ -76,14 +79,17 @@ export interface CajaRetiroMessageInput {
   date: Date;
   amount: number;
   totalGuardado: number;
+  actorName?: string;
 }
 
 export function buildCajaRetiroMessage(input: CajaRetiroMessageInput): string {
-  return [
-    '*Retiro de caja*',
+  const lines = [
+    '*Retiro de caja central*',
     formatDate(input.date),
     '',
     `Retiré: ${formatCurrency(input.amount)}`,
-    `Queda guardado: ${formatCurrency(input.totalGuardado)}`,
-  ].join('\n');
+    `Queda en central: ${formatCurrency(input.totalGuardado)}`,
+  ];
+  if (input.actorName) lines.push(`Retiró: ${input.actorName}`);
+  return lines.join('\n');
 }

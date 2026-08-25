@@ -5,12 +5,14 @@ import {
   Shield,
   ArrowLeft,
   LogOut,
+  FileText,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { signOutUser } from '../services/auth';
 
 const ADMIN_NAV = [
   { to: '/admin', label: 'Resumen', icon: LayoutDashboard, end: true },
+  { to: '/admin/invoices', label: 'Ventas con factura', icon: FileText },
   { to: '/admin/users', label: 'Usuarios', icon: Users },
 ];
 

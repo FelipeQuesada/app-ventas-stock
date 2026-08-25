@@ -11,13 +11,15 @@ import {
   buildCajaRetiroMessage,
   buildWhatsAppUrl,
   CAJA_WHATSAPP_PHONE,
+  SALE_SELLERS,
 } from '@advance-coat/shared';
 import {
   getCajaByDate,
   getCajaCambioFromPreviousDay,
+  getOrCreateCajaCentral,
   getTodayCashTotal,
   saveCaja,
-  updateTotalGuardado,
+  withdrawFromCajaCentral,
 } from '../services/caja';
 import { getSales } from '../services/sales';
 import { useAuth } from '../context/AuthContext';
@@ -43,12 +45,16 @@ function CajaRow({
 
 export function CajaPage() {
   const { user, profile } = useAuth();
+  const isAdmin = profile?.role === 'admin';
   const today = new Date();
   const [cajaCambio, setCajaCambio] = useState('');
   const [cashSales, setCashSales] = useState(0);
   const [totalGuardado, setTotalGuardado] = useState(0);
+  const [centralBalance, setCentralBalance] = useState(0);
   const [montoGuardo, setMontoGuardo] = useState('');
   const [montoRetiro, setMontoRetiro] = useState('');
+  const [closedByName, setClosedByName] = useState('');
+  const [retiroByName, setRetiroByName] = useState('');
   const [retiroVisible, setRetiroVisible] = useState(false);
   const [processingRetiro, setProcessingRetiro] = useState(false);
   const [sinMovimiento, setSinMovimiento] = useState(false);
@@ -73,6 +79,15 @@ export function CajaPage() {
         setCajaCambio(String(existing?.cajaCambio ?? prevCambio ?? 0));
         setTotalGuardado(existing?.totalGuardado ?? 0);
         setSinMovimiento(existing?.sinMovimiento === true);
+        if (existing?.closedByName) setClosedByName(existing.closedByName);
+
+        if (profile?.role === 'admin' && user) {
+          const central = await getOrCreateCajaCentral({
+            userId: user.uid,
+            userName: profile.name,
+          });
+          if (!cancelled) setCentralBalance(central.balance);
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -81,7 +96,7 @@ export function CajaPage() {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [profile?.role, user?.uid]);
 
   const cambioNum = Number(cajaCambio) || 0;
   const cajaTotal = calculateCajaTotal(cashSales, cambioNum);
@@ -113,28 +128,41 @@ export function CajaPage() {
   }
 
   async function handleRetiro() {
-    if (!user) return;
+    if (!user || !isAdmin) return;
     const amount = Number(montoRetiro);
     if (!amount || amount <= 0) {
       window.alert('Ingresá un monto válido para el retiro');
       return;
     }
-    if (amount > totalGuardado) {
-      window.alert('El retiro no puede ser mayor al total guardado');
+    if (!retiroByName) {
+      window.alert('Seleccioná quién retira el dinero');
+      return;
+    }
+    if (amount > centralBalance) {
+      window.alert('El retiro no puede ser mayor al saldo de caja central');
       return;
     }
 
     setProcessingRetiro(true);
     try {
-      const newTotal = totalGuardado - amount;
-      await updateTotalGuardado(today, newTotal, cambioNum, cajaTotal, user.uid, profile?.name);
-      setTotalGuardado(newTotal);
+      const central = await withdrawFromCajaCentral({
+        amount,
+        actorName: retiroByName,
+        userId: user.uid,
+        userName: profile?.name,
+      });
+      setCentralBalance(central.balance);
       setMontoRetiro('');
       setRetiroVisible(false);
       setInfo(`Retiro registrado: ${formatCurrency(amount)}`);
       offerShare(
         'Retiro registrado',
-        buildCajaRetiroMessage({ date: today, amount, totalGuardado: newTotal })
+        buildCajaRetiroMessage({
+          date: today,
+          amount,
+          totalGuardado: central.balance,
+          actorName: retiroByName,
+        })
       );
     } catch (err) {
       window.alert(err instanceof Error ? err.message : 'No se pudo registrar el retiro');
@@ -146,6 +174,10 @@ export function CajaPage() {
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
     if (!user) return;
+    if (!closedByName) {
+      window.alert('Seleccioná quién cierra la caja');
+      return;
+    }
     if (guardoPendiente < 0) {
       window.alert('Ingresá un monto válido para guardar');
       return;
@@ -165,7 +197,9 @@ export function CajaPage() {
         cajaCambio: cambioNum,
         cajaTotal,
         totalGuardado: finalTotalGuardado,
+        depositoCentral: Math.max(0, guardoPendiente),
         sinMovimiento: false,
+        closedByName,
         updatedBy: user.uid,
         updatedByName: profile?.name,
       });
@@ -173,6 +207,13 @@ export function CajaPage() {
       setTotalGuardado(finalTotalGuardado);
       setMontoGuardo('');
       setSinMovimiento(false);
+      if (isAdmin) {
+        const central = await getOrCreateCajaCentral({
+          userId: user.uid,
+          userName: profile?.name,
+        });
+        setCentralBalance(central.balance);
+      }
       setInfo(`Caja guardada — cambio para mañana: ${formatCurrency(leftInCaja)}`);
       offerShare(
         'Caja guardada',
@@ -183,6 +224,7 @@ export function CajaPage() {
           ganancia,
           totalGuardado: finalTotalGuardado,
           cambioCierre: leftInCaja,
+          closedByName,
         })
       );
     } catch (err) {
@@ -194,6 +236,10 @@ export function CajaPage() {
 
   async function handleNoMovement() {
     if (!user) return;
+    if (!closedByName) {
+      window.alert('Seleccioná quién cierra la caja');
+      return;
+    }
     if (!canMarkNoMovement) {
       window.alert('Hay ventas en efectivo hoy. No se puede marcar sin movimiento.');
       return;
@@ -213,6 +259,7 @@ export function CajaPage() {
       await saveCaja({
         date: today,
         ...payload,
+        closedByName,
         updatedBy: user.uid,
         updatedByName: profile?.name,
       });
@@ -226,6 +273,7 @@ export function CajaPage() {
           date: today,
           ...payload,
           sinMovimiento: true,
+          closedByName,
         })
       );
     } catch (err) {
@@ -250,13 +298,19 @@ export function CajaPage() {
         </Link>
       </div>
 
-      <button
-        type="button"
-        className="btn btn-ghost caja-withdraw-btn"
-        onClick={() => setRetiroVisible(true)}
-      >
-        Retirar dinero
-      </button>
+      {isAdmin && (
+        <div className="card caja-card caja-central-card">
+          <CajaRow label="Caja central" value={formatCurrency(centralBalance)} highlight accent />
+          <p className="caja-hint">Pozo acumulado. Los retiros salen de acá y no cambian el día.</p>
+          <button
+            type="button"
+            className="btn btn-ghost caja-withdraw-btn"
+            onClick={() => setRetiroVisible(true)}
+          >
+            Retirar dinero
+          </button>
+        </div>
+      )}
 
       <div className="card caja-card">
         <div className="field">
@@ -289,13 +343,13 @@ export function CajaPage() {
       </div>
 
       <div className="card caja-card">
-        <CajaRow label="Total guardado" value={formatCurrency(totalGuardadoPreview)} highlight />
-        <p className="caja-hint">Acumulado en caja central (guardados − retiros)</p>
+        <CajaRow label="Transferido hoy" value={formatCurrency(totalGuardadoPreview)} highlight />
+        <p className="caja-hint">Lo enviado a caja central en este cierre (no baja por retiros)</p>
 
         <div className="caja-divider" />
 
         <div className="field">
-          <label>Guardo (caja central)</label>
+          <label>Guardo (a caja central)</label>
           <input
             type="number"
             min="0"
@@ -304,12 +358,31 @@ export function CajaPage() {
             placeholder="0"
           />
         </div>
-        <p className="caja-hint">Se suma al total guardado al tocar “Guardar cierre de caja”</p>
+        <p className="caja-hint">Se suma al pozo central al tocar “Guardar cierre de caja”</p>
 
         <div className="caja-divider" />
 
         <CajaRow label="Cambio para mañana" value={formatCurrency(cambioCierre)} highlight />
-        <p className="caja-hint">Caja total − Total guardado</p>
+        <p className="caja-hint">Caja total − Transferido hoy</p>
+
+        <div className="caja-divider" />
+
+        <div className="field">
+          <label>Quién cierra la caja</label>
+          <select
+            className="select-input"
+            value={closedByName}
+            onChange={(e) => setClosedByName(e.target.value)}
+            required
+          >
+            <option value="">Seleccioná…</option>
+            {SALE_SELLERS.map((name) => (
+              <option key={name} value={name}>
+                {name}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
       {info && <p className="success-text">{info}</p>}
@@ -329,11 +402,11 @@ export function CajaPage() {
         </button>
       )}
 
-      {retiroVisible && (
+      {retiroVisible && isAdmin && (
         <div className="modal-overlay" onClick={() => setRetiroVisible(false)}>
           <div className="modal-card caja-modal" onClick={(e) => e.stopPropagation()}>
             <div className="caja-modal-header">
-              <h3 style={{ margin: 0 }}>Retirar dinero</h3>
+              <h3 style={{ margin: 0 }}>Retirar de caja central</h3>
               <button
                 type="button"
                 className="btn btn-icon btn-ghost"
@@ -345,7 +418,24 @@ export function CajaPage() {
             </div>
 
             <p className="caja-modal-label">Disponible en caja central</p>
-            <p className="caja-modal-amount">{formatCurrency(totalGuardado)}</p>
+            <p className="caja-modal-amount">{formatCurrency(centralBalance)}</p>
+
+            <div className="field">
+              <label>Quién retira</label>
+              <select
+                className="select-input"
+                value={retiroByName}
+                onChange={(e) => setRetiroByName(e.target.value)}
+                required
+              >
+                <option value="">Seleccioná…</option>
+                {SALE_SELLERS.map((name) => (
+                  <option key={name} value={name}>
+                    {name}
+                  </option>
+                ))}
+              </select>
+            </div>
 
             <div className="field">
               <label>Monto a retirar</label>
@@ -358,7 +448,7 @@ export function CajaPage() {
                 autoFocus
               />
             </div>
-            <p className="caja-hint">El monto se descontará del total guardado.</p>
+            <p className="caja-hint">Se descuenta solo del pozo central. El cierre del día no cambia.</p>
 
             <div className="caja-modal-actions">
               <button

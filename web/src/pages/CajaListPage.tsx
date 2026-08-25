@@ -102,6 +102,7 @@ export function CajaListPage() {
                 <th>Ganancia</th>
                 <th>Guardado</th>
                 <th>Cierre</th>
+                <th>Cerró</th>
                 <th></th>
               </tr>
             </thead>
@@ -121,6 +122,7 @@ export function CajaListPage() {
                   <td>{formatCurrency(r.ganancia)}</td>
                   <td>{formatCurrency(r.totalGuardado)}</td>
                   <td>{formatCurrency(r.cambioCierre)}</td>
+                  <td>{r.closedByName || '—'}</td>
                   <td>
                     <div className="actions">
                       <Link to={`/caja/edit/${r.id}`} className="btn btn-ghost btn-sm">

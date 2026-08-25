@@ -223,6 +223,9 @@ export default function CajaListScreen() {
                   <DetailRow label="Ganancia" value={formatCurrency(selected.ganancia)} accent />
                   <DetailRow label="Total guardado" value={formatCurrency(selected.totalGuardado)} />
                   <DetailRow label="Cambio para mañana" value={formatCurrency(selected.cambioCierre)} />
+                  {selected.closedByName ? (
+                    <DetailRow label="Cerró" value={selected.closedByName} />
+                  ) : null}
                   {selected.updatedByName ? (
                     <DetailRow label="Actualizado por" value={selected.updatedByName} />
                   ) : null}

@@ -5,6 +5,7 @@ import { useAuth } from '@/context/AuthContext';
 import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
+import { SelectField } from '@/components/ui/SelectField';
 import { DatePickerField } from '@/components/ui/DatePickerField';
 import { LoadingScreen } from '@/components/ui/EmptyState';
 import {
@@ -16,6 +17,7 @@ import {
   saveCaja,
 } from '@/services/caja';
 import { getSales } from '@/services/sales';
+import { SALE_SELLERS } from '@/constants/sellers';
 import { calculateCajaTotal } from '@/utils/caja';
 import { formatCurrency, formatDate } from '@/utils/format';
 import { showAlert, showConfirm } from '@/utils/alert';
@@ -54,6 +56,7 @@ export default function CajaEditScreen() {
   const [cajaCambio, setCajaCambio] = useState('');
   const [cashSales, setCashSales] = useState(0);
   const [totalGuardado, setTotalGuardado] = useState('');
+  const [closedByName, setClosedByName] = useState('');
 
   useEffect(() => {
     let cancelled = false;
@@ -85,6 +88,7 @@ export default function CajaEditScreen() {
         if (record) {
           setCajaCambio(record.cajaCambio.toString());
           setTotalGuardado(record.totalGuardado.toString());
+          if (record.closedByName) setClosedByName(record.closedByName);
         }
       } catch {
         showAlert('Error', 'No se pudo cargar el registro');
@@ -119,6 +123,7 @@ export default function CajaEditScreen() {
   };
 
   const handleSave = async () => {
+    const closer = closedByName || SALE_SELLERS[0];
     if (isNaN(cajaCambioAmount) || cajaCambioAmount < 0) {
       showAlert('Error', 'Ingresá un monto válido para caja cambio');
       return;
@@ -139,6 +144,8 @@ export default function CajaEditScreen() {
         cajaCambio: cajaCambioAmount,
         cajaTotal: cajaTotalAmount,
         totalGuardado: totalGuardadoAmount,
+        depositoCentral: 0,
+        closedByName: closer,
         updatedBy: user!.uid,
         updatedByName: profile?.name,
       });
@@ -148,8 +155,8 @@ export default function CajaEditScreen() {
         `Cambio para mañana: ${formatCurrency(cambioCierre)}`,
         [{ text: 'OK', onPress: () => router.back() }]
       );
-    } catch {
-      showAlert('Error', 'No se pudo guardar el registro de caja');
+    } catch (err) {
+      showAlert('Error', err instanceof Error ? err.message : 'No se pudo guardar el registro de caja');
     } finally {
       setSaving(false);
     }
@@ -215,6 +222,16 @@ export default function CajaEditScreen() {
 
           <CajaRow label="Cambio para mañana" value={formatCurrency(cambioCierre)} highlight />
           <Text style={styles.hint}>Caja total − Total guardado</Text>
+
+          <View style={styles.divider} />
+
+          <SelectField
+            label="Quién cierra la caja"
+            value={closedByName}
+            options={[...SALE_SELLERS]}
+            onChange={setClosedByName}
+            placeholder="Seleccioná…"
+          />
         </Card>
 
         <Button

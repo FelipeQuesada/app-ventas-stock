@@ -27,6 +27,9 @@ export function CajaListItem({ caja, onPress, onEdit, onDelete }: CajaListItemPr
         <Text style={styles.meta}>
           Cambio cierre: {formatCurrency(caja.cambioCierre)}
         </Text>
+        {caja.closedByName ? (
+          <Text style={styles.meta}>Cerró: {caja.closedByName}</Text>
+        ) : null}
         {caja.sinMovimiento ? <Text style={styles.noMovement}>Sin movimiento</Text> : null}
       </View>
       <View style={styles.actions}>

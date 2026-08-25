@@ -25,13 +25,15 @@ import { getSales, getTodaySales } from '../services/sales';
 import { getProducts } from '../services/products';
 import {
   getDailySalesChart,
-  getMonthlyRevenue,
   getAverageTicket,
 } from '../services/stats';
 import type { Sale, Product } from '@advance-coat/shared';
+import { useAuth } from '../context/AuthContext';
 
 export function DashboardPage() {
   const navigate = useNavigate();
+  const { profile } = useAuth();
+  const isAdmin = profile?.role === 'admin';
   const [sales, setSales] = useState<Sale[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
@@ -62,7 +64,6 @@ export function DashboardPage() {
 
   const today = getTodaySales(sales);
   const todayTotal = today.reduce((sum, s) => sum + s.total, 0);
-  const monthRevenue = getMonthlyRevenue(sales);
   const avgTicket = getAverageTicket(today.length ? today : sales.slice(0, 50));
   const lowStock = getLowStockProducts(products);
   const chartData = getDailySalesChart(sales, 30);
@@ -109,15 +110,17 @@ export function DashboardPage() {
           <div className="kpi-hint">{today.length} operaciones</div>
         </div>
         <div className="kpi-card">
-          <div className="kpi-label">Mes actual</div>
-          <div className="kpi-value">{formatCurrency(monthRevenue)}</div>
-          <div className="kpi-hint">Recaudación del mes</div>
+          <div className="kpi-label">Recaudación del día</div>
+          <div className="kpi-value">{formatCurrency(todayTotal)}</div>
+          <div className="kpi-hint">Total cobrado hoy</div>
         </div>
-        <div className="kpi-card">
-          <div className="kpi-label">Ticket promedio</div>
-          <div className="kpi-value">{formatCurrency(avgTicket)}</div>
-          <div className="kpi-hint">Basado en ventas recientes</div>
-        </div>
+        {isAdmin && (
+          <div className="kpi-card">
+            <div className="kpi-label">Ticket promedio</div>
+            <div className="kpi-value">{formatCurrency(avgTicket)}</div>
+            <div className="kpi-hint">Basado en ventas recientes</div>
+          </div>
+        )}
         <div className="kpi-card">
           <div className="kpi-label">Productos</div>
           <div className="kpi-value">{products.length}</div>
@@ -126,37 +129,39 @@ export function DashboardPage() {
       </div>
 
       <div className="grid-2" style={{ marginBottom: 24 }}>
-        <div className="card">
-          <h3 className="card-title">Ventas últimos 30 días</h3>
-          <p className="card-subtitle">Recaudación diaria</p>
-          <div style={{ width: '100%', height: 280 }}>
-            <ResponsiveContainer>
-              <AreaChart data={chartData}>
-                <defs>
-                  <linearGradient id="rev" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="0%" stopColor="#2563EB" stopOpacity={0.35} />
-                    <stop offset="100%" stopColor="#2563EB" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#E8ECF4" />
-                <XAxis dataKey="label" tick={{ fontSize: 11 }} interval="preserveStartEnd" />
-                <YAxis tick={{ fontSize: 11 }} width={60} />
-                <Tooltip
-                  formatter={(value: number) => formatCurrency(value)}
-                  labelStyle={{ color: '#1A1A2E' }}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="value"
-                  stroke="#2563EB"
-                  fill="url(#rev)"
-                  strokeWidth={2}
-                  name="Recaudación"
-                />
-              </AreaChart>
-            </ResponsiveContainer>
+        {isAdmin && (
+          <div className="card">
+            <h3 className="card-title">Ventas últimos 30 días</h3>
+            <p className="card-subtitle">Recaudación diaria</p>
+            <div style={{ width: '100%', height: 280 }}>
+              <ResponsiveContainer>
+                <AreaChart data={chartData}>
+                  <defs>
+                    <linearGradient id="rev" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#2563EB" stopOpacity={0.35} />
+                      <stop offset="100%" stopColor="#2563EB" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#E8ECF4" />
+                  <XAxis dataKey="label" tick={{ fontSize: 11 }} interval="preserveStartEnd" />
+                  <YAxis tick={{ fontSize: 11 }} width={60} />
+                  <Tooltip
+                    formatter={(value: number) => formatCurrency(value)}
+                    labelStyle={{ color: '#1A1A2E' }}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="value"
+                    stroke="#2563EB"
+                    fill="url(#rev)"
+                    strokeWidth={2}
+                    name="Recaudación"
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
           </div>
-        </div>
+        )}
 
         <div className="card">
           <h3 className="card-title">Accesos rápidos</h3>
@@ -178,10 +183,12 @@ export function DashboardPage() {
               <div className="icon-box"><Wallet size={18} /></div>
               <span>Caja</span>
             </Link>
-            <Link to="/statistics" className="quick-link">
-              <div className="icon-box"><BarChart3 size={18} /></div>
-              <span>Estadísticas</span>
-            </Link>
+            {isAdmin && (
+              <Link to="/statistics" className="quick-link">
+                <div className="icon-box"><BarChart3 size={18} /></div>
+                <span>Estadísticas</span>
+              </Link>
+            )}
             <Link to="/stock" className="quick-link">
               <div className="icon-box"><Package size={18} /></div>
               <span>Stock</span>

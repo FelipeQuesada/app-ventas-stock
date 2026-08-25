@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { Platform } from 'react-native';
 import { useFonts, Inter_400Regular, Inter_500Medium, Inter_600SemiBold, Inter_700Bold } from '@expo-google-fonts/inter';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
@@ -40,15 +41,19 @@ function AuthGate({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-export default function RootLayout() {
-  const [fontsLoaded, fontError] = useFonts({
-    Inter_400Regular,
-    Inter_500Medium,
-    Inter_600SemiBold,
-    Inter_700Bold,
-  });
+const nativeFonts = {
+  Inter_400Regular,
+  Inter_500Medium,
+  Inter_600SemiBold,
+  Inter_700Bold,
+};
 
-  const ready = fontsLoaded || !!fontError;
+export default function RootLayout() {
+  // En web Inter ya viene por CDN (+html.tsx). useFonts + fontfaceobserver
+  // suele tirar "6000ms timeout exceeded" y no hace falta.
+  const [fontsLoaded, fontError] = useFonts(Platform.OS === 'web' ? {} : nativeFonts);
+
+  const ready = Platform.OS === 'web' || fontsLoaded || !!fontError;
 
   useEffect(() => {
     if (fontError) {
@@ -58,7 +63,7 @@ export default function RootLayout() {
 
   useEffect(() => {
     if (ready) {
-      SplashScreen.hideAsync();
+      void SplashScreen.hideAsync();
     }
   }, [ready]);
 

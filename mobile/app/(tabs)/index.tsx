@@ -10,7 +10,6 @@ import { getProducts } from '@/services/products';
 import { getSales, getTodaySales } from '@/services/sales';
 import {
   getDailySalesChart,
-  getMonthlyRevenue,
 } from '@/services/stats';
 import { syncPendingSales, getPendingSalesCount } from '@/services/offlineQueue';
 import { formatCurrency, capitalize } from '@/utils/format';
@@ -20,12 +19,12 @@ import { colors, spacing, typography } from '@/constants/theme';
 
 export default function DashboardScreen() {
   const { profile } = useAuth();
+  const isAdmin = profile?.role === 'admin';
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [todaySales, setTodaySales] = useState(0);
   const [todayRevenue, setTodayRevenue] = useState(0);
-  const [monthRevenue, setMonthRevenue] = useState(0);
   const [lowStockCount, setLowStockCount] = useState(0);
   const [totalSales, setTotalSales] = useState(0);
   const [chartData, setChartData] = useState<{ label: string; value: number }[]>([]);
@@ -39,7 +38,6 @@ export default function DashboardScreen() {
       const lowStock = getLowStockProducts(products);
       setTodaySales(today.length);
       setTodayRevenue(today.reduce((sum, s) => sum + s.total, 0));
-      setMonthRevenue(getMonthlyRevenue(sales));
       setLowStockCount(lowStock.length);
       setTotalSales(sales.length);
       setChartData(getDailySalesChart(sales, 30).map((d) => ({ label: d.label, value: d.value })));
@@ -126,8 +124,8 @@ export default function DashboardScreen() {
             subtitle={formatCurrency(todayRevenue)}
           />
           <StatCard
-            title="Recaudación del mes"
-            value={formatCurrency(monthRevenue)}
+            title="Recaudación del día"
+            value={formatCurrency(todayRevenue)}
             icon="attach-money"
             iconColor={colors.success}
           />
@@ -139,18 +137,22 @@ export default function DashboardScreen() {
             subtitle="productos"
           />
         </View>
-        <StatCard
-          title="Total ventas"
-          value={totalSales}
-          icon="receipt-long"
-          iconColor={colors.primary}
-          style={styles.statFullWidth}
-        />
+        {isAdmin && (
+          <StatCard
+            title="Total ventas"
+            value={totalSales}
+            icon="receipt-long"
+            iconColor={colors.primary}
+            style={styles.statFullWidth}
+          />
+        )}
       </View>
 
-      <ChartCard title="Ventas últimos 30 días">
-        <StatsLineChart data={chartData} color={colors.accent} />
-      </ChartCard>
+      {isAdmin && (
+        <ChartCard title="Ventas últimos 30 días">
+          <StatsLineChart data={chartData} color={colors.accent} />
+        </ChartCard>
+      )}
 
       <Text style={styles.sectionTitle}>Accesos rápidos</Text>
       <View style={styles.quickActions}>
@@ -161,7 +163,9 @@ export default function DashboardScreen() {
         <QuickAction title="Clientes" icon="people" href="/customers" />
         <QuickAction title="Productos" icon="inventory-2" href="/(tabs)/products" />
         <QuickAction title="Stock" icon="warehouse" href="/stock" color={colors.warning} />
-        <QuickAction title="Estadísticas" icon="bar-chart" href="/(tabs)/statistics" color={colors.success} />
+        {isAdmin && (
+          <QuickAction title="Estadísticas" icon="bar-chart" href="/(tabs)/statistics" color={colors.success} />
+        )}
       </View>
     </ScrollView>
   );
