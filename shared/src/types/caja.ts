@@ -13,6 +13,12 @@ export interface DailyCaja {
   sinMovimiento?: boolean;
   /** Quién cerró la caja (lista de vendedores) */
   closedByName?: string;
+  /** 'retiro' = salida de caja central (historial en rojo) */
+  entryType?: 'cierre' | 'retiro';
+  /** Monto retirado de caja central (solo entryType retiro) */
+  retiroAmount?: number;
+  /** Saldo de caja central después del retiro */
+  balanceAfter?: number;
   updatedBy: string;
   updatedByName?: string;
   updatedAt: Date;

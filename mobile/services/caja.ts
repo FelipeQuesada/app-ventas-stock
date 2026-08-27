@@ -53,6 +53,10 @@ export async function deleteCaja(date: Date): Promise<void> {
   await deleteDoc(doc(db, COLLECTION, dateToId(date)));
 }
 
+export async function deleteCajaRecord(record: DailyCaja): Promise<void> {
+  await deleteDoc(doc(db, COLLECTION, record.id));
+}
+
 function getTotalGuardado(data: Record<string, unknown>): number {
   if (typeof data.totalGuardado === 'number') return data.totalGuardado;
   if (typeof data.guardo === 'number') return data.guardo;
@@ -61,17 +65,21 @@ function getTotalGuardado(data: Record<string, unknown>): number {
 
 function mapCaja(id: string, data: Record<string, unknown>): DailyCaja {
   const totalGuardado = getTotalGuardado(data);
+  const entryType = data.entryType === 'retiro' ? 'retiro' : 'cierre';
   return {
     id,
     date: (data.date as Timestamp)?.toDate?.() ?? new Date(),
-    cajaCambio: data.cajaCambio as number,
-    cajaTotal: data.cajaTotal as number,
-    ganancia: data.ganancia as number,
+    cajaCambio: (data.cajaCambio as number) || 0,
+    cajaTotal: (data.cajaTotal as number) || 0,
+    ganancia: (data.ganancia as number) || 0,
     totalGuardado,
     guardo: data.guardo as number | undefined,
-    cambioCierre: data.cambioCierre as number,
+    cambioCierre: (data.cambioCierre as number) || 0,
     sinMovimiento: data.sinMovimiento === true,
     closedByName: (data.closedByName as string | undefined) || undefined,
+    entryType,
+    retiroAmount: typeof data.retiroAmount === 'number' ? data.retiroAmount : undefined,
+    balanceAfter: typeof data.balanceAfter === 'number' ? data.balanceAfter : undefined,
     updatedBy: data.updatedBy as string,
     updatedByName: data.updatedByName as string | undefined,
     updatedAt: (data.updatedAt as Timestamp)?.toDate?.() ?? new Date(),
@@ -119,11 +127,16 @@ export async function getPreviousCaja(date: Date): Promise<DailyCaja | null> {
     collection(db, COLLECTION),
     where('date', '<', Timestamp.fromDate(startOfDay(date))),
     orderBy('date', 'desc'),
-    limit(1)
+    limit(20)
   );
   const snap = await getDocs(q);
-  const previous = snap.docs[0];
-  return previous ? mapCaja(previous.id, previous.data()) : null;
+  for (const d of snap.docs) {
+    if (d.id === CENTRAL_DOC_ID) continue;
+    const record = mapCaja(d.id, d.data());
+    if (record.entryType === 'retiro') continue;
+    return record;
+  }
+  return null;
 }
 
 function getCambioRemanente(record: DailyCaja): number {
@@ -131,56 +144,66 @@ function getCambioRemanente(record: DailyCaja): number {
   return record.cajaTotal - record.totalGuardado;
 }
 
-/**
- * Pozo a migrar: el totalGuardado más reciente > 0 (hoy o cierres anteriores).
- */
-async function resolveInitialCentralBalance(): Promise<number> {
-  const todayCaja = await getCajaByDate(new Date());
-  if ((todayCaja?.totalGuardado ?? 0) > 0) return todayCaja!.totalGuardado;
-
-  const q = query(collection(db, COLLECTION), orderBy('date', 'desc'), limit(30));
-  const snap = await getDocs(q);
-  for (const d of snap.docs) {
-    if (d.id === CENTRAL_DOC_ID) continue;
-    const record = mapCaja(d.id, d.data());
-    if (todayCaja && record.id === todayCaja.id) continue;
-    if (record.totalGuardado > 0) return record.totalGuardado;
-  }
-  return 0;
-}
+/** One-shot: arrancar pozo en 0 y no volver a sembrar desde cierres viejos. */
+const CENTRAL_RESET_KEY = 'v2-zero-2026-08-27';
 
 function centralRef() {
   return doc(db, COLLECTION, CENTRAL_DOC_ID);
 }
 
-/** Lee o crea el pozo. Si está en 0, carga el último guardado (ej. $60.000 de ayer). */
+/**
+ * Lee o crea el pozo central.
+ * Solo suma con depósitos al cerrar caja y resta con retiros.
+ * No rehidrata desde totalGuardado de días anteriores.
+ */
 export async function getOrCreateCajaCentral(actor?: {
   userId: string;
   userName?: string;
 }): Promise<CajaCentral> {
   const ref = centralRef();
   const snap = await getDoc(ref);
-  const current = snap.exists() ? mapCentral(snap.id, snap.data()) : null;
-  if (current && current.balance > 0) return current;
+  const actorFields = {
+    updatedAt: serverTimestamp(),
+    updatedBy: actor?.userId ?? '',
+    updatedByName: actor?.userName ?? 'system',
+  };
 
-  const seed = await resolveInitialCentralBalance();
-  await setDoc(
-    ref,
-    {
-      balance: seed,
-      updatedAt: serverTimestamp(),
-      updatedBy: actor?.userId ?? '',
-      updatedByName: actor?.userName ?? 'seed',
-    },
-    { merge: true }
-  );
+  if (snap.exists()) {
+    const data = snap.data() as Record<string, unknown>;
+    if (data.resetKey !== CENTRAL_RESET_KEY) {
+      await setDoc(
+        ref,
+        {
+          balance: 0,
+          resetKey: CENTRAL_RESET_KEY,
+          ...actorFields,
+          updatedByName: actor?.userName ?? 'reset',
+        },
+        { merge: true }
+      );
+      return {
+        id: CENTRAL_DOC_ID,
+        balance: 0,
+        updatedAt: new Date(),
+        updatedBy: actor?.userId,
+        updatedByName: actor?.userName ?? 'reset',
+      };
+    }
+    return mapCentral(snap.id, data);
+  }
+
+  await setDoc(ref, {
+    balance: 0,
+    resetKey: CENTRAL_RESET_KEY,
+    ...actorFields,
+  });
 
   return {
     id: CENTRAL_DOC_ID,
-    balance: seed,
+    balance: 0,
     updatedAt: new Date(),
     updatedBy: actor?.userId,
-    updatedByName: actor?.userName ?? 'seed',
+    updatedByName: actor?.userName ?? 'system',
   };
 }
 
@@ -293,10 +316,29 @@ export async function withdrawFromCajaCentral(input: {
     // auditoría opcional
   }
 
+  const now = new Date();
+  const historyId = `retiro-${format(now, 'yyyy-MM-dd-HHmmss')}`;
+  await setDoc(doc(db, COLLECTION, historyId), {
+    entryType: 'retiro',
+    date: Timestamp.fromDate(now),
+    cajaCambio: 0,
+    cajaTotal: 0,
+    ganancia: 0,
+    totalGuardado: 0,
+    guardo: 0,
+    cambioCierre: 0,
+    retiroAmount: input.amount,
+    balanceAfter: newBalance,
+    closedByName: input.actorName,
+    updatedBy: input.userId,
+    updatedByName: input.userName ?? '',
+    updatedAt: serverTimestamp(),
+  });
+
   await logAudit({
     action: 'caja_save',
     entityType: 'caja',
-    entityId: CENTRAL_DOC_ID,
+    entityId: historyId,
     summary: `Retiro caja central $${input.amount} — ${input.actorName}`,
     userId: input.userId,
     userName: input.userName,

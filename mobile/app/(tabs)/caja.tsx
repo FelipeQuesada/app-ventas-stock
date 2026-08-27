@@ -80,6 +80,8 @@ export default function CajaScreen() {
   const [closedByName, setClosedByName] = useState('');
   const [retiroByName, setRetiroByName] = useState('');
   const [retiroVisible, setRetiroVisible] = useState(false);
+  const [agregarVisible, setAgregarVisible] = useState(false);
+  const [montoAgregar, setMontoAgregar] = useState('');
   const [sinMovimiento, setSinMovimiento] = useState(false);
 
   const cajaCambioAmount = parseFloat(cajaCambio) || 0;
@@ -210,6 +212,22 @@ export default function CajaScreen() {
     } finally {
       setProcessingRetiro(false);
     }
+  };
+
+  const handleAgregarDinero = () => {
+    const amount = parseFloat(montoAgregar);
+    if (isNaN(amount) || amount <= 0) {
+      Alert.alert('Error', 'Ingresá un monto válido para agregar');
+      return;
+    }
+    const next = cajaCambioAmount + amount;
+    setCajaCambio(String(next));
+    setMontoAgregar('');
+    setAgregarVisible(false);
+    Alert.alert(
+      'Caja cambio actualizada',
+      `Se sumaron ${formatCurrency(amount)}. Nuevo monto: ${formatCurrency(next)}`
+    );
   };
 
   const handleSave = async () => {
@@ -351,18 +369,28 @@ export default function CajaScreen() {
             <Text style={styles.noMovementBadge}>Registrado: sin movimiento</Text>
           ) : null}
         </View>
-        <Button
-          title="Historial"
-          variant="outline"
-          size="sm"
-          onPress={() => router.push('/caja-list')}
-        />
+        <View style={styles.headerActions}>
+          <Button
+            title="Agregar dinero"
+            variant="outline"
+            size="sm"
+            onPress={() => setAgregarVisible(true)}
+          />
+          <Button
+            title="Historial"
+            variant="outline"
+            size="sm"
+            onPress={() => router.push('/caja-list')}
+          />
+        </View>
       </View>
 
       {isAdmin ? (
         <Card style={styles.card}>
           <CajaRow label="Caja central" value={formatCurrency(centralBalance)} highlight accent />
-          <Text style={styles.hint}>Pozo acumulado. Los retiros salen de acá y no cambian el día.</Text>
+          <Text style={styles.hint}>
+            Pozo acumulado: suma lo que guardás al cerrar el día y resta los retiros.
+          </Text>
           <Button
             title="Retirar dinero"
             variant="outline"
@@ -455,6 +483,56 @@ export default function CajaScreen() {
       ) : null}
 
       <Modal
+        visible={agregarVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setAgregarVisible(false)}
+      >
+        <Pressable style={styles.modalOverlay} onPress={() => setAgregarVisible(false)}>
+          <Pressable style={styles.withdrawModal} onPress={() => undefined}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Agregar a caja cambio</Text>
+              <Pressable onPress={() => setAgregarVisible(false)} hitSlop={8}>
+                <Text style={styles.closeButton}>×</Text>
+              </Pressable>
+            </View>
+
+            <Text style={styles.availableLabel}>Caja cambio actual</Text>
+            <Text style={styles.availableAmount}>{formatCurrency(cajaCambioAmount)}</Text>
+
+            <Input
+              label="Monto a agregar"
+              value={montoAgregar}
+              onChangeText={setMontoAgregar}
+              keyboardType="decimal-pad"
+              placeholder="0"
+              autoFocus
+            />
+            <Text style={styles.withdrawHint}>
+              Se suma al fondo de cambio del día. Queda guardado al cerrar la caja.
+            </Text>
+
+            <View style={styles.modalActions}>
+              <Button
+                title="Cancelar"
+                variant="outline"
+                onPress={() => {
+                  setMontoAgregar('');
+                  setAgregarVisible(false);
+                }}
+                style={styles.modalAction}
+              />
+              <Button
+                title="Confirmar"
+                onPress={handleAgregarDinero}
+                style={styles.modalAction}
+              />
+            </View>
+          </Pressable>
+        </Pressable>
+      </Modal>
+
+      <Modal
         visible={retiroVisible && isAdmin}
         transparent
         animationType="fade"
@@ -538,6 +616,13 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     gap: spacing.sm,
     marginBottom: spacing.lg,
+  },
+  headerActions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.xs,
+    justifyContent: 'flex-end',
+    maxWidth: '48%',
   },
   headerText: {
     flex: 1,

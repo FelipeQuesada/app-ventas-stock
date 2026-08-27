@@ -616,6 +616,30 @@ table.data-table tr:hover td {
   background: #FAFBFE;
 }
 
+table.data-table tr.caja-row-retiro td {
+  background: rgba(239, 68, 68, 0.05);
+  color: #b91c1c;
+}
+
+table.data-table tr.caja-row-retiro:hover td {
+  background: rgba(239, 68, 68, 0.09);
+}
+
+.caja-badge-retiro {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(239, 68, 68, 0.12);
+  color: #dc2626;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.caja-retiro-amount {
+  font-weight: 700;
+  color: #dc2626;
+}
+
 .badge {
   display: inline-flex;
   align-items: center;
@@ -1790,6 +1814,13 @@ table.data-table tr:hover td {
   justify-content: space-between;
   gap: 12px;
   margin-bottom: 16px;
+}
+
+.caja-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
 }
 
 .caja-date {

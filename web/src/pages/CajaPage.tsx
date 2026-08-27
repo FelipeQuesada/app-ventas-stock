@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Copy, List, MessageCircle, X } from 'lucide-react';
+import { Copy, List, MessageCircle, Plus, X } from 'lucide-react';
 import {
   formatCurrency,
   formatDate,
@@ -57,6 +57,8 @@ export function CajaPage() {
   const [retiroByName, setRetiroByName] = useState('');
   const [retiroVisible, setRetiroVisible] = useState(false);
   const [processingRetiro, setProcessingRetiro] = useState(false);
+  const [agregarVisible, setAgregarVisible] = useState(false);
+  const [montoAgregar, setMontoAgregar] = useState('');
   const [sinMovimiento, setSinMovimiento] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -110,6 +112,21 @@ export function CajaPage() {
     setShareTitle(title);
     setShareMessage(message);
     setCopied(false);
+  }
+
+  function handleAgregarDinero() {
+    const amount = Number(montoAgregar);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      window.alert('Ingresá un monto válido para agregar');
+      return;
+    }
+    const next = cambioNum + amount;
+    setCajaCambio(String(next));
+    setMontoAgregar('');
+    setAgregarVisible(false);
+    setInfo(
+      `Se sumaron ${formatCurrency(amount)} a caja cambio. Nuevo monto: ${formatCurrency(next)}`
+    );
   }
 
   async function copyShareMessage() {
@@ -293,15 +310,26 @@ export function CajaPage() {
           <p className="caja-subtitle">Resumen de caja en efectivo del día</p>
           {sinMovimiento && <p className="caja-badge">Registrado: sin movimiento</p>}
         </div>
-        <Link to="/caja/list" className="btn btn-ghost btn-sm">
-          <List size={14} /> Historial
-        </Link>
+        <div className="actions caja-header-actions">
+          <button
+            type="button"
+            className="btn btn-ghost btn-sm"
+            onClick={() => setAgregarVisible(true)}
+          >
+            <Plus size={14} /> Agregar dinero
+          </button>
+          <Link to="/caja/list" className="btn btn-ghost btn-sm">
+            <List size={14} /> Historial
+          </Link>
+        </div>
       </div>
 
       {isAdmin && (
         <div className="card caja-card caja-central-card">
           <CajaRow label="Caja central" value={formatCurrency(centralBalance)} highlight accent />
-          <p className="caja-hint">Pozo acumulado. Los retiros salen de acá y no cambian el día.</p>
+          <p className="caja-hint">
+            Pozo acumulado: suma lo que guardás al cerrar el día y resta los retiros.
+          </p>
           <button
             type="button"
             className="btn btn-ghost caja-withdraw-btn"
@@ -400,6 +428,58 @@ export function CajaPage() {
         >
           No hubo movimiento de caja
         </button>
+      )}
+
+      {agregarVisible && (
+        <div className="modal-overlay" onClick={() => setAgregarVisible(false)}>
+          <div className="modal-card caja-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="caja-modal-header">
+              <h3 style={{ margin: 0 }}>Agregar a caja cambio</h3>
+              <button
+                type="button"
+                className="btn btn-icon btn-ghost"
+                onClick={() => setAgregarVisible(false)}
+                aria-label="Cerrar"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <p className="caja-modal-label">Caja cambio actual</p>
+            <p className="caja-modal-amount">{formatCurrency(cambioNum)}</p>
+
+            <div className="field">
+              <label>Monto a agregar</label>
+              <input
+                type="number"
+                min="0"
+                value={montoAgregar}
+                onChange={(e) => setMontoAgregar(e.target.value)}
+                placeholder="0"
+                autoFocus
+              />
+            </div>
+            <p className="caja-hint">
+              Se suma al fondo de cambio del día. Queda guardado al cerrar la caja.
+            </p>
+
+            <div className="caja-modal-actions">
+              <button
+                type="button"
+                className="btn btn-ghost"
+                onClick={() => {
+                  setMontoAgregar('');
+                  setAgregarVisible(false);
+                }}
+              >
+                Cancelar
+              </button>
+              <button type="button" className="btn btn-primary" onClick={handleAgregarDinero}>
+                Confirmar
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {retiroVisible && isAdmin && (

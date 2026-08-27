@@ -17,7 +17,7 @@ import { CajaListItem } from '@/components/ui/CajaListItem';
 import { EmptyState, LoadingScreen } from '@/components/ui/EmptyState';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
-import { deleteCaja, getCajaHistory } from '@/services/caja';
+import { deleteCajaRecord, getCajaHistory } from '@/services/caja';
 import { exportCajaRecordsToExcel, buildCajaPdfHtml } from '@/services/export';
 import { DailyCaja } from '@/types/caja';
 import { formatCurrency, formatDate } from '@/utils/format';
@@ -112,17 +112,20 @@ export default function CajaListScreen() {
   };
 
   const handleDelete = async (record: DailyCaja) => {
+    const isRetiro = record.entryType === 'retiro';
     const confirmed = await showConfirm(
       'Eliminar registro',
-      `¿Eliminar el cierre de caja del ${formatDate(record.date)}?`
+      isRetiro
+        ? `¿Eliminar el retiro de ${formatCurrency(record.retiroAmount ?? 0)}?`
+        : `¿Eliminar el cierre de caja del ${formatDate(record.date)}?`
     );
     if (!confirmed) return;
 
     try {
-      await deleteCaja(record.date);
-      setRecords((current) => current.filter((item) => item.id !== record.id));
-      if (selected?.id === record.id) setSelected(null);
-      showAlert('Registro eliminado', 'El cierre de caja fue eliminado');
+      await deleteCajaRecord(record);
+      setSelected(null);
+      setRecords((prev) => prev.filter((r) => r.id !== record.id));
+      showAlert('Registro eliminado', 'El movimiento fue eliminado');
     } catch {
       showAlert('Error', 'No se pudo eliminar el registro');
     }
@@ -215,32 +218,66 @@ export default function CajaListScreen() {
 
                 <ScrollView style={styles.modalContent} showsVerticalScrollIndicator={false}>
                   <DetailRow label="Fecha" value={formatDate(selected.date)} />
-                  {selected.sinMovimiento ? (
-                    <DetailRow label="Estado" value="Sin movimiento" accent />
-                  ) : null}
-                  <DetailRow label="Caja cambio" value={formatCurrency(selected.cajaCambio)} />
-                  <DetailRow label="Caja total" value={formatCurrency(selected.cajaTotal)} highlight />
-                  <DetailRow label="Ganancia" value={formatCurrency(selected.ganancia)} accent />
-                  <DetailRow label="Total guardado" value={formatCurrency(selected.totalGuardado)} />
-                  <DetailRow label="Cambio para mañana" value={formatCurrency(selected.cambioCierre)} />
-                  {selected.closedByName ? (
-                    <DetailRow label="Cerró" value={selected.closedByName} />
-                  ) : null}
+                  {selected.entryType === 'retiro' ? (
+                    <>
+                      <DetailRow label="Tipo" value="Retiro de caja central" accent />
+                      <DetailRow
+                        label="Monto retirado"
+                        value={formatCurrency(selected.retiroAmount ?? 0)}
+                        accent
+                      />
+                      {selected.balanceAfter != null ? (
+                        <DetailRow
+                          label="Queda en central"
+                          value={formatCurrency(selected.balanceAfter)}
+                        />
+                      ) : null}
+                      {selected.closedByName ? (
+                        <DetailRow label="Retiró" value={selected.closedByName} />
+                      ) : null}
+                    </>
+                  ) : (
+                    <>
+                      {selected.sinMovimiento ? (
+                        <DetailRow label="Estado" value="Sin movimiento" accent />
+                      ) : null}
+                      <DetailRow label="Caja cambio" value={formatCurrency(selected.cajaCambio)} />
+                      <DetailRow
+                        label="Caja total"
+                        value={formatCurrency(selected.cajaTotal)}
+                        highlight
+                      />
+                      <DetailRow label="Ganancia" value={formatCurrency(selected.ganancia)} accent />
+                      <DetailRow
+                        label="Total guardado"
+                        value={formatCurrency(selected.totalGuardado)}
+                      />
+                      <DetailRow
+                        label="Cambio para mañana"
+                        value={formatCurrency(selected.cambioCierre)}
+                      />
+                      {selected.closedByName ? (
+                        <DetailRow label="Cerró" value={selected.closedByName} />
+                      ) : null}
+                    </>
+                  )}
                   {selected.updatedByName ? (
                     <DetailRow label="Actualizado por" value={selected.updatedByName} />
                   ) : null}
                 </ScrollView>
 
                 <View style={styles.modalActions}>
-                  <Button
-                    title="Editar"
-                    onPress={() => {
-                      const id = selected.id;
-                      setSelected(null);
-                      router.push(`/caja-edit/${id}`);
-                    }}
-                    style={styles.editAction}
-                  />
+                  {selected.entryType !== 'retiro' ? (
+                    <Button
+                      title="Editar"
+                      onPress={() => {
+                        const id = selected.id;
+                        setSelected(null);
+                        router.push(`/caja-edit/${id}`);
+                      }}
+                      style={styles.editAction}
+                    />
+                  ) : null}
                   <Button
                     title="Eliminar"
                     variant="outline"

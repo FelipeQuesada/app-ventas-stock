@@ -13,36 +13,64 @@ interface CajaListItemProps {
 }
 
 export function CajaListItem({ caja, onPress, onEdit, onDelete }: CajaListItemProps) {
+  const isRetiro = caja.entryType === 'retiro';
+
   return (
-    <TouchableOpacity style={styles.container} onPress={onPress} activeOpacity={0.7}>
+    <TouchableOpacity
+      style={[styles.container, isRetiro && styles.containerRetiro]}
+      onPress={onPress}
+      activeOpacity={0.7}
+    >
       <View style={styles.info}>
         <View style={styles.headerRow}>
-          <Text style={styles.date}>{formatShortDate(caja.date)}</Text>
-          <Text style={styles.total}>{formatCurrency(caja.cajaTotal)}</Text>
+          <Text style={[styles.date, isRetiro && styles.textRetiro]}>
+            {formatShortDate(caja.date)}
+          </Text>
+          <Text style={[styles.total, isRetiro && styles.amountRetiro]}>
+            {isRetiro
+              ? `− ${formatCurrency(caja.retiroAmount ?? 0)}`
+              : formatCurrency(caja.cajaTotal)}
+          </Text>
         </View>
-        <View style={styles.metaRow}>
-          <Text style={styles.meta}>Ganancia: {formatCurrency(caja.ganancia)}</Text>
-          <Text style={styles.meta}>Guardado: {formatCurrency(caja.totalGuardado)}</Text>
-        </View>
-        <Text style={styles.meta}>
-          Cambio cierre: {formatCurrency(caja.cambioCierre)}
-        </Text>
-        {caja.closedByName ? (
-          <Text style={styles.meta}>Cerró: {caja.closedByName}</Text>
-        ) : null}
-        {caja.sinMovimiento ? <Text style={styles.noMovement}>Sin movimiento</Text> : null}
+        {isRetiro ? (
+          <>
+            <Text style={styles.badgeRetiro}>Retiro de caja central</Text>
+            {caja.closedByName ? (
+              <Text style={[styles.meta, styles.textRetiro]}>Retiró: {caja.closedByName}</Text>
+            ) : null}
+            {caja.balanceAfter != null ? (
+              <Text style={styles.meta}>Queda: {formatCurrency(caja.balanceAfter)}</Text>
+            ) : null}
+          </>
+        ) : (
+          <>
+            <View style={styles.metaRow}>
+              <Text style={styles.meta}>Ganancia: {formatCurrency(caja.ganancia)}</Text>
+              <Text style={styles.meta}>Guardado: {formatCurrency(caja.totalGuardado)}</Text>
+            </View>
+            <Text style={styles.meta}>
+              Cambio cierre: {formatCurrency(caja.cambioCierre)}
+            </Text>
+            {caja.closedByName ? (
+              <Text style={styles.meta}>Cerró: {caja.closedByName}</Text>
+            ) : null}
+            {caja.sinMovimiento ? <Text style={styles.noMovement}>Sin movimiento</Text> : null}
+          </>
+        )}
       </View>
       <View style={styles.actions}>
-        <TouchableOpacity
-          style={styles.actionButton}
-          onPress={(event) => {
-            event.stopPropagation?.();
-            onEdit();
-          }}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-        >
-          <MaterialIcons name="edit" size={22} color={colors.primary} />
-        </TouchableOpacity>
+        {!isRetiro ? (
+          <TouchableOpacity
+            style={styles.actionButton}
+            onPress={(event) => {
+              event.stopPropagation?.();
+              onEdit();
+            }}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <MaterialIcons name="edit" size={22} color={colors.primary} />
+          </TouchableOpacity>
+        ) : null}
         <TouchableOpacity
           style={styles.actionButton}
           onPress={(event) => {
@@ -70,6 +98,10 @@ const styles = StyleSheet.create({
     marginBottom: spacing.sm,
     gap: spacing.sm,
   },
+  containerRetiro: {
+    borderColor: 'rgba(239, 68, 68, 0.35)',
+    backgroundColor: 'rgba(239, 68, 68, 0.06)',
+  },
   info: {
     flex: 1,
   },
@@ -88,6 +120,18 @@ const styles = StyleSheet.create({
     ...typography.label,
     fontFamily: 'Inter_700Bold',
     color: colors.accent,
+  },
+  amountRetiro: {
+    color: colors.danger,
+  },
+  textRetiro: {
+    color: colors.danger,
+  },
+  badgeRetiro: {
+    ...typography.caption,
+    fontFamily: 'Inter_600SemiBold',
+    color: colors.danger,
+    marginTop: spacing.xs,
   },
   metaRow: {
     flexDirection: 'row',
