@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { Sale } from '@/types';
 import { formatCurrency, formatShortDateTime, getSaleDisplayDate } from '@/utils/format';
-import { getPaymentMethodLabel } from '@/constants/payments';
+import { getSalePaymentLabel } from '@/constants/payments';
 import { colors, radius, spacing, typography } from '@/constants/theme';
 
 interface SaleListItemProps {
@@ -33,7 +33,7 @@ export function SaleListItem({ sale, onPress, onEdit, onDelete }: SaleListItemPr
             {itemCount} {itemCount === 1 ? 'ítem' : 'ítems'}
           </Text>
           <Text style={styles.meta}>
-            {getPaymentMethodLabel(sale.paymentMethod, sale.paymentMethodLabel)}
+            {getSalePaymentLabel(sale)}
           </Text>
         </View>
       </View>

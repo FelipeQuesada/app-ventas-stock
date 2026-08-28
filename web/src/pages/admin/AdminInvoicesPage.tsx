@@ -6,7 +6,7 @@ import {
   formatCurrency,
   formatShortDateTime,
   getSaleDisplayDate,
-  getPaymentMethodLabel,
+  getSalePaymentLabel,
 } from '@advance-coat/shared';
 import { getSalesNeedingInvoice, markSaleInvoiceIssued } from '../../services/sales';
 import { useAuth } from '../../context/AuthContext';
@@ -78,7 +78,7 @@ export function AdminInvoicesPage() {
                   </div>
                 </div>
                 <span className="badge badge-muted">
-                  {getPaymentMethodLabel(sale.paymentMethod, sale.paymentMethodLabel)}
+                  {getSalePaymentLabel(sale)}
                 </span>
               </div>
               <div className="admin-invoice-meta">

@@ -57,12 +57,21 @@ export interface Customer extends SaleCustomer {
 
 export type DiscountType = 'percent' | 'fixed';
 
+/** Monto cobrado con un método de pago (venta con dos formas de pago) */
+export interface SalePaymentSplit {
+  method: PaymentMethod;
+  amount: number;
+  paymentMethodLabel?: string;
+}
+
 export interface Sale {
   id: string;
   date: Date;
   items: SaleItem[];
   paymentMethod: PaymentMethod;
   paymentMethodLabel?: string;
+  /** Detalle cuando se cobró con dos métodos */
+  paymentSplits?: SalePaymentSplit[];
   customer: SaleCustomer;
   subtotal: number;
   discountType?: DiscountType;

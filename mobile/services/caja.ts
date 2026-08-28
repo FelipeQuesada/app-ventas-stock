@@ -18,6 +18,7 @@ import { format, parseISO, startOfDay, isValid } from 'date-fns';
 import { db } from '@/lib/firebase';
 import { CajaCentral, DailyCaja } from '@/types/caja';
 import { Sale } from '@/types';
+import { getSaleCashAmount } from '@advance-coat/shared';
 import { calculateCajaGanancia, calculateCambioCierre } from '@/utils/caja';
 import { logAudit } from '@/services/audit';
 
@@ -104,8 +105,8 @@ export function getCashTotalForDate(sales: Sale[], date: Date): number {
   const start = new Date(date.getFullYear(), date.getMonth(), date.getDate());
   const end = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 23, 59, 59, 999);
   return sales
-    .filter((sale) => sale.paymentMethod === 'efectivo' && sale.date >= start && sale.date <= end)
-    .reduce((sum, sale) => sum + sale.total, 0);
+    .filter((sale) => getSaleCashAmount(sale) > 0 && sale.date >= start && sale.date <= end)
+    .reduce((sum, sale) => sum + getSaleCashAmount(sale), 0);
 }
 
 export async function getCajaByDate(date: Date): Promise<DailyCaja | null> {

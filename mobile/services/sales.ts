@@ -11,7 +11,7 @@ import {
   doc,
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { Sale, SaleItem, PaymentMethod, SaleCustomer, DiscountType } from '@/types';
+import { Sale, SaleItem, PaymentMethod, SaleCustomer, DiscountType, SalePaymentSplit } from '@/types';
 import { saveCustomer } from '@/services/customers';
 import { aggregateProductQuantities, isExtraItem } from '@/utils/sale';
 import { normalizePhoneKey } from '@/utils/phone';
@@ -25,6 +25,7 @@ function mapSale(id: string, data: Record<string, unknown>): Sale {
     items: data.items as SaleItem[],
     paymentMethod: data.paymentMethod as PaymentMethod,
     paymentMethodLabel: data.paymentMethodLabel as string | undefined,
+    paymentSplits: data.paymentSplits as SalePaymentSplit[] | undefined,
     customer: legacyCustomer ?? {
       name: '',
       email: '',
@@ -68,6 +69,7 @@ export interface CreateSaleInput {
   items: SaleItem[];
   paymentMethod: PaymentMethod;
   paymentMethodLabel: string;
+  paymentSplits?: SalePaymentSplit[];
   customer: SaleCustomer;
   subtotal: number;
   discountType?: DiscountType;
@@ -147,6 +149,7 @@ async function commitSaleCreate(input: CreateSaleInput): Promise<string> {
     items: input.items,
     paymentMethod: input.paymentMethod,
     paymentMethodLabel: input.paymentMethodLabel,
+    paymentSplits: input.paymentSplits ?? null,
     customer: normalizedCustomer,
     subtotal: input.subtotal,
     discountType: input.discountType ?? null,
@@ -224,6 +227,7 @@ export async function updateSale(
     items: input.items,
     paymentMethod: input.paymentMethod,
     paymentMethodLabel: input.paymentMethodLabel,
+    paymentSplits: input.paymentSplits ?? null,
     customer: normalizedCustomer,
     subtotal: input.subtotal,
     discountType: input.discountType ?? null,

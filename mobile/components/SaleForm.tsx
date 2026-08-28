@@ -15,7 +15,7 @@ import { SearchBar } from '@/components/ui/SearchBar';
 import { ProductFilters } from '@/components/ProductFilters';
 import { ProductListItem } from '@/components/ui/ProductListItem';
 import { SaleItemRow } from '@/components/ui/SaleItemRow';
-import { PaymentMethodPicker } from '@/components/ui/PaymentMethodPicker';
+import { PaymentMethodPicker, PaymentMode } from '@/components/ui/PaymentMethodPicker';
 import { DatePickerField } from '@/components/ui/DatePickerField';
 import { SelectField } from '@/components/ui/SelectField';
 import { Button } from '@/components/ui/Button';
@@ -32,9 +32,10 @@ import {
 } from '@/services/sales';
 import { findCustomerByPhone } from '@/services/customers';
 import { Product, Sale, SaleItem, PaymentMethod, DiscountType, Customer } from '@/types';
-import { getPaymentMethodLabel, getPaymentMethodAlias } from '@/constants/payments';
+import { getPaymentMethodLabel, getPaymentMethodAlias, buildSalePaymentData, isInvoiceEligibleMethod } from '@/constants/payments';
 import { SALE_SELLERS } from '@/constants/sellers';
 import { formatCurrency } from '@/utils/format';
+import { calculateChange } from '@/utils/discount';
 import { normalizePhoneKey } from '@/utils/phone';
 import { createExtraItem, isExtraItem } from '@/utils/sale';
 import {
@@ -67,7 +68,9 @@ export function SaleForm({ mode, saleId }: SaleFormProps) {
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [editItems, setEditItems] = useState<SaleItem[]>([]);
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | null>(null);
+  const [paymentMode, setPaymentMode] = useState<PaymentMode>('single');
+  const [selectedPayments, setSelectedPayments] = useState<PaymentMethod[]>([]);
+  const [splitAmounts, setSplitAmounts] = useState<Partial<Record<PaymentMethod, string>>>({});
   const [wantsInvoice, setWantsInvoice] = useState(false);
   const [saleDate, setSaleDate] = useState(new Date());
   const [loading, setLoading] = useState(false);
@@ -127,7 +130,18 @@ export function SaleForm({ mode, saleId }: SaleFormProps) {
 
         setOriginalItems(sale.items);
         setSelectedItems(sale.items);
-        setPaymentMethod(sale.paymentMethod);
+        if (sale.paymentSplits && sale.paymentSplits.length === 2) {
+          setPaymentMode('dual');
+          setSelectedPayments(sale.paymentSplits.map((split) => split.method));
+          setSplitAmounts(
+            Object.fromEntries(
+              sale.paymentSplits.map((split) => [split.method, String(split.amount)])
+            ) as Partial<Record<PaymentMethod, string>>
+          );
+        } else {
+          setPaymentMode('single');
+          setSelectedPayments([sale.paymentMethod]);
+        }
         setWantsInvoice(sale.wantsInvoice === true);
         setSaleDate(sale.date);
         setCustomerName(sale.customer.name);
@@ -268,11 +282,17 @@ export function SaleForm({ mode, saleId }: SaleFormProps) {
     parseFloat(discountValue.replace(',', '.')) || 0
   );
   const total = Math.max(0, subtotal - discountAmount);
-  const isCash = paymentMethod === 'efectivo';
+  const hasEfectivo = selectedPayments.includes('efectivo');
+  const cashDue =
+    paymentMode === 'dual'
+      ? parseFloat((splitAmounts.efectivo ?? '0').replace(',', '.')) || 0
+      : hasEfectivo
+        ? total
+        : 0;
   const canAskInvoice =
-    paymentMethod === 'debito' || paymentMethod === 'credito' || paymentMethod === 'qr';
+    paymentMode === 'single' && selectedPayments.some((method) => isInvoiceEligibleMethod(method));
   const paidAmount = parseFloat(amountPaid.replace(',', '.')) || 0;
-  const change = isCash && paidAmount >= total ? paidAmount - total : 0;
+  const change = cashDue > 0 ? calculateChange(paidAmount, cashDue) : 0;
 
   const addProduct = (product: Product) => {
     if (!isEdit) {
@@ -396,7 +416,9 @@ export function SaleForm({ mode, saleId }: SaleFormProps) {
   const resetForm = () => {
     if (!isEdit) cart.clear();
     else setEditItems([]);
-    setPaymentMethod(null);
+    setPaymentMode('single');
+    setSelectedPayments([]);
+    setSplitAmounts({});
     setWantsInvoice(false);
     setSaleDate(new Date());
     setCustomerName('');
@@ -419,11 +441,20 @@ export function SaleForm({ mode, saleId }: SaleFormProps) {
       date.setHours(now.getHours(), now.getMinutes(), now.getSeconds(), now.getMilliseconds());
     }
 
+    const amounts =
+      paymentMode === 'dual'
+        ? selectedPayments.map(
+            (method) => parseFloat((splitAmounts[method] ?? '0').replace(',', '.')) || 0
+          )
+        : undefined;
+    const payment = buildSalePaymentData(selectedPayments, amounts, total);
+
     return {
     date,
     items: selectedItems,
-    paymentMethod: paymentMethod!,
-    paymentMethodLabel: getPaymentMethodLabel(paymentMethod!),
+    paymentMethod: payment.paymentMethod,
+    paymentMethodLabel: payment.paymentMethodLabel,
+    paymentSplits: payment.paymentSplits,
     customer: {
       name: customerName.trim(),
       email: customerEmail.trim(),
@@ -435,8 +466,8 @@ export function SaleForm({ mode, saleId }: SaleFormProps) {
     discountValue: parseFloat(discountValue.replace(',', '.')) || 0,
     discountAmount,
     total,
-    amountPaid: isCash ? paidAmount : undefined,
-    change: isCash ? change : undefined,
+    amountPaid: hasEfectivo && cashDue > 0 ? paidAmount : undefined,
+    change: hasEfectivo && cashDue > 0 ? change : undefined,
     createdBy: user!.uid,
     createdByName: sellerName.trim() || profile?.name,
     wantsInvoice: canAskInvoice && wantsInvoice,
@@ -452,12 +483,26 @@ export function SaleForm({ mode, saleId }: SaleFormProps) {
       showAlert('Error', 'Seleccioná el vendedor');
       return;
     }
-    if (!paymentMethod) {
+    if (selectedPayments.length === 0) {
       showAlert('Error', 'Seleccioná una forma de pago');
       return;
     }
-    if (isCash && paidAmount < total) {
-      showAlert('Error', 'El monto pagado debe ser mayor o igual al total');
+    if (paymentMode === 'dual') {
+      if (selectedPayments.length !== 2) {
+        showAlert('Error', 'Elegí dos métodos de pago distintos');
+        return;
+      }
+      const amounts = selectedPayments.map(
+        (method) => parseFloat((splitAmounts[method] ?? '0').replace(',', '.')) || 0
+      );
+      const splitSum = amounts.reduce((sum, amount) => sum + amount, 0);
+      if (Math.abs(splitSum - total) > 0.01) {
+        showAlert('Error', 'La suma de los montos debe coincidir con el total de la venta');
+        return;
+      }
+    }
+    if (hasEfectivo && cashDue > 0 && paidAmount < cashDue) {
+      showAlert('Error', 'El monto pagado en efectivo debe ser mayor o igual a la parte en efectivo');
       return;
     }
     if (canAskInvoice && wantsInvoice) {
@@ -483,6 +528,7 @@ export function SaleForm({ mode, saleId }: SaleFormProps) {
         total: input.total,
         paymentMethod: input.paymentMethod,
         paymentMethodLabel: input.paymentMethodLabel,
+        paymentSplits: input.paymentSplits,
         customer: input.customer,
         amountPaid: input.amountPaid,
         change: input.change,
@@ -728,24 +774,67 @@ export function SaleForm({ mode, saleId }: SaleFormProps) {
       )}
 
       <PaymentMethodPicker
-        value={paymentMethod}
-        onChange={(method) => {
-          setPaymentMethod(method);
-          if (method !== 'efectivo') setAmountPaid('');
-          if (method !== 'debito' && method !== 'credito' && method !== 'qr') {
+        mode={paymentMode}
+        onModeChange={(mode) => {
+          setPaymentMode(mode);
+          if (mode === 'dual') {
+            setWantsInvoice(false);
+          }
+          if (mode === 'single' && selectedPayments.length > 1) {
+            setSelectedPayments([selectedPayments[0]]);
+          }
+          if (mode === 'single') {
+            setSplitAmounts({});
+          }
+          if (mode === 'dual' && selectedPayments.length === 0) {
+            setSelectedPayments([]);
+          }
+          if (
+            mode === 'single' &&
+            selectedPayments[0] &&
+            !isInvoiceEligibleMethod(selectedPayments[0])
+          ) {
             setWantsInvoice(false);
           }
         }}
+        selected={selectedPayments}
+        onChange={(methods) => {
+          setSelectedPayments(methods);
+          if (!methods.some((method) => isInvoiceEligibleMethod(method))) {
+            setWantsInvoice(false);
+          }
+          if (!methods.includes('efectivo')) {
+            setAmountPaid('');
+          }
+          setSplitAmounts((current) =>
+            Object.fromEntries(
+              methods.map((method) => [method, current[method] ?? ''])
+            ) as Partial<Record<PaymentMethod, string>>
+          );
+        }}
+        splitAmounts={splitAmounts}
+        onSplitAmountChange={(method, amount) => {
+          setSplitAmounts((current) => ({ ...current, [method]: amount }));
+        }}
+        total={total}
+        amountPaid={amountPaid}
+        onAmountPaidChange={setAmountPaid}
+        cashChange={change}
+        cashDue={cashDue}
       />
 
-      {!!getPaymentMethodAlias(paymentMethod) && (
-        <View style={styles.aliasCard}>
-          <Text style={styles.aliasLabel}>Alias para transferir</Text>
-          <Text style={styles.aliasValue} selectable>
-            {getPaymentMethodAlias(paymentMethod)}
-          </Text>
-        </View>
-      )}
+      {selectedPayments.map((method) => {
+        const alias = getPaymentMethodAlias(method);
+        if (!alias) return null;
+        return (
+          <View key={method} style={styles.aliasCard}>
+            <Text style={styles.aliasLabel}>Alias {getPaymentMethodLabel(method)}</Text>
+            <Text style={styles.aliasValue} selectable>
+              {alias}
+            </Text>
+          </View>
+        );
+      })}
 
       {canAskInvoice ? (
         <>
@@ -802,12 +891,12 @@ export function SaleForm({ mode, saleId }: SaleFormProps) {
         </View>
       </View>
 
-      {isCash && (
+      {paymentMode === 'single' && hasEfectivo && (
         <View style={styles.cashSection}>
           <View style={styles.cashRow}>
             <View style={styles.cashInput}>
               <Input
-                label="Paga con"
+                label="El cliente paga con"
                 value={amountPaid}
                 onChangeText={setAmountPaid}
                 keyboardType="decimal-pad"
@@ -815,8 +904,10 @@ export function SaleForm({ mode, saleId }: SaleFormProps) {
               />
             </View>
             <View style={styles.changeBox}>
-              <Text style={styles.changeLabel}>Vuelto</Text>
-              <Text style={styles.changeValue}>{formatCurrency(change)}</Text>
+              <Text style={styles.changeLabel}>Vuelto a dar</Text>
+              <Text style={[styles.changeValue, change > 0 && styles.changeValuePositive]}>
+                {formatCurrency(change)}
+              </Text>
             </View>
           </View>
         </View>
@@ -1111,6 +1202,9 @@ const styles = StyleSheet.create({
     ...typography.h2,
     fontFamily: 'Inter_700Bold',
     color: colors.white,
+  },
+  changeValuePositive: {
+    color: '#bbf7d0',
   },
   registerButton: {
     width: '100%',

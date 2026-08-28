@@ -7,8 +7,12 @@ import {
 import * as Sharing from 'expo-sharing';
 import * as Print from 'expo-print';
 import { Sale } from '@/types';
+import { getSalePaymentLabel } from '@/constants/payments';
 import { formatCurrency, formatDate } from '@/utils/format';
 import { format } from 'date-fns';
+
+const TICKET_WEB_LINK = 'https://linktr.ee/AdvanceCoat';
+const TICKET_WEB_LABEL = 'Página web e instructivo de uso';
 
 export type SaleTicketData = Pick<
   Sale,
@@ -19,6 +23,7 @@ export type SaleTicketData = Pick<
   | 'total'
   | 'paymentMethod'
   | 'paymentMethodLabel'
+  | 'paymentSplits'
   | 'customer'
   | 'amountPaid'
   | 'change'
@@ -80,9 +85,10 @@ export function buildSaleTicketText(sale: Sale | SaleTicketData): string {
     lines.push(`Descuento: -${formatCurrency(sale.discountAmount ?? 0)}`);
   }
   lines.push(`TOTAL: ${formatCurrency(sale.total)}`);
+  lines.push(`Pago: ${getSalePaymentLabel(sale)}`);
   lines.push('----------------------------');
-  lines.push('Formulario de uso');
-  lines.push('https://linktr.ee/AdvanceCoat');
+  lines.push(TICKET_WEB_LABEL);
+  lines.push(TICKET_WEB_LINK);
   return lines.join('\n');
 }
 
@@ -122,7 +128,8 @@ export function buildSaleTicketHtml(sale: Sale | SaleTicketData): string {
   <p class="label">Subtotal: ${formatCurrency(sale.subtotal)}</p>
   ${(sale.discountAmount ?? 0) > 0 ? `<p class="label">Descuento: -${formatCurrency(sale.discountAmount ?? 0)}</p>` : ''}
   <p class="total">TOTAL: ${formatCurrency(sale.total)}</p>
-  <p class="meta">Formulario de uso<br/><a href="https://linktr.ee/AdvanceCoat">https://linktr.ee/AdvanceCoat</a></p>
+  <p class="label">Pago: ${escapeHtml(getSalePaymentLabel(sale))}</p>
+  <p class="meta">${escapeHtml(TICKET_WEB_LABEL)}<br/><a href="${TICKET_WEB_LINK}">${TICKET_WEB_LINK}</a></p>
 </body>
 </html>`;
 }

@@ -6,7 +6,7 @@ import {
   formatCurrency,
   formatShortDateTime,
   getSaleDisplayDate,
-  getPaymentMethodLabel,
+  getSalePaymentLabel,
   createDefaultPeriod,
   isDateInRange,
   formatPeriodLabel,
@@ -126,7 +126,7 @@ export function SalesListPage() {
                     <div className="muted">{formatShortDateTime(getSaleDisplayDate(sale))}</div>
                   </div>
                   <span className="badge badge-muted">
-                    {getPaymentMethodLabel(sale.paymentMethod, sale.paymentMethodLabel)}
+                    {getSalePaymentLabel(sale)}
                   </span>
                 </div>
                 <div className="sales-list-card-meta">
@@ -193,7 +193,7 @@ export function SalesListPage() {
                       ) : null}
                     </td>
                     <td>
-                      {getPaymentMethodLabel(sale.paymentMethod, sale.paymentMethodLabel)}
+                      {getSalePaymentLabel(sale)}
                     </td>
                     <td><strong>{formatCurrency(sale.total)}</strong></td>
                     <td>{sale.createdByName || '—'}</td>

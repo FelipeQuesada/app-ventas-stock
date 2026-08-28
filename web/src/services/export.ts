@@ -3,7 +3,7 @@ import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import type { Customer, Sale, DailyCaja } from '@advance-coat/shared';
 import {
-  getPaymentMethodLabel,
+  getSalePaymentLabel,
   formatCurrency,
   formatShortDate,
   buildSaleTicketText,
@@ -26,7 +26,7 @@ function buildSalesRows(sales: Sale[]) {
     Productos: sale.items.map((i) => `${i.productName} x${i.quantity}`).join(' | '),
     Subtotal: sale.subtotal ?? sale.total,
     Descuento: sale.discountAmount ?? 0,
-    'Forma de pago': getPaymentMethodLabel(sale.paymentMethod, sale.paymentMethodLabel),
+    'Forma de pago': getSalePaymentLabel(sale),
     Total: sale.total,
     'Paga con': sale.amountPaid ?? '',
     Vuelto: sale.change ?? '',
@@ -329,7 +329,7 @@ export function buildSalesPdfHtml(sales: Sale[], title: string): string {
       <tr>
         <td>${formatShortDate(sale.date)}</td>
         <td>${sale.customer?.name || '-'}</td>
-        <td>${getPaymentMethodLabel(sale.paymentMethod, sale.paymentMethodLabel)}</td>
+        <td>${getSalePaymentLabel(sale)}</td>
         <td style="text-align:right">${formatCurrency(sale.total)}</td>
         <td>${sale.createdByName || '-'}</td>
       </tr>`

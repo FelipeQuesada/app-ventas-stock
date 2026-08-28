@@ -31,7 +31,7 @@ import {
   isDateInRange,
   PeriodSelection,
 } from '@/utils/datePeriod';
-import { PAYMENT_METHODS, getPaymentMethodLabel } from '@/constants/payments';
+import { getSalePaymentLabel, saleUsesPaymentMethod } from '@/constants/payments';
 import { useAuth } from '@/context/AuthContext';
 import { showAlert, showConfirm } from '@/utils/alert';
 import { SaleTicketModal } from '@/components/SaleTicketModal';
@@ -89,7 +89,7 @@ export default function SalesListScreen() {
     const term = search.toLowerCase().trim();
 
     return periodSales.filter((sale) => {
-      if (filterPayment !== 'all' && sale.paymentMethod !== filterPayment) return false;
+      if (filterPayment !== 'all' && !saleUsesPaymentMethod(sale, filterPayment)) return false;
       if (filterSeller !== 'all' && (sale.createdByName ?? '') !== filterSeller) return false;
 
       if (!term) return true;
@@ -102,7 +102,7 @@ export default function SalesListScreen() {
         .join(' ')
         .toLowerCase();
       const itemsText = sale.items.map((item) => item.productName).join(' ').toLowerCase();
-      const payment = getPaymentMethodLabel(sale.paymentMethod, sale.paymentMethodLabel).toLowerCase();
+      const payment = getSalePaymentLabel(sale).toLowerCase();
       const seller = (sale.createdByName ?? '').toLowerCase();
 
       return (
@@ -330,7 +330,7 @@ export default function SalesListScreen() {
 
                   <Text style={styles.detailLabel}>Forma de pago</Text>
                   <Text style={styles.detailValue}>
-                    {getPaymentMethodLabel(selectedSale.paymentMethod, selectedSale.paymentMethodLabel)}
+                    {getSalePaymentLabel(selectedSale)}
                   </Text>
 
                   <Text style={styles.sectionTitle}>Productos</Text>

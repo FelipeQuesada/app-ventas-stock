@@ -11,6 +11,9 @@ import {
   calculateChange,
   createExtraItem,
   getPaymentMethodLabel,
+  getPaymentMethodAlias,
+  buildSalePaymentData,
+  isInvoiceEligibleMethod,
   getUniqueProductCategories,
 } from '@advance-coat/shared';
 import { getProducts } from '../services/products';
@@ -40,7 +43,9 @@ export function SalesPage() {
   const [customerPhone, setCustomerPhone] = useState('');
   const [customerEmail, setCustomerEmail] = useState('');
   const [customerCuit, setCustomerCuit] = useState('');
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('efectivo');
+  const [paymentMode, setPaymentMode] = useState<'single' | 'dual'>('single');
+  const [selectedPayments, setSelectedPayments] = useState<PaymentMethod[]>(['efectivo']);
+  const [splitAmounts, setSplitAmounts] = useState<Partial<Record<PaymentMethod, string>>>({});
   const [wantsInvoice, setWantsInvoice] = useState(false);
   const [discountType, setDiscountType] = useState<DiscountType | null>(null);
   const [discountValue, setDiscountValue] = useState('');
@@ -72,7 +77,18 @@ export function SalesPage() {
             setCustomerPhone(sale.customer?.phone ?? '');
             setCustomerEmail(sale.customer?.email ?? '');
             setCustomerCuit(sale.customer?.cuit ?? '');
-            setPaymentMethod(sale.paymentMethod);
+            if (sale.paymentSplits && sale.paymentSplits.length === 2) {
+              setPaymentMode('dual');
+              setSelectedPayments(sale.paymentSplits.map((split) => split.method));
+              setSplitAmounts(
+                Object.fromEntries(
+                  sale.paymentSplits.map((split) => [split.method, String(split.amount)])
+                ) as Partial<Record<PaymentMethod, string>>
+              );
+            } else {
+              setPaymentMode('single');
+              setSelectedPayments([sale.paymentMethod]);
+            }
             setWantsInvoice(sale.wantsInvoice === true);
             setDiscountType(sale.discountType ?? null);
             setDiscountValue(sale.discountValue != null ? String(sale.discountValue) : '');
@@ -119,10 +135,22 @@ export function SalesPage() {
     Number(discountValue) || 0
   );
   const total = calculateSaleTotal(subtotal, discountAmount);
+  const hasEfectivo = selectedPayments.includes('efectivo');
+  const cashDue =
+    paymentMode === 'dual'
+      ? Number(splitAmounts.efectivo) || 0
+      : hasEfectivo
+        ? total
+        : 0;
   const paid = Number(amountPaid) || 0;
-  const change = paymentMethod === 'efectivo' ? calculateChange(paid, total) : 0;
+  const change = cashDue > 0 ? calculateChange(paid, cashDue) : 0;
   const canAskInvoice =
-    paymentMethod === 'debito' || paymentMethod === 'credito' || paymentMethod === 'qr';
+    paymentMode === 'single' && selectedPayments.some((method) => isInvoiceEligibleMethod(method));
+  const splitTotal =
+    paymentMode === 'dual'
+      ? selectedPayments.reduce((sum, method) => sum + (Number(splitAmounts[method]) || 0), 0)
+      : 0;
+  const splitRemaining = total - splitTotal;
 
   function addExtra() {
     if (!extraDesc.trim() || !extraPrice) return;
@@ -156,15 +184,38 @@ export function SalesPage() {
         return;
       }
     }
+    if (selectedPayments.length === 0) {
+      setError('Seleccioná una forma de pago');
+      return;
+    }
+    if (paymentMode === 'dual') {
+      if (selectedPayments.length !== 2) {
+        setError('Elegí dos métodos de pago distintos');
+        return;
+      }
+      if (Math.abs(splitTotal - total) > 0.01) {
+        setError('La suma de los montos debe coincidir con el total de la venta');
+        return;
+      }
+    }
+    if (hasEfectivo && cashDue > 0 && paid < cashDue) {
+      setError('El monto pagado en efectivo debe ser mayor o igual a la parte en efectivo');
+      return;
+    }
 
     setSaving(true);
     try {
-      const paymentLabel = getPaymentMethodLabel(paymentMethod);
+      const amounts =
+        paymentMode === 'dual'
+          ? selectedPayments.map((method) => Number(splitAmounts[method]) || 0)
+          : undefined;
+      const payment = buildSalePaymentData(selectedPayments, amounts, total);
       const input = {
         date: saleDate ? new Date(`${saleDate}T12:00:00`) : new Date(),
         items: cart.items,
-        paymentMethod,
-        paymentMethodLabel: paymentLabel,
+        paymentMethod: payment.paymentMethod,
+        paymentMethodLabel: payment.paymentMethodLabel,
+        paymentSplits: payment.paymentSplits,
         customer: {
           name: customerName,
           email: customerEmail,
@@ -176,8 +227,8 @@ export function SalesPage() {
         discountValue: Number(discountValue) || 0,
         discountAmount,
         total,
-        amountPaid: paymentMethod === 'efectivo' ? paid || undefined : undefined,
-        change: paymentMethod === 'efectivo' ? change : undefined,
+        amountPaid: hasEfectivo && cashDue > 0 ? paid || undefined : undefined,
+        change: hasEfectivo && cashDue > 0 ? change : undefined,
         createdBy: user.uid,
         createdByName: seller,
         wantsInvoice: canAskInvoice && wantsInvoice,
@@ -205,7 +256,9 @@ export function SalesPage() {
       ? 'Guardar cambios'
       : 'Registrar venta';
 
-  const selectedAlias = PAYMENT_METHODS.find((pm) => pm.value === paymentMethod)?.alias;
+  const selectedAliases = selectedPayments
+    .map((method) => ({ method, alias: getPaymentMethodAlias(method) }))
+    .filter((entry) => entry.alias);
 
   return (
     <form className="sale-form sale-form-app" onSubmit={handleSubmit}>
@@ -461,20 +514,73 @@ export function SalesPage() {
       )}
 
       <h4 className="sale-section-title">Forma de pago</h4>
+      <div className="payment-mode-row">
+        <button
+          type="button"
+          className={`payment-mode-chip ${paymentMode === 'single' ? 'active' : ''}`}
+          onClick={() => {
+            setPaymentMode('single');
+            if (selectedPayments.length > 1) {
+              setSelectedPayments([selectedPayments[0]]);
+            }
+            setSplitAmounts({});
+          }}
+        >
+          Un método
+        </button>
+        <button
+          type="button"
+          className={`payment-mode-chip ${paymentMode === 'dual' ? 'active' : ''}`}
+          onClick={() => {
+            setPaymentMode('dual');
+            setWantsInvoice(false);
+          }}
+        >
+          Dos métodos
+        </button>
+      </div>
       <div className="payment-grid">
         {PAYMENT_METHODS.map((pm) => {
           const Icon = PAYMENT_ICONS[pm.icon] ?? Banknote;
+          const isSelected = selectedPayments.includes(pm.value);
+          const disabled = paymentMode === 'dual' && !isSelected && selectedPayments.length >= 2;
           return (
             <button
               key={pm.value}
               type="button"
-              className={`payment-option ${paymentMethod === pm.value ? 'active' : ''}`}
+              className={`payment-option ${isSelected ? 'active' : ''} ${disabled ? 'disabled' : ''}`}
+              disabled={disabled}
               onClick={() => {
-                setPaymentMethod(pm.value);
-                if (pm.value !== 'efectivo') setAmountPaid('');
-                if (pm.value !== 'debito' && pm.value !== 'credito' && pm.value !== 'qr') {
-                  setWantsInvoice(false);
+                if (paymentMode === 'single') {
+                  setSelectedPayments([pm.value]);
+                  if (!isInvoiceEligibleMethod(pm.value)) setWantsInvoice(false);
+                  if (pm.value !== 'efectivo') setAmountPaid('');
+                  return;
                 }
+
+                if (isSelected) {
+                  const next = selectedPayments.filter((method) => method !== pm.value);
+                  setSelectedPayments(next);
+                  if (!next.includes('efectivo')) setAmountPaid('');
+                  if (!next.some((method) => isInvoiceEligibleMethod(method))) {
+                    setWantsInvoice(false);
+                  }
+                  setSplitAmounts((current) =>
+                    Object.fromEntries(
+                      next.map((method) => [method, current[method] ?? ''])
+                    ) as Partial<Record<PaymentMethod, string>>
+                  );
+                  return;
+                }
+
+                if (selectedPayments.length >= 2) return;
+                const next = [...selectedPayments, pm.value];
+                setSelectedPayments(next);
+                setSplitAmounts((current) =>
+                  Object.fromEntries(
+                    next.map((method) => [method, current[method] ?? ''])
+                  ) as Partial<Record<PaymentMethod, string>>
+                );
               }}
             >
               <Icon size={18} strokeWidth={2} />
@@ -483,12 +589,83 @@ export function SalesPage() {
           );
         })}
       </div>
-      {selectedAlias ? (
-        <div className="sale-alias-card">
-          <span className="muted">Alias para transferir</span>
-          <strong>{selectedAlias}</strong>
-        </div>
+      {paymentMode === 'dual' ? (
+        <p className="caja-hint">
+          Elegí dos métodos distintos e ingresá cuánto se cobró con cada uno.
+        </p>
       ) : null}
+      {paymentMode === 'dual' && selectedPayments.length === 2
+        ? selectedPayments.map((method) => {
+            const label = PAYMENT_METHODS.find((pm) => pm.value === method)?.label ?? method;
+            if (method === 'efectivo') {
+              return (
+                <div className="sale-split-efectivo" key={method}>
+                  <div className="field">
+                    <label>Monto en efectivo</label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={splitAmounts[method] ?? ''}
+                      onChange={(e) =>
+                        setSplitAmounts((current) => ({ ...current, [method]: e.target.value }))
+                      }
+                      placeholder="0"
+                    />
+                  </div>
+                  <div className="sale-cash-row sale-cash-row-compact">
+                    <div className="field">
+                      <label>Paga con</label>
+                      <input
+                        type="number"
+                        min="0"
+                        value={amountPaid}
+                        onChange={(e) => setAmountPaid(e.target.value)}
+                        placeholder="0"
+                      />
+                    </div>
+                    <div className="sale-change-box">
+                      <span className="muted">Vuelto</span>
+                      <strong className={change > 0 ? 'sale-change-positive' : undefined}>
+                        {cashDue > 0 ? formatCurrency(change) : '—'}
+                      </strong>
+                    </div>
+                  </div>
+                </div>
+              );
+            }
+            return (
+              <div className="field" key={method}>
+                <label>Monto con {label}</label>
+                <input
+                  type="number"
+                  min="0"
+                  value={splitAmounts[method] ?? ''}
+                  onChange={(e) =>
+                    setSplitAmounts((current) => ({ ...current, [method]: e.target.value }))
+                  }
+                  placeholder="0"
+                />
+              </div>
+            );
+          })
+        : null}
+      {paymentMode === 'dual' && selectedPayments.length === 2 ? (
+        <p
+          className={`split-payment-summary ${
+            Math.abs(splitRemaining) > 0.01 ? 'warn' : 'ok'
+          }`}
+        >
+          {Math.abs(splitRemaining) <= 0.01
+            ? `Total cubierto: ${formatCurrency(total)}`
+            : `Falta ${formatCurrency(Math.max(0, splitRemaining))} · Sobra ${formatCurrency(Math.max(0, -splitRemaining))}`}
+        </p>
+      ) : null}
+      {selectedAliases.map(({ method, alias }) => (
+        <div className="sale-alias-card" key={method}>
+          <span className="muted">Alias {getPaymentMethodLabel(method)}</span>
+          <strong>{alias}</strong>
+        </div>
+      ))}
 
       {canAskInvoice ? (
         <>
@@ -545,10 +722,10 @@ export function SalesPage() {
         </div>
       </div>
 
-      {paymentMethod === 'efectivo' && (
+      {paymentMode === 'single' && hasEfectivo && (
         <div className="sale-cash-row">
           <div className="field">
-            <label>Paga con</label>
+            <label>El cliente paga con</label>
             <input
               type="number"
               min="0"
@@ -558,8 +735,10 @@ export function SalesPage() {
             />
           </div>
           <div className="sale-change-box">
-            <span className="muted">Vuelto</span>
-            <strong>{formatCurrency(change)}</strong>
+            <span className="muted">Vuelto a dar</span>
+            <strong className={change > 0 ? 'sale-change-positive' : undefined}>
+              {formatCurrency(change)}
+            </strong>
           </div>
         </div>
       )}

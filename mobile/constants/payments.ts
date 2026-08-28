@@ -26,3 +26,14 @@ export function getPaymentMethodAlias(method: PaymentMethod | null | undefined):
   if (!method) return null;
   return PAYMENT_METHODS.find((pm) => pm.value === method)?.alias ?? null;
 }
+
+export {
+  INVOICE_ELIGIBLE_METHODS,
+  formatPaymentSplitsLabel,
+  getSalePaymentLabel,
+  getSaleCashAmount,
+  saleUsesPaymentMethod,
+  saleHasInvoiceEligiblePayment,
+  isInvoiceEligibleMethod,
+  buildSalePaymentData,
+} from '@advance-coat/shared';

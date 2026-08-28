@@ -11,7 +11,7 @@ import {
 } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { Sale, Product } from '@/types';
-import { getPaymentMethodLabel } from '@/constants/payments';
+import { getPaymentMethodLabel, getSalePaymentLabel } from '@/constants/payments';
 
 export interface DailySalesData {
   label: string;
@@ -113,7 +113,14 @@ export function getPaymentMethodStats(sales: Sale[]): PaymentStatsData[] {
   const map = new Map<string, number>();
 
   for (const sale of sales) {
-    const label = getPaymentMethodLabel(sale.paymentMethod, sale.paymentMethodLabel);
+    if (sale.paymentSplits?.length) {
+      for (const split of sale.paymentSplits) {
+        const label = split.paymentMethodLabel ?? getPaymentMethodLabel(split.method);
+        map.set(label, (map.get(label) ?? 0) + 1);
+      }
+      continue;
+    }
+    const label = getSalePaymentLabel(sale);
     map.set(label, (map.get(label) ?? 0) + 1);
   }
 
@@ -130,7 +137,14 @@ export function getPaymentMethodRevenueStats(sales: Sale[]): PaymentStatsData[] 
   const map = new Map<string, number>();
 
   for (const sale of sales) {
-    const label = getPaymentMethodLabel(sale.paymentMethod, sale.paymentMethodLabel);
+    if (sale.paymentSplits?.length) {
+      for (const split of sale.paymentSplits) {
+        const label = split.paymentMethodLabel ?? getPaymentMethodLabel(split.method);
+        map.set(label, (map.get(label) ?? 0) + split.amount);
+      }
+      continue;
+    }
+    const label = getSalePaymentLabel(sale);
     map.set(label, (map.get(label) ?? 0) + sale.total);
   }
 
