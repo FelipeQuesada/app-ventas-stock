@@ -30,6 +30,10 @@ export interface Product {
   imageUrl: string;
   createdAt: Date;
   updatedAt: Date;
+  /** ID del producto en Tiendanube (para sincronización) */
+  tiendanubeId?: number;
+  /** ID de la variante por defecto en Tiendanube */
+  tiendanubeVariantId?: number;
 }
 
 export interface SaleItem {

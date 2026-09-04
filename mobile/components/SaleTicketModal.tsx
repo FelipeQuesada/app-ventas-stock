@@ -7,6 +7,7 @@ import {
   SaleTicketData,
   shareSaleTicket,
   shareSaleTicketWhatsApp,
+  copySaleGroupText,
   exportSaleTicketFile,
   buildSaleTicketHtml,
   normalizeWhatsAppPhone,
@@ -48,6 +49,15 @@ export function SaleTicketModal({ visible, sale, onClose, title = 'Venta registr
       await shareSaleTicketWhatsApp(sale);
     } catch {
       showAlert('Error', 'No se pudo abrir WhatsApp');
+    }
+  };
+
+  const handleGroup = async () => {
+    try {
+      await copySaleGroupText(sale);
+      showAlert('Copiado', 'Mensaje de grupo copiado al portapapeles');
+    } catch {
+      showAlert('Error', 'No se pudo copiar el mensaje de grupo');
     }
   };
 
@@ -124,6 +134,13 @@ export function SaleTicketModal({ visible, sale, onClose, title = 'Venta registr
 
           <View style={styles.actions}>
             <Button title="WhatsApp" onPress={handleWhatsApp} size="sm" style={styles.actionBtn} />
+            <Button
+              title="Grupo"
+              onPress={handleGroup}
+              variant="outline"
+              size="sm"
+              style={styles.actionBtn}
+            />
             <Button
               title="PDF"
               onPress={handlePdf}

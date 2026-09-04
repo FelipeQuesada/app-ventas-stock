@@ -5,77 +5,80 @@ import {
   StyleSheet,
   ScrollView,
   RefreshControl,
-  TouchableOpacity,
 } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
-import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { format, startOfMonth } from 'date-fns';
-import { es } from 'date-fns/locale';
 import { useAuth } from '@/context/AuthContext';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
-import { MonthPickerField } from '@/components/ui/MonthPickerField';
+import { PeriodFilter } from '@/components/ui/PeriodFilter';
 import {
   ChartCard,
+  StatsAreaChart,
   StatsBarChart,
-  StatsLineChart,
-  StatsPieChart,
   StatsDonutChart,
   StatsHorizontalBarChart,
+  StatsLineChart,
+  StatsMultiBarChart,
+  StatsPieChart,
   StatsRankList,
+  CHART_PALETTE,
 } from '@/components/ui/ChartCard';
 import { LoadingScreen } from '@/components/ui/EmptyState';
-import { getSales, getMonthSales, getDaySales } from '@/services/sales';
+import { getSales } from '@/services/sales';
 import { getProducts } from '@/services/products';
 import {
-  exportDaySalesToExcel,
-  exportMonthSalesToExcel,
+  exportSalesInRangeToExcel,
   buildSalesPdfHtml,
 } from '@/services/export';
 import {
-  CHART_COLORS,
-  getDailyRevenueInMonth,
   getMonthlyComparison,
   getTopProducts,
-  getProductRevenueChart,
-  getPaymentMethodStats,
   getPaymentMethodRevenueStats,
-  getCategoryStats,
   getCategoryRevenueStats,
-  getStockByCategory,
   getStockLevelStats,
-  getLowStockRanking,
-  getMonthlyRevenue,
-  getAnnualRevenue,
   getTotalCustomers,
   getAverageTicket,
+  getTotalUnitsSold,
+  getSellerRevenueStats,
+  truncateLabel,
+  getDailyRevenueInRange,
+  getCategoryStats,
+  getStockByCategory,
 } from '@/services/stats';
 import { Product, Sale } from '@/types';
 import { formatCurrency } from '@/utils/format';
+import {
+  createDefaultPeriod,
+  formatPeriodLabel,
+  isDateInRange,
+  type PeriodSelection,
+} from '@/utils/datePeriod';
+import {
+  computeResinAccounting,
+  buildResinAccountingCatalogMap,
+  RESIN_UNIT_LABELS,
+  type ResinUnitKey,
+} from '@advance-coat/shared';
 import { showAlert } from '@/utils/alert';
 import { PdfPreviewModal, PdfPreviewState } from '@/components/ui/PdfPreviewModal';
 import { colors, spacing, typography, radius } from '@/constants/theme';
 
-type StatCategory = 'general' | 'ventas' | 'stock' | 'productos' | 'categorias' | 'pagos';
-
-const CATEGORIES: {
-  id: StatCategory;
+function KpiCard({
+  label,
+  value,
+  hint,
+}: {
   label: string;
-  icon: keyof typeof MaterialIcons.glyphMap;
-}[] = [
-  { id: 'general', label: 'General', icon: 'insights' },
-  { id: 'ventas', label: 'Ventas', icon: 'shopping-cart' },
-  { id: 'stock', label: 'Stock', icon: 'inventory' },
-  { id: 'productos', label: 'Productos', icon: 'inventory-2' },
-  { id: 'categorias', label: 'Categorías', icon: 'category' },
-  { id: 'pagos', label: 'Medios de pago', icon: 'payments' },
-];
-
-function SummaryCard({ label, value }: { label: string; value: string | number }) {
+  value: string | number;
+  hint?: string;
+}) {
   return (
-    <Card style={styles.summaryCard}>
-      <Text style={styles.summaryLabel}>{label}</Text>
-      <Text style={styles.summaryValue}>{value}</Text>
+    <Card style={styles.kpiCard}>
+      <Text style={styles.kpiLabel}>{label}</Text>
+      <Text style={styles.kpiValue} numberOfLines={2}>
+        {value}
+      </Text>
+      {hint ? <Text style={styles.kpiHint}>{hint}</Text> : null}
     </Card>
   );
 }
@@ -86,8 +89,7 @@ export default function StatisticsScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [exporting, setExporting] = useState(false);
-  const [activeCategory, setActiveCategory] = useState<StatCategory>('general');
-  const [selectedMonth, setSelectedMonth] = useState(startOfMonth(new Date()));
+  const [period, setPeriod] = useState<PeriodSelection>(createDefaultPeriod());
   const [sales, setSales] = useState<Sale[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [pdfPreview, setPdfPreview] = useState<PdfPreviewState>(null);
@@ -116,18 +118,76 @@ export default function StatisticsScreen() {
     }, [loadData, profile?.role, router])
   );
 
-  const monthSales = useMemo(
-    () => getMonthSales(sales, selectedMonth),
-    [sales, selectedMonth]
+  const filtered = useMemo(
+    () => sales.filter((sale) => isDateInRange(sale.date, period.range)),
+    [sales, period]
   );
 
-  const monthLabel = format(selectedMonth, 'MMMM yyyy', { locale: es });
+  const revenue = useMemo(
+    () => filtered.reduce((sum, s) => sum + s.total, 0),
+    [filtered]
+  );
+  const unitsSold = useMemo(() => getTotalUnitsSold(filtered), [filtered]);
+  const customers = useMemo(() => getTotalCustomers(filtered), [filtered]);
+  const avgTicket = useMemo(() => getAverageTicket(filtered), [filtered]);
+  const topProducts = useMemo(() => getTopProducts(filtered, 8), [filtered]);
+  const topByRevenue = useMemo(
+    () => [...getTopProducts(filtered, 100)].sort((a, b) => b.revenue - a.revenue).slice(0, 8),
+    [filtered]
+  );
+  const payments = useMemo(() => getPaymentMethodRevenueStats(filtered), [filtered]);
+  const categories = useMemo(() => getCategoryRevenueStats(filtered), [filtered]);
+  const sellers = useMemo(() => getSellerRevenueStats(filtered), [filtered]);
+  const monthly = useMemo(() => getMonthlyComparison(sales, 6), [sales]);
+  const dailyTrend = useMemo(
+    () => getDailyRevenueInRange(filtered, period.range.start, period.range.end),
+    [filtered, period]
+  );
+  const categoryUnits = useMemo(() => getCategoryStats(filtered), [filtered]);
+  const stockByCategory = useMemo(() => getStockByCategory(products), [products]);
+  const stockLevels = useMemo(() => getStockLevelStats(products), [products]);
+  const resinTotals = useMemo(
+    () =>
+      computeResinAccounting(filtered, {
+        catalogPrices: buildResinAccountingCatalogMap(products),
+      }),
+    [filtered, products]
+  );
 
-  const handleExport = async () => {
+  const resinUnitKeys: ResinUnitKey[] = [
+    '150g',
+    '300g',
+    '750g',
+    '1.5kg',
+    '3kg',
+    'catalizador',
+    'dr',
+    'bel',
+  ];
+
+  const maxProductQty = topProducts[0]?.quantity ?? 1;
+  const maxProductRevenue = topByRevenue[0]?.revenue ?? 1;
+  const paymentTotal = payments.reduce((sum, p) => sum + p.value, 0) || 1;
+  const maxCategory = categories[0]?.value ?? 1;
+  const maxSeller = sellers[0]?.value ?? 1;
+  const dominantPayment = payments[0];
+  const periodLabel = formatPeriodLabel(period);
+  const resinOptions = useMemo(
+    () => ({ catalogPrices: buildResinAccountingCatalogMap(products) }),
+    [products]
+  );
+
+  const handleExportExcel = async () => {
     setExporting(true);
     try {
-      await exportMonthSalesToExcel(sales, selectedMonth);
-      showAlert('Listo', `El Excel de ${monthLabel} se descargó correctamente`);
+      await exportSalesInRangeToExcel(
+        filtered,
+        period.range.start,
+        period.range.end,
+        periodLabel,
+        resinOptions
+      );
+      showAlert('Listo', `El informe Excel de ${periodLabel} se descargó correctamente`);
     } catch (error) {
       const message = error instanceof Error ? error.message : 'No se pudo exportar';
       showAlert('Error', message);
@@ -136,338 +196,322 @@ export default function StatisticsScreen() {
     }
   };
 
-  const handleExportDay = async () => {
-    setExporting(true);
-    try {
-      await exportDaySalesToExcel(sales, new Date());
-      showAlert('Listo', 'Excel del día descargado');
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'No se pudo exportar';
-      showAlert('Error', message);
-    } finally {
-      setExporting(false);
-    }
-  };
-
-  const handleExportMonthPdf = () => {
-    const monthSalesData = getMonthSales(sales, selectedMonth);
-    if (monthSalesData.length === 0) {
-      showAlert('Error', 'No hay ventas en este mes para exportar');
+  const handleExportPdf = () => {
+    if (filtered.length === 0) {
+      showAlert('Error', 'No hay ventas en este período para exportar');
       return;
     }
-    const title = `Ventas ${monthLabel}`;
     setPdfPreview({
-      html: buildSalesPdfHtml(monthSalesData, title),
-      title,
-    });
-  };
-
-  const handleExportDayPdf = () => {
-    const daySales = getDaySales(sales, new Date());
-    if (daySales.length === 0) {
-      showAlert('Error', 'No hay ventas en este día para exportar');
-      return;
-    }
-    const dayLabel = format(new Date(), 'dd/MM/yyyy');
-    const title = `Ventas ${dayLabel}`;
-    setPdfPreview({
-      html: buildSalesPdfHtml(daySales, title),
-      title,
+      html: buildSalesPdfHtml(filtered, 'Informe de ventas', periodLabel, resinOptions),
+      title: `Informe ${periodLabel}`,
     });
   };
 
   if (loading) return <LoadingScreen />;
 
-  const monthRevenue = getMonthlyRevenue(sales, selectedMonth);
-  const yearRevenue = getAnnualRevenue(sales);
-  const monthCustomers = getTotalCustomers(monthSales);
-  const monthAvgTicket = getAverageTicket(monthSales);
-  const monthComparison = getMonthlyComparison(sales, 6);
-  const categoryStats = getCategoryStats(monthSales);
-  const categoryRevenue = getCategoryRevenueStats(monthSales);
-  const paymentStats = getPaymentMethodStats(monthSales);
-  const paymentRevenue = getPaymentMethodRevenueStats(monthSales);
-  const stockByCategory = getStockByCategory(products);
-  const stockLevels = getStockLevelStats(products);
-  const lowStockProducts = getLowStockRanking(products);
-
-  const showMonthPicker = activeCategory !== 'stock';
-
-  const renderCategoryContent = () => {
-    switch (activeCategory) {
-      case 'general':
-        return (
-          <>
-            <View style={styles.summaryRow}>
-              <SummaryCard label="Recaudación del mes" value={formatCurrency(monthRevenue)} />
-              <SummaryCard label="Recaudación anual" value={formatCurrency(yearRevenue)} />
-            </View>
-            <View style={styles.summaryRow}>
-              <SummaryCard label="Clientes del mes" value={monthCustomers} />
-              <SummaryCard label="Ticket promedio" value={formatCurrency(monthAvgTicket)} />
-            </View>
-            <ChartCard title="Tendencia de recaudación (6 meses)">
-              <StatsLineChart
-                data={monthComparison.map((m) => ({ label: m.label.slice(0, 6), value: m.revenue }))}
-                color={colors.primary}
-              />
-            </ChartCard>
-            <ChartCard title="Comparativa mensual">
-              <StatsRankList
-                items={monthComparison.map((m, i) => ({
-                  label: m.label,
-                  value: m.revenue,
-                  color: CHART_COLORS[i % CHART_COLORS.length],
-                }))}
-                formatValue={formatCurrency}
-              />
-            </ChartCard>
-          </>
-        );
-
-      case 'ventas':
-        return (
-          <>
-            <ChartCard title={`Recaudación diaria — ${monthLabel}`}>
-              <StatsLineChart
-                data={getDailyRevenueInMonth(sales, selectedMonth).map((d) => ({
-                  label: d.label,
-                  value: d.value,
-                }))}
-                color={colors.success}
-              />
-            </ChartCard>
-            <ChartCard title="Cantidad de ventas por mes">
-              <StatsBarChart
-                data={monthComparison.map((m) => ({ label: m.label.slice(0, 6), value: m.salesCount }))}
-                color={colors.accent}
-              />
-            </ChartCard>
-            <ChartCard title="Clientes atendidos por mes">
-              <StatsHorizontalBarChart
-                data={monthComparison.map((m) => ({ label: m.label, value: m.customers }))}
-                color={colors.primary}
-              />
-            </ChartCard>
-          </>
-        );
-
-      case 'stock':
-        return (
-          <>
-            <ChartCard title="Estado del inventario">
-              <StatsDonutChart data={stockLevels} />
-            </ChartCard>
-            <ChartCard title="Unidades por categoría">
-              <StatsHorizontalBarChart
-                data={stockByCategory.map((c) => ({ label: c.label, value: c.stock }))}
-                color={colors.warning}
-              />
-            </ChartCard>
-            <ChartCard title="Productos con bajo stock">
-              <StatsRankList
-                items={lowStockProducts.map((p) => ({
-                  label: p.name,
-                  value: p.quantity,
-                  color: p.quantity === 0 ? colors.danger : colors.warning,
-                }))}
-                formatValue={(value) => `${value} u.`}
-              />
-            </ChartCard>
-          </>
-        );
-
-      case 'productos':
-        return (
-          <>
-            <ChartCard title="Más vendidos (unidades)">
-              <StatsHorizontalBarChart
-                data={getTopProducts(monthSales, 6).map((p) => ({
-                  label: p.name.slice(0, 18),
-                  value: p.quantity,
-                }))}
-                color={colors.accent}
-              />
-            </ChartCard>
-            <ChartCard title="Ranking por ingresos">
-              <StatsRankList
-                items={getProductRevenueChart(monthSales, 6).map((p, i) => ({
-                  label: p.name,
-                  value: p.revenue,
-                  color: CHART_COLORS[i % CHART_COLORS.length],
-                }))}
-                formatValue={formatCurrency}
-              />
-            </ChartCard>
-            <ChartCard title="Menos vendidos">
-              <StatsBarChart
-                data={getTopProducts(monthSales, 5, true).map((p) => ({
-                  label: p.name.slice(0, 12),
-                  value: p.quantity,
-                }))}
-                color={colors.warning}
-              />
-            </ChartCard>
-          </>
-        );
-
-      case 'categorias':
-        return (
-          <>
-            <ChartCard title="Unidades vendidas por categoría">
-              <StatsPieChart
-                data={categoryStats.map((c, i) => ({
-                  label: c.label,
-                  value: c.value,
-                  color: CHART_COLORS[i % CHART_COLORS.length],
-                }))}
-              />
-            </ChartCard>
-            <ChartCard title="Ingresos por categoría">
-              <StatsHorizontalBarChart
-                data={categoryRevenue.map((c) => ({ label: c.label, value: c.value }))}
-                color={colors.success}
-              />
-            </ChartCard>
-            <ChartCard title="Top categorías">
-              <StatsRankList
-                items={categoryRevenue.map((c, i) => ({
-                  label: c.label,
-                  value: c.value,
-                  color: CHART_COLORS[i % CHART_COLORS.length],
-                }))}
-                formatValue={formatCurrency}
-              />
-            </ChartCard>
-          </>
-        );
-
-      case 'pagos':
-        return (
-          <>
-            <ChartCard title="Uso por cantidad de ventas">
-              <StatsDonutChart data={paymentStats} />
-            </ChartCard>
-            <ChartCard title="Ingresos por medio de pago">
-              <StatsRankList
-                items={paymentRevenue.map((p, i) => ({
-                  label: p.label,
-                  value: p.value,
-                  color: p.color ?? CHART_COLORS[i % CHART_COLORS.length],
-                }))}
-                formatValue={formatCurrency}
-              />
-            </ChartCard>
-            <ChartCard title="Distribución de ingresos">
-              <StatsBarChart
-                data={paymentRevenue.map((p) => ({
-                  label: p.label.slice(0, 10),
-                  value: p.value,
-                }))}
-                color={colors.primary}
-              />
-            </ChartCard>
-          </>
-        );
-
-      default:
-        return null;
-    }
-  };
-
   return (
     <>
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.content}
-      refreshControl={
-        <RefreshControl
-          refreshing={refreshing}
-          onRefresh={() => {
-            setRefreshing(true);
-            loadData();
-          }}
-        />
-      }
-    >
       <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.categoryTabs}
+        style={styles.container}
+        contentContainerStyle={styles.content}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => {
+              setRefreshing(true);
+              loadData();
+            }}
+          />
+        }
       >
-        {CATEGORIES.map((category) => {
-          const active = activeCategory === category.id;
-          return (
-            <TouchableOpacity
-              key={category.id}
-              style={[styles.categoryTab, active && styles.categoryTabActive]}
-              onPress={() => setActiveCategory(category.id)}
-              activeOpacity={0.7}
-            >
-              <MaterialIcons
-                name={category.icon}
-                size={18}
-                color={active ? colors.white : colors.primary}
-              />
-              <Text style={[styles.categoryTabText, active && styles.categoryTabTextActive]}>
-                {category.label}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-      </ScrollView>
+        <View style={styles.header}>
+          <Text style={styles.headerTitle}>Estadísticas</Text>
+          <Text style={styles.headerSubtitle}>{periodLabel}</Text>
+        </View>
 
-      {showMonthPicker && (
-        <Card style={styles.filterCard}>
-          <MonthPickerField value={selectedMonth} onChange={setSelectedMonth} label="Mes a analizar" />
-        </Card>
-      )}
+        <PeriodFilter value={period} onChange={setPeriod} />
 
-      {activeCategory === 'general' && (
+        <View style={styles.kpiGrid}>
+          <KpiCard label="Recaudación" value={formatCurrency(revenue)} />
+          <KpiCard
+            label="Ventas"
+            value={filtered.length}
+            hint={`${unitsSold} unidades`}
+          />
+          <KpiCard label="Ticket promedio" value={formatCurrency(avgTicket)} />
+          <KpiCard label="Clientes" value={customers} />
+          <KpiCard
+            label="Medio dominante"
+            value={dominantPayment ? dominantPayment.label : '—'}
+            hint={
+              dominantPayment
+                ? `${Math.round((dominantPayment.value / paymentTotal) * 100)}% · ${formatCurrency(dominantPayment.value)}`
+                : undefined
+            }
+          />
+          <KpiCard
+            label="Top producto"
+            value={topProducts[0] ? truncateLabel(topProducts[0].name, 18) : '—'}
+            hint={
+              topProducts[0]
+                ? `${topProducts[0].quantity} u. · ${formatCurrency(topProducts[0].revenue)}`
+                : undefined
+            }
+          />
+        </View>
+
         <Card style={styles.exportCard}>
-          <Text style={styles.exportTitle}>Exportar reportes</Text>
-          <Text style={styles.exportSubtitle}>
-            Excel o PDF del mes ({monthLabel}) y del día de hoy
-          </Text>
+          <Text style={styles.exportTitle}>Exportar informe</Text>
+          <Text style={styles.exportSubtitle}>Excel o PDF del período seleccionado</Text>
           <View style={styles.exportActions}>
             <Button
-              title="Excel mes"
-              onPress={handleExport}
+              title="Excel"
+              onPress={handleExportExcel}
               loading={exporting}
               variant="secondary"
               size="sm"
             />
-            <Button
-              title="Excel hoy"
-              onPress={handleExportDay}
-              loading={exporting}
-              size="sm"
-            />
-            <Button
-              title="PDF mes"
-              onPress={handleExportMonthPdf}
-              variant="outline"
-              size="sm"
-            />
-            <Button
-              title="PDF hoy"
-              onPress={handleExportDayPdf}
-              variant="outline"
-              size="sm"
-            />
+            <Button title="PDF" onPress={handleExportPdf} variant="outline" size="sm" />
           </View>
         </Card>
-      )}
 
-      <View style={styles.sectionContent}>{renderCategoryContent()}</View>
-    </ScrollView>
+        <ChartCard
+          title="Tendencia diaria"
+          subtitle="Recaudación día a día en el período"
+          scrollable
+        >
+          {dailyTrend.some((d) => d.value > 0) ? (
+            <StatsAreaChart data={dailyTrend} color="#2563EB" />
+          ) : (
+            <Text style={styles.empty}>Sin ventas en este período.</Text>
+          )}
+        </ChartCard>
 
-    <PdfPreviewModal
-      visible={!!pdfPreview}
-      html={pdfPreview?.html ?? null}
-      title={pdfPreview?.title}
-      onClose={() => setPdfPreview(null)}
-    />
+        <ChartCard title="Productos más vendidos" subtitle="Por unidades en el período">
+          {topProducts.length === 0 ? (
+            <Text style={styles.empty}>Sin ventas en este período.</Text>
+          ) : (
+            <View style={styles.chartStack}>
+              <StatsHorizontalBarChart
+                data={topProducts.slice(0, 6).map((p) => ({
+                  label: truncateLabel(p.name, 14),
+                  value: p.quantity,
+                }))}
+                multiColor
+                formatValue={(v) => `${v} u.`}
+              />
+              <View style={styles.divider} />
+              <StatsRankList
+                items={topProducts.map((item) => ({
+                  label: item.name,
+                  value: item.quantity,
+                  secondary: formatCurrency(item.revenue),
+                }))}
+                formatValue={(value) => `${value} u.`}
+                maxValue={maxProductQty}
+              />
+            </View>
+          )}
+        </ChartCard>
+
+        <ChartCard title="Ingresos por medio de pago" subtitle="Participación del período">
+          {payments.length === 0 ? (
+            <Text style={styles.empty}>Sin datos de pago.</Text>
+          ) : (
+            <View style={styles.paymentLayout}>
+              <StatsDonutChart data={payments} />
+              <StatsRankList
+                items={payments.map((item) => ({
+                  label: item.label,
+                  value: item.value,
+                  color: item.color,
+                  secondary: `${Math.round((item.value / paymentTotal) * 100)}% del total`,
+                }))}
+                formatValue={formatCurrency}
+              />
+            </View>
+          )}
+        </ChartCard>
+
+        <ChartCard title="Mayor recaudación por producto" subtitle="Top por $ (no solo unidades)">
+          {topByRevenue.length === 0 ? (
+            <Text style={styles.empty}>Sin ventas en este período.</Text>
+          ) : (
+            <View style={styles.chartStack}>
+              <StatsMultiBarChart
+                data={topByRevenue.slice(0, 6).map((p) => ({
+                  label: truncateLabel(p.name, 10),
+                  value: p.revenue,
+                }))}
+              />
+              <View style={styles.divider} />
+              <StatsRankList
+                items={topByRevenue.map((item) => ({
+                  label: item.name,
+                  value: item.revenue,
+                  secondary: `${item.quantity} unidades`,
+                  color: colors.primary,
+                }))}
+                formatValue={formatCurrency}
+                maxValue={maxProductRevenue}
+              />
+            </View>
+          )}
+        </ChartCard>
+
+        <ChartCard title="Ventas por vendedor" subtitle="Quién cerró más $ en el período">
+          {sellers.length === 0 ? (
+            <Text style={styles.empty}>Sin datos de vendedor.</Text>
+          ) : (
+            <View style={styles.chartStack}>
+              <StatsBarChart
+                data={sellers.map((s) => ({
+                  label: truncateLabel(s.label, 8),
+                  value: s.value,
+                }))}
+                color="#6366F1"
+              />
+              <View style={styles.divider} />
+              <StatsRankList
+                items={sellers.map((item) => ({
+                  label: item.label,
+                  value: item.value,
+                  secondary: `${Math.round((item.value / maxSeller) * 100)}% vs líder`,
+                  color: '#6366F1',
+                }))}
+                formatValue={formatCurrency}
+                maxValue={maxSeller}
+              />
+            </View>
+          )}
+        </ChartCard>
+
+        <Card style={styles.resinCard}>
+          <Text style={styles.sectionTitle}>Contabilización resina</Text>
+          <Text style={styles.sectionSubtitle}>
+            Unidades y plata del período · Grupo resina vs extras (DR, BEL y resto)
+          </Text>
+
+          <Text style={styles.resinBlockTitle}>Unidades vendidas</Text>
+          <StatsBarChart
+            data={resinUnitKeys.map((key) => ({
+              label: RESIN_UNIT_LABELS[key],
+              value: resinTotals.units[key],
+            }))}
+            color={colors.primary}
+          />
+
+          <View style={styles.resinMoney}>
+            <View style={styles.resinMoneyRow}>
+              <Text style={styles.resinMoneyLabel}>Recibido resina (incl. catalizadores)</Text>
+              <Text style={styles.resinMoneyValue}>{formatCurrency(resinTotals.resinMoney)}</Text>
+            </View>
+            <View style={styles.resinMoneyRow}>
+              <Text style={styles.resinMoneyLabel}>Plata de extras (DR, BEL y resto)</Text>
+              <Text style={styles.resinMoneyValue}>{formatCurrency(resinTotals.extrasMoney)}</Text>
+            </View>
+            <View style={[styles.resinMoneyRow, styles.resinMoneyTotal]}>
+              <Text style={styles.resinMoneyTotalLabel}>Total contabilizado</Text>
+              <Text style={styles.resinMoneyTotalValue}>
+                {formatCurrency(resinTotals.resinMoney + resinTotals.extrasMoney)}
+              </Text>
+            </View>
+          </View>
+        </Card>
+
+        <ChartCard title="Comparativa mensual" subtitle="Últimos 6 meses (todas las ventas)" scrollable>
+          <View style={styles.chartStack}>
+            <StatsBarChart
+              data={monthly.map((m) => ({
+                label: m.label.slice(0, 6),
+                value: m.revenue,
+              }))}
+              color={colors.primary}
+            />
+            <View style={styles.divider} />
+            <Text style={styles.miniChartTitle}>Tendencia en línea</Text>
+            <StatsLineChart
+              data={monthly.map((m) => ({
+                label: m.label.slice(0, 6),
+                value: m.revenue,
+              }))}
+              color="#10B981"
+            />
+          </View>
+        </ChartCard>
+
+        <ChartCard title="Categorías" subtitle="Ingresos y unidades del período">
+          {categories.length === 0 ? (
+            <Text style={styles.empty}>Sin categorías.</Text>
+          ) : (
+            <View style={styles.chartStack}>
+              <StatsPieChart
+                data={categories.slice(0, 6).map((c, i) => ({
+                  label: c.label,
+                  value: c.value,
+                  color: CHART_PALETTE[i % CHART_PALETTE.length],
+                }))}
+              />
+              <View style={styles.divider} />
+              <Text style={styles.miniChartTitle}>Unidades por categoría</Text>
+              <StatsHorizontalBarChart
+                data={categoryUnits.slice(0, 6).map((c, i) => ({
+                  label: truncateLabel(c.label, 14),
+                  value: c.value,
+                }))}
+                color={colors.success}
+                multiColor
+                formatValue={(v) => `${v} u.`}
+              />
+              <View style={styles.divider} />
+              <StatsRankList
+                items={categories.slice(0, 8).map((item) => ({
+                  label: item.label,
+                  value: item.value,
+                  color: colors.success,
+                }))}
+                formatValue={formatCurrency}
+                maxValue={maxCategory}
+              />
+            </View>
+          )}
+
+          <View style={styles.divider} />
+          <Text style={styles.resinBlockTitle}>Estado de stock</Text>
+          {stockLevels.length > 0 ? (
+            <StatsDonutChart data={stockLevels} />
+          ) : null}
+          <View style={styles.stockRow}>
+            {stockLevels.map((s) => (
+              <View key={s.label} style={[styles.stockChip, { borderColor: s.color }]}>
+                <Text style={[styles.stockChipValue, { color: s.color }]}>{s.value}</Text>
+                <Text style={styles.stockChipLabel}>{s.label}</Text>
+              </View>
+            ))}
+          </View>
+          {stockByCategory.length > 0 ? (
+            <>
+              <View style={styles.divider} />
+              <Text style={styles.miniChartTitle}>Stock por categoría</Text>
+              <StatsHorizontalBarChart
+                data={stockByCategory.slice(0, 6).map((c) => ({
+                  label: truncateLabel(c.label, 14),
+                  value: c.stock,
+                }))}
+                color={colors.warning}
+                formatValue={(v) => `${v} u.`}
+              />
+            </>
+          ) : null}
+        </ChartCard>
+      </ScrollView>
+
+      <PdfPreviewModal
+        visible={!!pdfPreview}
+        html={pdfPreview?.html ?? null}
+        title={pdfPreview?.title}
+        onClose={() => setPdfPreview(null)}
+      />
     </>
   );
 }
@@ -480,44 +524,52 @@ const styles = StyleSheet.create({
   content: {
     padding: spacing.md,
     paddingBottom: spacing.xxl,
-  },
-  categoryTabs: {
     gap: spacing.sm,
-    paddingBottom: spacing.md,
   },
-  categoryTab: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: spacing.xs,
-    paddingVertical: spacing.sm,
-    paddingHorizontal: spacing.md,
-    borderRadius: radius.full,
-    borderWidth: 1.5,
-    borderColor: colors.border,
-    backgroundColor: colors.surface,
+  header: {
+    marginBottom: spacing.xs,
   },
-  categoryTabActive: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
+  headerTitle: {
+    ...typography.h2,
+    fontFamily: 'Inter_700Bold',
+    color: colors.text,
   },
-  categoryTabText: {
+  headerSubtitle: {
     ...typography.bodySmall,
-    fontFamily: 'Inter_600SemiBold',
-    color: colors.primary,
+    fontFamily: 'Inter_400Regular',
+    color: colors.textSecondary,
+    textTransform: 'capitalize',
+    marginTop: 2,
   },
-  categoryTabTextActive: {
-    color: colors.white,
+  kpiGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+    marginTop: spacing.sm,
   },
-  filterCard: {
-    marginBottom: spacing.sm,
+  kpiCard: {
+    width: '48%',
+    flexGrow: 1,
+    minWidth: 150,
+    gap: spacing.xs,
+  },
+  kpiLabel: {
+    ...typography.caption,
+    fontFamily: 'Inter_500Medium',
+    color: colors.textSecondary,
+  },
+  kpiValue: {
+    ...typography.h3,
+    fontFamily: 'Inter_700Bold',
+    color: colors.text,
+  },
+  kpiHint: {
+    ...typography.caption,
+    fontFamily: 'Inter_400Regular',
+    color: colors.textMuted,
   },
   exportCard: {
-    marginBottom: spacing.sm,
     gap: spacing.sm,
-  },
-  exportInfo: {
-    flex: 1,
-    gap: spacing.xs,
   },
   exportTitle: {
     ...typography.label,
@@ -531,29 +583,144 @@ const styles = StyleSheet.create({
   },
   exportActions: {
     flexDirection: 'row',
-    flexWrap: 'wrap',
     gap: spacing.sm,
   },
-  sectionContent: {
+  paymentLayout: {
+    gap: spacing.md,
+  },
+  chartStack: {
     gap: spacing.sm,
+    width: '100%',
   },
-  summaryRow: {
-    flexDirection: 'row',
-    gap: spacing.sm,
-    marginBottom: spacing.sm,
+  miniChartTitle: {
+    ...typography.label,
+    fontFamily: 'Inter_600SemiBold',
+    color: colors.textSecondary,
   },
-  summaryCard: {
-    flex: 1,
+  empty: {
+    ...typography.bodySmall,
+    fontFamily: 'Inter_400Regular',
+    color: colors.textMuted,
+    textAlign: 'center',
+    paddingVertical: spacing.lg,
   },
-  summaryLabel: {
+  resinCard: {
+    gap: spacing.md,
+    marginBottom: spacing.md,
+  },
+  sectionTitle: {
+    ...typography.h3,
+    fontFamily: 'Inter_600SemiBold',
+    color: colors.text,
+  },
+  sectionSubtitle: {
     ...typography.caption,
     fontFamily: 'Inter_400Regular',
     color: colors.textSecondary,
-    marginBottom: spacing.xs,
   },
-  summaryValue: {
+  resinBlockTitle: {
+    ...typography.label,
+    fontFamily: 'Inter_600SemiBold',
+    color: colors.text,
+    marginTop: spacing.xs,
+  },
+  resinUnitsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+  },
+  resinUnitChip: {
+    width: '22%',
+    minWidth: 72,
+    padding: spacing.sm,
+    borderRadius: radius.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+    backgroundColor: colors.background,
+    alignItems: 'center',
+    gap: 4,
+  },
+  resinUnitValue: {
     ...typography.h3,
     fontFamily: 'Inter_700Bold',
     color: colors.text,
+  },
+  resinUnitLabel: {
+    ...typography.caption,
+    fontFamily: 'Inter_400Regular',
+    color: colors.textSecondary,
+    textAlign: 'center',
+  },
+  resinMoney: {
+    gap: spacing.sm,
+    backgroundColor: colors.background,
+    borderRadius: radius.md,
+    padding: spacing.md,
+    borderWidth: 1,
+    borderColor: colors.border,
+  },
+  resinMoneyRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: spacing.sm,
+  },
+  resinMoneyLabel: {
+    ...typography.bodySmall,
+    fontFamily: 'Inter_400Regular',
+    color: colors.textSecondary,
+    flex: 1,
+  },
+  resinMoneyValue: {
+    ...typography.bodySmall,
+    fontFamily: 'Inter_700Bold',
+    color: colors.text,
+  },
+  resinMoneyTotal: {
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: colors.border,
+    paddingTop: spacing.sm,
+    marginTop: spacing.xs,
+  },
+  resinMoneyTotalLabel: {
+    ...typography.bodySmall,
+    fontFamily: 'Inter_600SemiBold',
+    color: colors.text,
+    flex: 1,
+  },
+  resinMoneyTotalValue: {
+    ...typography.body,
+    fontFamily: 'Inter_700Bold',
+    color: colors.text,
+  },
+  divider: {
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: colors.border,
+    marginVertical: spacing.md,
+  },
+  stockRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: spacing.sm,
+  },
+  stockChip: {
+    flex: 1,
+    minWidth: 100,
+    padding: spacing.sm,
+    borderRadius: radius.md,
+    borderWidth: 1.5,
+    alignItems: 'center',
+    gap: 2,
+    backgroundColor: colors.surface,
+  },
+  stockChipValue: {
+    ...typography.h3,
+    fontFamily: 'Inter_700Bold',
+  },
+  stockChipLabel: {
+    ...typography.caption,
+    fontFamily: 'Inter_400Regular',
+    color: colors.textSecondary,
+    textAlign: 'center',
   },
 });

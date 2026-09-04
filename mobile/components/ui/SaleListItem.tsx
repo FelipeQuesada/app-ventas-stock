@@ -15,7 +15,8 @@ interface SaleListItemProps {
 
 export function SaleListItem({ sale, onPress, onEdit, onDelete }: SaleListItemProps) {
   const itemCount = sale.items.reduce((sum, item) => sum + item.quantity, 0);
-  const customerLabel = sale.customer.name || sale.customer.email || sale.customer.phone || 'Sin cliente';
+  const customerLabel =
+    sale.customer?.name || sale.customer?.email || sale.customer?.phone || 'Sin cliente';
   const displayDate = getSaleDisplayDate(sale);
 
   return (

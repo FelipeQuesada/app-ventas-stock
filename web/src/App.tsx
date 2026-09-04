@@ -21,6 +21,7 @@ import { AdminSetupPage } from './pages/admin/AdminSetupPage';
 import { AdminDashboardPage } from './pages/admin/AdminDashboardPage';
 import { AdminUsersPage } from './pages/admin/AdminUsersPage';
 import { AdminInvoicesPage } from './pages/admin/AdminInvoicesPage';
+import { SyncTiendanubePage } from './pages/SyncTiendanubePage';
 
 export default function App() {
   return (
@@ -51,6 +52,7 @@ export default function App() {
               <Route path="/caja/list" element={<CajaListPage />} />
               <Route path="/caja/edit/:date" element={<CajaEditPage />} />
               <Route path="/statistics" element={<StatisticsPage />} />
+              <Route path="/tiendanube" element={<SyncTiendanubePage />} />
               <Route path="/profile" element={<ProfilePage />} />
               <Route path="/users" element={<Navigate to="/admin/users" replace />} />
             </Route>

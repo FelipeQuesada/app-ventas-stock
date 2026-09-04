@@ -459,7 +459,7 @@ export function SaleForm({ mode, saleId }: SaleFormProps) {
       name: customerName.trim(),
       email: customerEmail.trim(),
       phone: customerPhone.trim(),
-      cuit: customerCuit.trim() || undefined,
+      cuit: customerCuit.trim() || '',
     },
     subtotal,
     discountType: discountType ?? undefined,

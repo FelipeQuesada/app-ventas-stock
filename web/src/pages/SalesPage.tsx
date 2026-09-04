@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Plus, Trash2, Search, ShoppingCart, Landmark, Banknote, CreditCard, QrCode } from 'lucide-react';
-import type { DiscountType, PaymentMethod, Product, SaleItem } from '@advance-coat/shared';
+import type { DiscountType, PaymentMethod, Product, SaleItem, SaleTicketData } from '@advance-coat/shared';
 import {
   SALE_SELLERS,
   PAYMENT_METHODS,
@@ -15,11 +15,13 @@ import {
   buildSalePaymentData,
   isInvoiceEligibleMethod,
   getUniqueProductCategories,
+  buildSaleDateFromPicker,
 } from '@advance-coat/shared';
 import { getProducts } from '../services/products';
 import { createSale, updateSale, getSale } from '../services/sales';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
+import { SaleTicketModal } from '../components/SaleTicketModal';
 
 const PAYMENT_ICONS: Record<string, typeof Landmark> = {
   'account-balance': Landmark,
@@ -38,6 +40,7 @@ export function SalesPage() {
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState<string | null>(null);
   const [saleDate, setSaleDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [originalSaleDate, setOriginalSaleDate] = useState<Date | null>(null);
   const [seller, setSeller] = useState('');
   const [customerName, setCustomerName] = useState('');
   const [customerPhone, setCustomerPhone] = useState('');
@@ -56,6 +59,7 @@ export function SalesPage() {
   const [showExtraForm, setShowExtraForm] = useState(false);
   const [previousItems, setPreviousItems] = useState<SaleItem[]>([]);
   const [saving, setSaving] = useState(false);
+  const [ticketSale, setTicketSale] = useState<SaleTicketData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -72,7 +76,10 @@ export function SalesPage() {
             cart.setItems(sale.items);
             setPreviousItems(sale.items);
             setSeller(sale.createdByName || '');
-            if (sale.date) setSaleDate(sale.date.toISOString().slice(0, 10));
+            if (sale.date) {
+              setSaleDate(sale.date.toISOString().slice(0, 10));
+              setOriginalSaleDate(sale.date);
+            }
             setCustomerName(sale.customer?.name ?? '');
             setCustomerPhone(sale.customer?.phone ?? '');
             setCustomerEmail(sale.customer?.email ?? '');
@@ -211,7 +218,10 @@ export function SalesPage() {
           : undefined;
       const payment = buildSalePaymentData(selectedPayments, amounts, total);
       const input = {
-        date: saleDate ? new Date(`${saleDate}T12:00:00`) : new Date(),
+        date: buildSaleDateFromPicker(saleDate, {
+          useCurrentTime: !editId,
+          preserveTimeFrom: editId ? (originalSaleDate ?? undefined) : undefined,
+        }),
         items: cart.items,
         paymentMethod: payment.paymentMethod,
         paymentMethodLabel: payment.paymentMethodLabel,
@@ -220,7 +230,7 @@ export function SalesPage() {
           name: customerName,
           email: customerEmail,
           phone: customerPhone,
-          cuit: customerCuit.trim() || undefined,
+          cuit: customerCuit.trim() || '',
         },
         subtotal,
         discountType: discountType ?? undefined,
@@ -234,13 +244,28 @@ export function SalesPage() {
         wantsInvoice: canAskInvoice && wantsInvoice,
       };
 
+      const ticket: SaleTicketData = {
+        date: input.date,
+        items: input.items,
+        subtotal: input.subtotal,
+        discountAmount: input.discountAmount,
+        total: input.total,
+        paymentMethod: input.paymentMethod,
+        paymentMethodLabel: input.paymentMethodLabel,
+        paymentSplits: input.paymentSplits,
+        customer: input.customer,
+        amountPaid: input.amountPaid,
+        change: input.change,
+        createdByName: input.createdByName,
+      };
+
       if (editId) {
         await updateSale(editId, input, previousItems);
       } else {
         await createSale(input);
       }
       cart.clear();
-      navigate('/sales-list');
+      setTicketSale(ticket);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo guardar la venta');
     } finally {
@@ -746,6 +771,17 @@ export function SalesPage() {
       <button type="submit" className="btn btn-primary sale-register-btn" disabled={saving}>
         {submitLabel}
       </button>
+
+      {ticketSale ? (
+        <SaleTicketModal
+          sale={ticketSale}
+          title={editId ? 'Venta actualizada' : 'Venta registrada'}
+          onClose={() => {
+            setTicketSale(null);
+            navigate('/sales-list');
+          }}
+        />
+      ) : null}
     </form>
   );
 }

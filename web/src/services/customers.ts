@@ -35,7 +35,8 @@ function normalizeCustomer(customer: SaleCustomer): SaleCustomer {
     name: customer.name.trim(),
     email: customer.email.trim().toLowerCase(),
     phone: customer.phone.trim(),
-    cuit: customer.cuit?.trim() || undefined,
+    // Firestore no acepta undefined; usar string vacío
+    cuit: customer.cuit?.trim() || '',
   };
 }
 

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { FileText, MessageCircle, Pencil, Trash2, Download } from 'lucide-react';
-import type { Sale } from '@advance-coat/shared';
+import type { Sale, Product } from '@advance-coat/shared';
 import {
   formatCurrency,
   formatShortDateTime,
@@ -11,11 +11,14 @@ import {
   isDateInRange,
   formatPeriodLabel,
   buildSaleTicketText,
+  buildSaleGroupText,
   buildSaleTicketHtml,
   buildWhatsAppUrl,
+  buildResinAccountingCatalogMap,
   type PeriodSelection,
 } from '@advance-coat/shared';
 import { getSales, deleteSale } from '../services/sales';
+import { getProducts } from '../services/products';
 import { exportSalesInRangeToExcel, exportSalesInRangeToPdf, printHtml } from '../services/export';
 import { PeriodFilter } from '../components/PeriodFilter';
 import { useAuth } from '../context/AuthContext';
@@ -23,17 +26,25 @@ import { useAuth } from '../context/AuthContext';
 export function SalesListPage() {
   const { user, profile } = useAuth();
   const [sales, setSales] = useState<Sale[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState<PeriodSelection>(createDefaultPeriod());
 
   async function load() {
     setLoading(true);
     try {
-      setSales(await getSales());
+      const [salesData, productsData] = await Promise.all([getSales(), getProducts()]);
+      setSales(salesData);
+      setProducts(productsData);
     } finally {
       setLoading(false);
     }
   }
+
+  const resinOptions = useMemo(
+    () => ({ catalogPrices: buildResinAccountingCatalogMap(products) }),
+    [products]
+  );
 
   useEffect(() => {
     void load();
@@ -61,6 +72,15 @@ export function SalesListPage() {
     window.open(url, '_blank');
   }
 
+  async function copyGroup(sale: Sale) {
+    try {
+      await navigator.clipboard.writeText(buildSaleGroupText(sale));
+      window.alert('Mensaje de grupo copiado');
+    } catch {
+      window.alert('No se pudo copiar el mensaje');
+    }
+  }
+
   function openPdf(sale: Sale) {
     printHtml(buildSaleTicketHtml(sale));
   }
@@ -85,22 +105,23 @@ export function SalesListPage() {
                 filtered,
                 period.range.start,
                 period.range.end,
-                formatPeriodLabel(period)
+                formatPeriodLabel(period),
+                resinOptions
               ).catch((e) => window.alert(e.message))
             }
           >
-            <Download size={14} /> Excel
+            <Download size={14} /> Informe Excel
           </button>
           <button
             type="button"
             className="btn btn-ghost btn-sm"
             onClick={() =>
-              void exportSalesInRangeToPdf(filtered, formatPeriodLabel(period)).catch((e) =>
+              void exportSalesInRangeToPdf(filtered, formatPeriodLabel(period), resinOptions).catch((e) =>
                 window.alert(e.message)
               )
             }
           >
-            <FileText size={14} /> PDF
+            <FileText size={14} /> Informe PDF
           </button>
           <Link to="/sales" className="btn btn-primary btn-sm">
             Nueva venta
@@ -141,6 +162,14 @@ export function SalesListPage() {
                     onClick={() => openWhatsApp(sale)}
                   >
                     <MessageCircle size={14} />
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm"
+                    title="Grupo"
+                    onClick={() => void copyGroup(sale)}
+                  >
+                    Grupo
                   </button>
                   <button
                     type="button"
@@ -206,6 +235,14 @@ export function SalesListPage() {
                           onClick={() => openWhatsApp(sale)}
                         >
                           <MessageCircle size={14} />
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-ghost btn-sm"
+                          title="Grupo"
+                          onClick={() => void copyGroup(sale)}
+                        >
+                          Grupo
                         </button>
                         <button
                           type="button"

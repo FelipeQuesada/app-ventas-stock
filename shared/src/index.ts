@@ -11,4 +11,8 @@ export * from './utils/discount';
 export * from './utils/sale';
 export * from './utils/productList';
 export * from './utils/caja';
+export * from './constants/resinAccounting';
+export * from './utils/resinAccounting';
 export * from './utils/saleTicket';
+export * from './utils/salesReport';
+export * from './utils/salesReportExcel';

@@ -30,16 +30,23 @@ export function formatShortDateTime(date: Date | string): string {
 }
 
 /**
- * Fecha de venta para mostrar: si `date` está a 00:00, combina el día con la hora de `createdAt`.
+ * Fecha de venta para mostrar: si `date` no tiene hora real (00:00 o 12:00 legacy web),
+ * combina el día con la hora de `createdAt`.
  */
+function saleDateNeedsCreatedAtTime(d: Date): boolean {
+  return (
+    d.getMinutes() === 0 &&
+    d.getSeconds() === 0 &&
+    d.getMilliseconds() === 0 &&
+    (d.getHours() === 0 || d.getHours() === 12)
+  );
+}
+
 export function getSaleDisplayDate(sale: { date: Date; createdAt?: Date }): Date {
   const d = sale.date instanceof Date ? sale.date : new Date(sale.date);
   if (!isValid(d)) return d;
 
-  const midnight =
-    d.getHours() === 0 && d.getMinutes() === 0 && d.getSeconds() === 0 && d.getMilliseconds() === 0;
-
-  if (midnight && sale.createdAt && isValid(sale.createdAt)) {
+  if (saleDateNeedsCreatedAtTime(d) && sale.createdAt && isValid(sale.createdAt)) {
     const merged = new Date(d);
     merged.setHours(
       sale.createdAt.getHours(),

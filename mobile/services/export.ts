@@ -12,6 +12,12 @@ import { es } from 'date-fns/locale';
 import { Customer, Sale } from '@/types';
 import { DailyCaja } from '@/types/caja';
 import { getSalePaymentLabel } from '@/constants/payments';
+import {
+  buildSalesHistoryReportHtml,
+  buildSalesReportExcelBuffer,
+  computeResinAccounting,
+  type ResinAccountingOptions,
+} from '@advance-coat/shared';
 import { getMonthSales, getDaySales } from '@/services/sales';
 import { getMonthCaja } from '@/services/caja';
 import {
@@ -386,39 +392,14 @@ export async function sharePdfFromHtml(html: string, dialogTitle: string): Promi
   }
 }
 
-export function buildSalesPdfHtml(sales: Sale[], title: string): string {
-  const totalRevenue = sales.reduce((sum, sale) => sum + sale.total, 0);
-  const rows = sales
-    .map(
-      (sale) => `
-      <tr>
-        <td>${formatShortDate(sale.date)}</td>
-        <td>${sale.customer?.name || '-'}</td>
-        <td>${getSalePaymentLabel(sale)}</td>
-        <td style="text-align:right">${formatCurrency(sale.total)}</td>
-        <td>${sale.createdByName || '-'}</td>
-      </tr>`
-    )
-    .join('');
-
-  return `<!DOCTYPE html>
-<html><head><meta charset="utf-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1"/>
-<style>
-  body{font-family:Arial,sans-serif;color:#1A1A2E;padding:24px;margin:0}
-  h1{font-size:20px;margin:0 0 8px}
-  .meta{color:#6B7280;font-size:12px;margin-bottom:16px}
-  table{width:100%;border-collapse:collapse;font-size:12px}
-  th,td{border-bottom:1px solid #E8ECF4;padding:8px 4px;text-align:left}
-  th{background:#F8F9FC}
-</style></head><body>
-  <h1>Advance Coat — ${title}</h1>
-  <div class="meta">${sales.length} ventas · Recaudación ${formatCurrency(totalRevenue)}</div>
-  <table>
-    <thead><tr><th>Fecha</th><th>Cliente</th><th>Pago</th><th>Total</th><th>Vendedor</th></tr></thead>
-    <tbody>${rows}</tbody>
-  </table>
-</body></html>`;
+export function buildSalesPdfHtml(
+  sales: Sale[],
+  title: string,
+  periodLabel?: string,
+  resinOptions?: ResinAccountingOptions
+): string {
+  const resinTotals = resinOptions ? computeResinAccounting(sales, resinOptions) : undefined;
+  return buildSalesHistoryReportHtml(sales, title, periodLabel, resinTotals);
 }
 
 export function buildCustomersPdfHtml(customers: Customer[]): string {
@@ -486,40 +467,64 @@ export async function exportSalesInRangeToExcel(
   sales: Sale[],
   start: Date,
   end: Date,
-  label: string
+  label: string,
+  resinOptions?: ResinAccountingOptions
 ): Promise<void> {
   if (sales.length === 0) {
     throw new Error('No hay ventas en este período para exportar');
   }
 
-  const fileName = `ventas-${format(start, 'yyyy-MM-dd')}_${format(end, 'yyyy-MM-dd')}.xlsx`;
-  const workbook = XLSX.utils.book_new();
-  const totalRevenue = sales.reduce((sum, sale) => sum + sale.total, 0);
+  const fileName = `informe-ventas-${format(start, 'yyyy-MM-dd')}_${format(end, 'yyyy-MM-dd')}.xlsx`;
+  const buffer = await buildSalesReportExcelBuffer({
+    sales,
+    start,
+    end,
+    label,
+    resinOptions,
+  });
 
-  appendSheet(
-    workbook,
-    [
-      { Concepto: 'Período', Valor: label },
-      { Concepto: 'Total de ventas', Valor: sales.length },
-      { Concepto: 'Recaudación ($)', Valor: totalRevenue },
-    ],
-    'Resumen'
-  );
-  appendSheet(workbook, buildSalesRows(sales), 'Ventas');
-  appendSheet(workbook, buildProductRows(sales), 'Productos');
-  appendSheet(workbook, buildPaymentRows(sales), 'Medios de pago');
+  if (Platform.OS === 'web') {
+    const blob = new Blob([buffer], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    return;
+  }
 
-  await saveWorkbook(workbook, fileName, `Ventas ${label}`);
+  const bytes = new Uint8Array(buffer);
+  let binary = '';
+  for (let i = 0; i < bytes.byteLength; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  const base64 = btoa(binary);
+  const fileUri = `${documentDirectory}${fileName}`;
+  await writeAsStringAsync(fileUri, base64, { encoding: EncodingType.Base64 });
+  await Sharing.shareAsync(fileUri, {
+    mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    dialogTitle: `Informe de ventas ${label}`,
+    UTI: 'com.microsoft.excel.xlsx',
+  });
 }
 
 export async function exportSalesInRangeToPdf(
   sales: Sale[],
-  label: string
+  label: string,
+  resinOptions?: ResinAccountingOptions
 ): Promise<void> {
   if (sales.length === 0) {
     throw new Error('No hay ventas en este período para exportar');
   }
-  await sharePdfFromHtml(buildSalesPdfHtml(sales, `Ventas ${label}`), `Ventas ${label}`);
+  await sharePdfFromHtml(
+    buildSalesPdfHtml(sales, 'Informe de ventas', label, resinOptions),
+    `Informe de ventas ${label}`
+  );
 }
 
 export async function exportCustomersToExcel(customers: Customer[]): Promise<void> {

@@ -18,12 +18,15 @@ import { EmptyState, LoadingScreen } from '@/components/ui/EmptyState';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
 import { deleteSale, getSales } from '@/services/sales';
+import { getProducts } from '@/services/products';
 import {
   exportSalesReportText,
   exportSalesInRangeToExcel,
+  exportSalesInRangeToPdf,
   buildSalesPdfHtml,
 } from '@/services/export';
-import { Sale, PaymentMethod } from '@/types';
+import { Sale, PaymentMethod, Product } from '@/types';
+import { buildResinAccountingCatalogMap } from '@advance-coat/shared';
 import { formatCurrency, formatDate, getSaleDisplayDate } from '@/utils/format';
 import {
   createDefaultPeriod,
@@ -31,7 +34,7 @@ import {
   isDateInRange,
   PeriodSelection,
 } from '@/utils/datePeriod';
-import { getSalePaymentLabel, saleUsesPaymentMethod } from '@/constants/payments';
+import { PAYMENT_METHODS, getSalePaymentLabel, saleUsesPaymentMethod } from '@/constants/payments';
 import { useAuth } from '@/context/AuthContext';
 import { showAlert, showConfirm } from '@/utils/alert';
 import { SaleTicketModal } from '@/components/SaleTicketModal';
@@ -42,6 +45,7 @@ export default function SalesListScreen() {
   const router = useRouter();
   const { user, profile } = useAuth();
   const [sales, setSales] = useState<Sale[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
@@ -54,8 +58,9 @@ export default function SalesListScreen() {
 
   const loadSales = useCallback(async () => {
     try {
-      const data = await getSales();
+      const [data, productsData] = await Promise.all([getSales(), getProducts()]);
       setSales(data);
+      setProducts(productsData);
     } catch (error) {
       console.error(error);
       showAlert('Error', 'No se pudieron cargar las ventas');
@@ -85,6 +90,11 @@ export default function SalesListScreen() {
 
   const periodLabel = formatPeriodLabel(period);
 
+  const resinOptions = useMemo(
+    () => ({ catalogPrices: buildResinAccountingCatalogMap(products) }),
+    [products]
+  );
+
   const filtered = useMemo(() => {
     const term = search.toLowerCase().trim();
 
@@ -95,9 +105,9 @@ export default function SalesListScreen() {
       if (!term) return true;
 
       const customerText = [
-        sale.customer.name,
-        sale.customer.email,
-        sale.customer.phone,
+        sale.customer?.name,
+        sale.customer?.email,
+        sale.customer?.phone,
       ]
         .join(' ')
         .toLowerCase();
@@ -122,7 +132,8 @@ export default function SalesListScreen() {
         filtered,
         period.range.start,
         period.range.end,
-        periodLabel
+        periodLabel,
+        resinOptions
       );
       showAlert('Listo', `Excel de ${periodLabel} listo`);
     } catch (error) {
@@ -133,16 +144,17 @@ export default function SalesListScreen() {
     }
   };
 
-  const handleExportPdf = () => {
+  const handleExportPdf = async () => {
     if (filtered.length === 0) {
       showAlert('Error', 'No hay ventas en este período para exportar');
       return;
     }
-    const title = `Ventas ${periodLabel}`;
-    setPdfPreview({
-      html: buildSalesPdfHtml(filtered, title),
-      title,
-    });
+    try {
+      await exportSalesInRangeToPdf(filtered, periodLabel, resinOptions);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'No se pudo exportar';
+      showAlert('Error', message);
+    }
   };
 
   const handleExportText = async () => {
@@ -250,7 +262,7 @@ export default function SalesListScreen() {
 
       <Card style={styles.exportCard}>
         <View style={styles.exportInfo}>
-          <Text style={styles.exportTitle}>Exportar período</Text>
+          <Text style={styles.exportTitle}>Informe del período</Text>
           <Text style={styles.exportSubtitle}>{periodLabel}</Text>
         </View>
         <View style={styles.exportActions}>

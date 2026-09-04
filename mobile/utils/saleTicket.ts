@@ -1,4 +1,5 @@
 import { Platform, Share, Linking } from 'react-native';
+import * as Clipboard from 'expo-clipboard';
 import {
   documentDirectory,
   writeAsStringAsync,
@@ -92,6 +93,29 @@ export function buildSaleTicketText(sale: Sale | SaleTicketData): string {
   return lines.join('\n');
 }
 
+export function buildSaleGroupText(sale: Sale | SaleTicketData): string {
+  const lines: string[] = [];
+  lines.push(`Fecha: ${formatDate(sale.date)}`);
+  if (sale.createdByName) lines.push(`Vendedor: ${sale.createdByName}`);
+  lines.push('----------------------------');
+
+  for (const item of sale.items) {
+    lines.push(`${item.productName}`);
+    lines.push(
+      `  ${item.quantity} x ${formatCurrency(item.unitPrice)} = ${formatCurrency(item.subtotal)}`
+    );
+  }
+
+  lines.push('----------------------------');
+  lines.push(`Subtotal: ${formatCurrency(sale.subtotal)}`);
+  if ((sale.discountAmount ?? 0) > 0) {
+    lines.push(`Descuento: -${formatCurrency(sale.discountAmount ?? 0)}`);
+  }
+  lines.push(`TOTAL: ${formatCurrency(sale.total)}`);
+  lines.push(`Pago: ${getSalePaymentLabel(sale)}`);
+  return lines.join('\n');
+}
+
 export function buildSaleTicketHtml(sale: Sale | SaleTicketData): string {
   const itemsHtml = sale.items
     .map(
@@ -140,6 +164,47 @@ function escapeHtml(value: string): string {
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;');
+}
+
+export async function copySaleGroupText(sale: Sale | SaleTicketData): Promise<void> {
+  const text = buildSaleGroupText(sale);
+
+  if (Platform.OS === 'web') {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+
+  await Clipboard.setStringAsync(text);
+}
+
+export async function shareSaleGroup(sale: Sale | SaleTicketData): Promise<void> {
+  const text = buildSaleGroupText(sale);
+
+  if (Platform.OS === 'web') {
+    if (navigator.share) {
+      await navigator.share({ title: 'Venta', text });
+      return;
+    }
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+
+  await Share.share({
+    message: text,
+    title: 'Venta',
+  });
+}
+
+export async function shareSaleGroupWhatsApp(sale: Sale | SaleTicketData): Promise<void> {
+  const text = buildSaleGroupText(sale);
+  const url = buildWhatsAppUrl(null, text);
+
+  const canOpen = await Linking.canOpenURL(url);
+  if (canOpen) {
+    await Linking.openURL(url);
+    return;
+  }
+  await shareSaleGroup(sale);
 }
 
 export async function shareSaleTicket(sale: Sale | SaleTicketData): Promise<void> {

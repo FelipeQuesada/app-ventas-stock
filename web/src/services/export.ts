@@ -7,6 +7,10 @@ import {
   formatCurrency,
   formatShortDate,
   buildSaleTicketText,
+  buildSalesHistoryReportHtml,
+  buildSalesReportExcelBuffer,
+  computeResinAccounting,
+  type ResinAccountingOptions,
 } from '@advance-coat/shared';
 import { getMonthSales, getDaySales } from './sales';
 import { getMonthCaja } from './caja';
@@ -321,39 +325,14 @@ export async function exportSalesReportText(
   downloadBlob(new Blob([text], { type: 'text/plain;charset=utf-8' }), fileName);
 }
 
-export function buildSalesPdfHtml(sales: Sale[], title: string): string {
-  const totalRevenue = sales.reduce((sum, sale) => sum + sale.total, 0);
-  const rows = sales
-    .map(
-      (sale) => `
-      <tr>
-        <td>${formatShortDate(sale.date)}</td>
-        <td>${sale.customer?.name || '-'}</td>
-        <td>${getSalePaymentLabel(sale)}</td>
-        <td style="text-align:right">${formatCurrency(sale.total)}</td>
-        <td>${sale.createdByName || '-'}</td>
-      </tr>`
-    )
-    .join('');
-
-  return `<!DOCTYPE html>
-<html><head><meta charset="utf-8"/>
-<title>${title}</title>
-<style>
-  body{font-family:Arial,sans-serif;color:#1A1A2E;padding:24px;margin:0}
-  h1{font-size:20px;margin:0 0 8px}
-  .meta{color:#6B7280;font-size:12px;margin-bottom:16px}
-  table{width:100%;border-collapse:collapse;font-size:12px}
-  th,td{border-bottom:1px solid #E8ECF4;padding:8px 4px;text-align:left}
-  th{background:#F8F9FC}
-</style></head><body>
-  <h1>Advance Coat — ${title}</h1>
-  <div class="meta">${sales.length} ventas · Recaudación ${formatCurrency(totalRevenue)}</div>
-  <table>
-    <thead><tr><th>Fecha</th><th>Cliente</th><th>Pago</th><th>Total</th><th>Vendedor</th></tr></thead>
-    <tbody>${rows}</tbody>
-  </table>
-</body></html>`;
+export function buildSalesPdfHtml(
+  sales: Sale[],
+  title: string,
+  periodLabel?: string,
+  resinOptions?: ResinAccountingOptions
+): string {
+  const resinTotals = resinOptions ? computeResinAccounting(sales, resinOptions) : undefined;
+  return buildSalesHistoryReportHtml(sales, title, periodLabel, resinTotals);
 }
 
 export function buildCustomersPdfHtml(customers: Customer[]): string {
@@ -415,36 +394,36 @@ export async function exportSalesInRangeToExcel(
   sales: Sale[],
   start: Date,
   end: Date,
-  label: string
+  label: string,
+  resinOptions?: ResinAccountingOptions
 ): Promise<void> {
   if (sales.length === 0) {
     throw new Error('No hay ventas en este período para exportar');
   }
 
-  const fileName = `ventas-${format(start, 'yyyy-MM-dd')}_${format(end, 'yyyy-MM-dd')}.xlsx`;
-  const workbook = XLSX.utils.book_new();
-  const totalRevenue = sales.reduce((sum, sale) => sum + sale.total, 0);
-
-  appendSheet(
-    workbook,
-    [
-      { Concepto: 'Período', Valor: label },
-      { Concepto: 'Total de ventas', Valor: sales.length },
-      { Concepto: 'Recaudación ($)', Valor: totalRevenue },
-    ],
-    'Resumen'
-  );
-  appendSheet(workbook, buildSalesRows(sales), 'Ventas');
-  appendSheet(workbook, buildProductRows(sales), 'Productos');
-  appendSheet(workbook, buildPaymentRows(sales), 'Medios de pago');
-  saveWorkbook(workbook, fileName);
+  const fileName = `informe-ventas-${format(start, 'yyyy-MM-dd')}_${format(end, 'yyyy-MM-dd')}.xlsx`;
+  const buffer = await buildSalesReportExcelBuffer({
+    sales,
+    start,
+    end,
+    label,
+    resinOptions,
+  });
+  const blob = new Blob([buffer], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  });
+  downloadBlob(blob, fileName);
 }
 
-export async function exportSalesInRangeToPdf(sales: Sale[], label: string): Promise<void> {
+export async function exportSalesInRangeToPdf(
+  sales: Sale[],
+  label: string,
+  resinOptions?: ResinAccountingOptions
+): Promise<void> {
   if (sales.length === 0) {
     throw new Error('No hay ventas en este período para exportar');
   }
-  printHtml(buildSalesPdfHtml(sales, `Ventas ${label}`));
+  printHtml(buildSalesPdfHtml(sales, `Informe de ventas`, label, resinOptions));
 }
 
 export async function exportCustomersToExcel(customers: Customer[]): Promise<void> {

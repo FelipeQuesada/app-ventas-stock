@@ -18,6 +18,10 @@ import {
   createDefaultPeriod,
   isDateInRange,
   formatPeriodLabel,
+  computeResinAccounting,
+  buildResinAccountingCatalogMap,
+  RESIN_UNIT_LABELS,
+  type ResinUnitKey,
   type PeriodSelection,
 } from '@advance-coat/shared';
 import { getSales } from '../services/sales';
@@ -120,6 +124,24 @@ export function StatisticsPage() {
   const sellers = useMemo(() => getSellerRevenueStats(filtered), [filtered]);
   const monthly = useMemo(() => getMonthlyComparison(sales, 6), [sales]);
   const stockLevels = useMemo(() => getStockLevelStats(products), [products]);
+  const resinTotals = useMemo(
+    () =>
+      computeResinAccounting(filtered, {
+        catalogPrices: buildResinAccountingCatalogMap(products),
+      }),
+    [filtered, products]
+  );
+
+  const resinUnitKeys: ResinUnitKey[] = [
+    '150g',
+    '300g',
+    '750g',
+    '1.5kg',
+    '3kg',
+    'catalizador',
+    'dr',
+    'bel',
+  ];
 
   const maxProductQty = topProducts[0]?.quantity ?? 1;
   const maxProductRevenue = topByRevenue[0]?.revenue ?? 1;
@@ -301,6 +323,42 @@ export function StatisticsPage() {
               ))}
             </div>
           )}
+        </div>
+      </div>
+
+      <div className="card stats-resin-card">
+        <h3 className="card-title">Contabilización resina</h3>
+        <p className="card-subtitle">
+          Unidades y plata del período · Grupo resina vs extras (DR, BEL y resto)
+        </p>
+        <div className="stats-resin-grid">
+          <div>
+            <h4 className="stats-section-title">Unidades vendidas</h4>
+            <div className="stats-resin-units">
+              {resinUnitKeys.map((key) => (
+                <div key={key} className="stats-resin-unit-chip">
+                  <strong>{resinTotals.units[key]}</strong>
+                  <span>{RESIN_UNIT_LABELS[key]}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div className="stats-resin-money">
+            <div className="stats-resin-money-row">
+              <span>Recibido resina (incl. catalizadores)</span>
+              <strong>{formatCurrency(resinTotals.resinMoney)}</strong>
+            </div>
+            <div className="stats-resin-money-row">
+              <span>Plata de extras (DR, BEL y resto)</span>
+              <strong>{formatCurrency(resinTotals.extrasMoney)}</strong>
+            </div>
+            <div className="stats-resin-money-row stats-resin-money-total">
+              <span>Total contabilizado</span>
+              <strong>
+                {formatCurrency(resinTotals.resinMoney + resinTotals.extrasMoney)}
+              </strong>
+            </div>
+          </div>
         </div>
       </div>
 

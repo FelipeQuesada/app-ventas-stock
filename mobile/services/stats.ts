@@ -200,6 +200,32 @@ export function getAverageTicket(sales: Sale[]): number {
   return sales.reduce((sum, s) => sum + s.total, 0) / sales.length;
 }
 
+export function getTotalUnitsSold(sales: Sale[]): number {
+  return sales.reduce(
+    (sum, sale) => sum + sale.items.reduce((itemSum, item) => itemSum + item.quantity, 0),
+    0
+  );
+}
+
+export function getSellerRevenueStats(sales: Sale[]): CategorySalesData[] {
+  const map = new Map<string, number>();
+
+  for (const sale of sales) {
+    const label = sale.createdByName?.trim() || 'Sin vendedor';
+    map.set(label, (map.get(label) ?? 0) + sale.total);
+  }
+
+  return Array.from(map.entries())
+    .map(([label, value]) => ({ label, value }))
+    .sort((a, b) => b.value - a.value);
+}
+
+export function truncateLabel(label: string, max = 28): string {
+  const cleaned = label.replace(/\s+/g, ' ').trim();
+  if (cleaned.length <= max) return cleaned;
+  return `${cleaned.slice(0, max - 1)}…`;
+}
+
 export function getMonthlyComparison(sales: Sale[], months = 6): MonthlyComparison[] {
   const end = startOfMonth(new Date());
   const start = subMonths(end, months - 1);
@@ -282,6 +308,25 @@ export function getDailyRevenueInMonth(sales: Sale[], month: Date): DailySalesDa
     );
     return {
       label: format(day, 'd', { locale: es }),
+      value: daySales.reduce((sum, s) => sum + s.total, 0),
+      count: daySales.length,
+    };
+  });
+}
+
+export function getDailyRevenueInRange(sales: Sale[], start: Date, end: Date): DailySalesData[] {
+  const interval = eachDayOfInterval({
+    start: startOfDay(start),
+    end: startOfDay(end),
+  });
+  const compactLabels = interval.length > 20;
+
+  return interval.map((day) => {
+    const daySales = sales.filter(
+      (s) => startOfDay(s.date).getTime() === day.getTime()
+    );
+    return {
+      label: format(day, compactLabels ? 'd/M' : 'dd/MM', { locale: es }),
       value: daySales.reduce((sum, s) => sum + s.total, 0),
       count: daySales.length,
     };
