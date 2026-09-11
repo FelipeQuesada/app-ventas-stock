@@ -50,7 +50,9 @@ function mapSale(id: string, data: Record<string, unknown>): Sale {
 export async function getSales(): Promise<Sale[]> {
   const q = query(collection(db, COLLECTION), orderBy('date', 'desc'));
   const snap = await getDocs(q);
-  return snap.docs.map((d) => mapSale(d.id, d.data()));
+  return snap.docs
+    .filter((d) => d.data().recordType !== 'presupuesto')
+    .map((d) => mapSale(d.id, d.data()));
 }
 
 export async function getSalesByDateRange(start: Date, end: Date): Promise<Sale[]> {
@@ -61,7 +63,9 @@ export async function getSalesByDateRange(start: Date, end: Date): Promise<Sale[
     orderBy('date', 'desc')
   );
   const snap = await getDocs(q);
-  return snap.docs.map((d) => mapSale(d.id, d.data()));
+  return snap.docs
+    .filter((d) => d.data().recordType !== 'presupuesto')
+    .map((d) => mapSale(d.id, d.data()));
 }
 
 export interface CreateSaleInput {

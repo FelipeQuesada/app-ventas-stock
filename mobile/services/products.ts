@@ -32,6 +32,10 @@ function mapProduct(id: string, data: Record<string, unknown>): Product {
     imageUrl: (data.imageUrl as string) || '',
     createdAt: (data.createdAt as Timestamp)?.toDate?.() ?? new Date(),
     updatedAt: (data.updatedAt as Timestamp)?.toDate?.() ?? new Date(),
+    tiendanubeId: typeof data.tiendanubeId === 'number' ? data.tiendanubeId : undefined,
+    tiendanubeVariantId:
+      typeof data.tiendanubeVariantId === 'number' ? data.tiendanubeVariantId : undefined,
+    hidden: data.hidden === true,
   };
 }
 

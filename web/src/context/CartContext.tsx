@@ -5,8 +5,9 @@ interface CartContextType {
   items: SaleItem[];
   count: number;
   addProduct: (product: Product) => void;
-  updateQuantity: (productId: string, quantity: number, availableStock?: number) => void;
+  updateQuantity: (productId: string, quantity: number) => void;
   updateSubtotal: (productId: string, subtotal: number) => void;
+  updateUnitPrice: (productId: string, unitPrice: number) => void;
   removeItem: (productId: string) => void;
   setItems: (items: SaleItem[]) => void;
   clear: () => void;
@@ -18,18 +19,10 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
   const [items, setItems] = useState<SaleItem[]>([]);
 
   const addProduct = useCallback((product: Product) => {
-    if (product.stock <= 0) {
-      window.alert(`${product.name} no tiene stock disponible`);
-      return;
-    }
-
+    // Se permite vender aunque el stock cargado sea 0 (stock físico no cargado).
     setItems((current) => {
       const existing = current.find((item) => item.productId === product.id);
       if (existing) {
-        if (existing.quantity >= product.stock) {
-          window.alert(`Solo hay ${product.stock} unidades de ${product.name}`);
-          return current;
-        }
         return current.map((item) =>
           item.productId === product.id
             ? {
@@ -55,36 +48,45 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
     });
   }, []);
 
-  const updateQuantity = useCallback(
-    (productId: string, quantity: number, availableStock?: number) => {
-      if (quantity < 1) return;
-      if (availableStock != null && quantity > availableStock) {
-        window.alert(`Solo hay ${availableStock} unidades disponibles`);
-        return;
-      }
-      setItems((current) =>
-        current.map((item) =>
-          item.productId === productId
-            ? {
-                ...item,
-                quantity,
-                subtotal: item.unitPrice * quantity,
-              }
-            : item
-        )
-      );
-    },
-    []
-  );
+  const updateQuantity = useCallback((productId: string, quantity: number) => {
+    if (quantity < 1) return;
+    setItems((current) =>
+      current.map((item) =>
+        item.productId === productId
+          ? {
+              ...item,
+              quantity,
+              subtotal: item.unitPrice * quantity,
+            }
+          : item
+      )
+    );
+  }, []);
 
   const updateSubtotal = useCallback((productId: string, newSubtotal: number) => {
+    if (!Number.isFinite(newSubtotal) || newSubtotal < 0) return;
     setItems((current) =>
       current.map((item) =>
         item.productId === productId
           ? {
               ...item,
               subtotal: newSubtotal,
-              unitPrice: newSubtotal / item.quantity,
+              unitPrice: item.quantity > 0 ? newSubtotal / item.quantity : newSubtotal,
+            }
+          : item
+      )
+    );
+  }, []);
+
+  const updateUnitPrice = useCallback((productId: string, unitPrice: number) => {
+    if (!Number.isFinite(unitPrice) || unitPrice < 0) return;
+    setItems((current) =>
+      current.map((item) =>
+        item.productId === productId
+          ? {
+              ...item,
+              unitPrice,
+              subtotal: unitPrice * item.quantity,
             }
           : item
       )
@@ -109,11 +111,21 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
       addProduct,
       updateQuantity,
       updateSubtotal,
+      updateUnitPrice,
       removeItem,
       setItems,
       clear,
     }),
-    [items, count, addProduct, updateQuantity, updateSubtotal, removeItem, clear]
+    [
+      items,
+      count,
+      addProduct,
+      updateQuantity,
+      updateSubtotal,
+      updateUnitPrice,
+      removeItem,
+      clear,
+    ]
   );
 
   return <CartContext.Provider value={value}>{children}</CartContext.Provider>;

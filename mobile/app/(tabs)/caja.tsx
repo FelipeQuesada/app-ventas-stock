@@ -25,6 +25,7 @@ import {
   getCajaByDate,
   getCajaCambioFromPreviousDay,
   saveCaja,
+  persistCajaCambio,
   getOrCreateCajaCentral,
   withdrawFromCajaCentral,
 } from '@/services/caja';
@@ -214,20 +215,33 @@ export default function CajaScreen() {
     }
   };
 
-  const handleAgregarDinero = () => {
+  const handleAgregarDinero = async () => {
+    if (!user) return;
     const amount = parseFloat(montoAgregar);
     if (isNaN(amount) || amount <= 0) {
       Alert.alert('Error', 'Ingresá un monto válido para agregar');
       return;
     }
     const next = cajaCambioAmount + amount;
-    setCajaCambio(String(next));
-    setMontoAgregar('');
-    setAgregarVisible(false);
-    Alert.alert(
-      'Caja cambio actualizada',
-      `Se sumaron ${formatCurrency(amount)}. Nuevo monto: ${formatCurrency(next)}`
-    );
+    try {
+      await persistCajaCambio({
+        date: today,
+        cajaCambio: next,
+        cashSales,
+        updatedBy: user.uid,
+        updatedByName: profile?.name,
+      });
+      setCajaCambio(String(next));
+      setMontoAgregar('');
+      setAgregarVisible(false);
+      setSinMovimiento(false);
+      Alert.alert(
+        'Caja cambio actualizada',
+        `Se sumaron ${formatCurrency(amount)}. Nuevo monto: ${formatCurrency(next)}`
+      );
+    } catch (err) {
+      Alert.alert('Error', err instanceof Error ? err.message : 'No se pudo guardar el dinero agregado');
+    }
   };
 
   const handleSave = async () => {
@@ -509,7 +523,7 @@ export default function CajaScreen() {
               autoFocus
             />
             <Text style={styles.withdrawHint}>
-              Se suma al fondo de cambio del día. Queda guardado al cerrar la caja.
+              Se suma al fondo de cambio del día y queda guardado al instante.
             </Text>
 
             <View style={styles.modalActions}>

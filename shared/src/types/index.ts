@@ -34,6 +34,11 @@ export interface Product {
   tiendanubeId?: number;
   /** ID de la variante por defecto en Tiendanube */
   tiendanubeVariantId?: number;
+  /**
+   * Oculto en catálogo/ventas (no se borra).
+   * Se marca cuando el producto ya no existe en Tiendanube.
+   */
+  hidden?: boolean;
 }
 
 export interface SaleItem {
@@ -89,6 +94,35 @@ export interface Sale {
   wantsInvoice?: boolean;
   /** Admin ya emitió / gestionó la factura */
   invoiceIssued?: boolean;
+  createdBy: string;
+  createdByName?: string;
+  createdAt: Date;
+}
+
+/** Ítem de un presupuesto (no afecta stock) */
+export interface PresupuestoItem {
+  id: string;
+  productId?: string;
+  productName: string;
+  quantity: number;
+  unitPrice: number;
+  subtotal: number;
+}
+
+/** Presupuesto guardado (PDF + historial por cliente) */
+export interface Presupuesto {
+  id: string;
+  date: Date;
+  validUntil: Date;
+  contactName: string;
+  contactPhone: string;
+  contactEmail: string;
+  customer: SaleCustomer;
+  /** Id en colección customers cuando se pudo vincular */
+  customerId?: string;
+  items: PresupuestoItem[];
+  notes?: string;
+  total: number;
   createdBy: string;
   createdByName?: string;
   createdAt: Date;

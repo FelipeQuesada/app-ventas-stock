@@ -45,6 +45,8 @@ export function filterAndSortProducts(
   const term = filters.search.toLowerCase().trim();
 
   const filtered = products.filter((product) => {
+    // Productos ocultos (ya no están en TN) no se muestran en catálogo/ventas
+    if (product.hidden) return false;
     if (filters.category && product.category !== filters.category) return false;
     if (!matchesStockFilters(product, filters)) return false;
     if (!term) return true;

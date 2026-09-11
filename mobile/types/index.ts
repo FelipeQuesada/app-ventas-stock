@@ -30,6 +30,9 @@ export interface Product {
   imageUrl: string;
   createdAt: Date;
   updatedAt: Date;
+  tiendanubeId?: number;
+  tiendanubeVariantId?: number;
+  hidden?: boolean;
 }
 
 export interface SaleItem {

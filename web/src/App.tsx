@@ -22,6 +22,8 @@ import { AdminDashboardPage } from './pages/admin/AdminDashboardPage';
 import { AdminUsersPage } from './pages/admin/AdminUsersPage';
 import { AdminInvoicesPage } from './pages/admin/AdminInvoicesPage';
 import { SyncTiendanubePage } from './pages/SyncTiendanubePage';
+import { PresupuestoPage } from './pages/PresupuestoPage';
+import { PresupuestoListPage } from './pages/PresupuestoListPage';
 
 export default function App() {
   return (
@@ -45,6 +47,8 @@ export default function App() {
               <Route path="/products/:id" element={<ProductFormPage />} />
               <Route path="/stock" element={<StockPage />} />
               <Route path="/sales" element={<SalesPage />} />
+              <Route path="/presupuesto" element={<PresupuestoPage />} />
+              <Route path="/presupuesto/list" element={<PresupuestoListPage />} />
               <Route path="/sales-list" element={<SalesListPage />} />
               <Route path="/customers" element={<CustomersPage />} />
               <Route path="/customers/:id" element={<CustomerDetailPage />} />

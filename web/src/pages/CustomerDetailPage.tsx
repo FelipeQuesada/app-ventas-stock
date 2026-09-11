@@ -1,20 +1,28 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, MessageCircle } from 'lucide-react';
-import type { Customer } from '@advance-coat/shared';
+import { ArrowLeft, FileText, MessageCircle } from 'lucide-react';
+import type { Customer, Presupuesto } from '@advance-coat/shared';
 import {
   formatCurrency,
   formatShortDateTime,
   getSaleDisplayDate,
   buildWhatsAppUrl,
 } from '@advance-coat/shared';
+import { format } from 'date-fns';
 import { getCustomer, updateCustomer } from '../services/customers';
 import { fetchCustomerPurchaseStats, type CustomerPurchaseStats } from '../services/sales';
+import {
+  getPresupuestosByCustomerId,
+  getPresupuestosByCustomerPhone,
+} from '../services/presupuestos';
+import { buildPresupuestoHtml, presupuestoToPdfData } from '../services/presupuesto';
+import { printHtml } from '../services/export';
 
 export function CustomerDetailPage() {
   const { id } = useParams();
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [stats, setStats] = useState<CustomerPurchaseStats | null>(null);
+  const [presupuestos, setPresupuestos] = useState<Presupuesto[]>([]);
   const [loading, setLoading] = useState(true);
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
@@ -36,10 +44,21 @@ export function CustomerDetailPage() {
         setName(c.name);
         setPhone(c.phone);
         setEmail(c.email);
-        if (c.phone) {
-          const s = await fetchCustomerPurchaseStats(c.phone);
-          if (!cancelled) setStats(s);
-        }
+
+        const [purchaseStats, byId, byPhone] = await Promise.all([
+          c.phone ? fetchCustomerPurchaseStats(c.phone) : Promise.resolve(null),
+          getPresupuestosByCustomerId(c.id),
+          c.phone ? getPresupuestosByCustomerPhone(c.phone) : Promise.resolve([]),
+        ]);
+
+        if (cancelled) return;
+        setStats(purchaseStats);
+
+        const map = new Map<string, Presupuesto>();
+        for (const p of [...byId, ...byPhone]) map.set(p.id, p);
+        setPresupuestos(
+          Array.from(map.values()).sort((a, b) => b.date.getTime() - a.date.getTime())
+        );
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -142,7 +161,7 @@ export function CustomerDetailPage() {
 
       {stats && stats.sales.length > 0 && (
         <div className="card" style={{ marginTop: 20 }}>
-          <h3 className="card-title">Historial</h3>
+          <h3 className="card-title">Historial de ventas</h3>
           <div className="table-wrap">
             <table className="data-table">
               <thead>
@@ -165,6 +184,54 @@ export function CustomerDetailPage() {
           </div>
         </div>
       )}
+
+      <div className="card" style={{ marginTop: 20 }}>
+        <div className="page-header" style={{ marginBottom: 12 }}>
+          <h3 className="card-title" style={{ margin: 0 }}>
+            Presupuestos
+          </h3>
+          <Link to="/presupuesto" className="btn btn-ghost btn-sm">
+            Nuevo
+          </Link>
+        </div>
+        {presupuestos.length === 0 ? (
+          <p className="muted">Todavía no hay presupuestos para este cliente.</p>
+        ) : (
+          <div className="table-wrap">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Fecha</th>
+                  <th>Válido hasta</th>
+                  <th>Total</th>
+                  <th>Contacto</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {presupuestos.map((p) => (
+                  <tr key={p.id}>
+                    <td>{formatShortDateTime(p.date)}</td>
+                    <td>{format(p.validUntil, 'dd/MM/yyyy')}</td>
+                    <td>{formatCurrency(p.total)}</td>
+                    <td>{p.createdByName || p.contactName || '—'}</td>
+                    <td>
+                      <button
+                        type="button"
+                        className="btn btn-ghost btn-sm"
+                        title="PDF"
+                        onClick={() => printHtml(buildPresupuestoHtml(presupuestoToPdfData(p)))}
+                      >
+                        <FileText size={14} /> PDF
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

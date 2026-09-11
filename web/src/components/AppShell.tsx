@@ -16,6 +16,7 @@ import {
   X,
   MoreHorizontal,
   Store,
+  FileText,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
@@ -31,6 +32,8 @@ const DRAWER_NAV = [
   { to: '/products', label: 'Productos', icon: Package },
   { to: '/stock', label: 'Stock', icon: Warehouse },
   { to: '/sales', label: 'Nueva venta', icon: ShoppingCart },
+  { to: '/presupuesto', label: 'Presupuesto', icon: FileText },
+  { to: '/presupuesto/list', label: 'Historial presupuestos', icon: ListOrdered },
   { to: '/sales-list', label: 'Historial ventas', icon: ListOrdered },
   { to: '/customers', label: 'Clientes', icon: Users },
   { to: '/caja', label: 'Caja', icon: Wallet, end: true },
@@ -47,6 +50,8 @@ const TITLES: Record<string, string> = {
   '/products/new': 'Nuevo producto',
   '/stock': 'Stock',
   '/sales': 'Registrar venta',
+  '/presupuesto': 'Presupuesto',
+  '/presupuesto/list': 'Historial de presupuestos',
   '/sales-list': 'Historial de ventas',
   '/customers': 'Clientes',
   '/caja': 'Caja del día',

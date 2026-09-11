@@ -51,7 +51,9 @@ function mapSale(id: string, data: Record<string, unknown>): Sale {
 export async function getSales(): Promise<Sale[]> {
   const q = query(collection(db, COLLECTION), orderBy('date', 'desc'));
   const snap = await getDocs(q);
-  return snap.docs.map((d) => mapSale(d.id, d.data()));
+  return snap.docs
+    .filter((d) => d.data().recordType !== 'presupuesto')
+    .map((d) => mapSale(d.id, d.data()));
 }
 
 /** Ventas donde el cliente pidió factura y aún no se marcó como emitida. */
@@ -91,7 +93,9 @@ export async function getSalesByDateRange(start: Date, end: Date): Promise<Sale[
     orderBy('date', 'desc')
   );
   const snap = await getDocs(q);
-  return snap.docs.map((d) => mapSale(d.id, d.data()));
+  return snap.docs
+    .filter((d) => d.data().recordType !== 'presupuesto')
+    .map((d) => mapSale(d.id, d.data()));
 }
 
 export interface CreateSaleInput {
@@ -181,6 +185,7 @@ async function commitSaleCreate(input: CreateSaleInput): Promise<string> {
 export async function getSale(saleId: string): Promise<Sale | null> {
   const snap = await getDoc(doc(db, COLLECTION, saleId));
   if (!snap.exists()) return null;
+  if (snap.data().recordType === 'presupuesto') return null;
   return mapSale(snap.id, snap.data());
 }
 

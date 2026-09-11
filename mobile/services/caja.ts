@@ -19,7 +19,7 @@ import { db } from '@/lib/firebase';
 import { CajaCentral, DailyCaja } from '@/types/caja';
 import { Sale } from '@/types';
 import { getSaleCashAmount } from '@advance-coat/shared';
-import { calculateCajaGanancia, calculateCambioCierre } from '@/utils/caja';
+import { calculateCajaGanancia, calculateCajaTotal, calculateCambioCierre } from '@/utils/caja';
 import { logAudit } from '@/services/audit';
 
 const COLLECTION = 'caja';
@@ -412,6 +412,48 @@ export async function saveCaja(input: SaveCajaInput): Promise<void> {
     summary: sinMovimiento
       ? `Caja sin movimiento — cambio $${input.cajaCambio} — ${input.closedByName}`
       : `Caja guardada — total $${input.cajaTotal}, ganancia $${ganancia} — ${input.closedByName}`,
+    userId: input.updatedBy,
+    userName: input.updatedByName,
+  });
+}
+
+/** Guarda el fondo de cambio del día sin cerrar caja ni depositar a central. */
+export async function persistCajaCambio(input: {
+  date: Date;
+  cajaCambio: number;
+  cashSales: number;
+  updatedBy: string;
+  updatedByName?: string;
+}): Promise<void> {
+  const existing = await getCajaByDate(input.date);
+  const cajaTotal = calculateCajaTotal(input.cashSales, input.cajaCambio);
+  const totalGuardado = existing?.totalGuardado ?? 0;
+  const id = dateToId(input.date);
+
+  await setDoc(
+    doc(db, COLLECTION, id),
+    {
+      date: Timestamp.fromDate(input.date),
+      cajaCambio: input.cajaCambio,
+      cajaTotal,
+      ganancia: calculateCajaGanancia(cajaTotal, input.cajaCambio),
+      totalGuardado,
+      guardo: totalGuardado,
+      cambioCierre: calculateCambioCierre(cajaTotal, totalGuardado),
+      sinMovimiento: false,
+      closedByName: existing?.closedByName ?? input.updatedByName ?? '',
+      updatedBy: input.updatedBy,
+      updatedByName: input.updatedByName ?? '',
+      updatedAt: serverTimestamp(),
+    },
+    { merge: true }
+  );
+
+  await logAudit({
+    action: 'caja_save',
+    entityType: 'caja',
+    entityId: id,
+    summary: `Caja cambio actualizada $${input.cajaCambio} — ${input.updatedByName ?? ''}`,
     userId: input.updatedBy,
     userName: input.updatedByName,
   });

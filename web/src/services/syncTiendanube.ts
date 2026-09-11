@@ -1,161 +1,207 @@
 /**
- * Lógica de sincronización batch entre los productos de la app y Tiendanube.
+ * Sincronización Tiendanube ↔ app.
  *
- * La sincronización es UNIDIRECCIONAL: tu app → Tiendanube.
- * Solo actualiza los productos que tienen tiendanubeId vinculado.
+ * REGLAS (acordadas):
+ * 1. NUNCA borrar productos en Tiendanube desde esta app.
+ * 2. App → TN: solo stock (cuando vendés en el local).
+ * 3. TN → App: nombre, precio, descripción, imagen, altas y bajas (ocultar, no borrar).
+ * 4. Matching por tiendanubeId (no por nombre) para no duplicar al renombrar.
  */
 
 import type { Product } from '@advance-coat/shared';
-import { updateProduct } from './products';
+import { createProduct, updateProduct, getProducts } from './products';
 import {
-  updateTiendanubeVariant,
   fetchTiendanubeProducts,
   getTiendanubeProductName,
+  updateTiendanubeStock,
   type TiendanubeProduct,
-  type SyncStockResult,
 } from './tiendanube';
 
-export type SyncField = 'stock' | 'price' | 'both';
-
-export interface SyncProductResult {
-  productId: string;
-  productName: string;
-  tiendanubeId: number;
-  field: SyncField;
-  ok: boolean;
-  error?: string;
+export interface PullFromTnResult {
+  created: number;
+  updated: number;
+  hidden: number;
+  unchanged: number;
+  errors: string[];
 }
 
-export interface SyncBatchResult {
-  synced: number;
-  errors: number;
-  skipped: number;
-  results: SyncProductResult[];
+function stripHtml(html: string): string {
+  return html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+}
+
+function mapTnToLocalFields(tn: TiendanubeProduct): {
+  name: string;
+  description: string;
+  price: number;
+  stock: number;
+  imageUrl: string;
+  category: string;
+  tiendanubeId: number;
+  tiendanubeVariantId: number;
+  hidden: boolean;
+} {
+  const variant = tn.variants[0];
+  if (!variant) {
+    throw new Error(`Producto TN #${tn.id} sin variantes`);
+  }
+
+  const categoryName =
+    tn.categories?.[0]?.name?.es ??
+    Object.values(tn.categories?.[0]?.name ?? {}).find(Boolean) ??
+    'Tiendanube';
+
+  return {
+    name: getTiendanubeProductName(tn),
+    description: stripHtml(
+      tn.description?.es ?? Object.values(tn.description ?? {}).find(Boolean) ?? ''
+    ),
+    price: Number.parseFloat(variant.price) || 0,
+    stock: typeof variant.stock === 'number' ? variant.stock : 0,
+    imageUrl: tn.images?.[0]?.src ?? '',
+    category: categoryName,
+    tiendanubeId: tn.id,
+    tiendanubeVariantId: variant.id,
+    hidden: false,
+  };
 }
 
 /**
- * Sincroniza stock y/o precio de todos los productos vinculados a Tiendanube.
+ * Trae el catálogo de Tiendanube y actualiza Firestore.
+ * - Si existe por tiendanubeId → actualiza nombre/precio/stock/etc y lo desoculta
+ * - Si es nuevo → lo crea
+ * - Si un producto local tenía tiendanubeId y ya no está en TN → se oculta (NO se borra)
  *
- * @param products  Lista de productos de tu app (solo los que tienen tiendanubeId se sincronizan)
- * @param field     Qué sincronizar: 'stock' | 'price' | 'both'
- * @param onProgress  Callback opcional que se llama después de cada producto
+ * Nunca llama a DELETE en la API de Tiendanube.
  */
-export async function syncAllToTiendanube(
-  products: Product[],
-  field: SyncField = 'both',
-  onProgress?: (done: number, total: number, last: SyncProductResult) => void
-): Promise<SyncBatchResult> {
-  const linked = products.filter((p) => p.tiendanubeId && p.tiendanubeVariantId);
-
-  const result: SyncBatchResult = {
-    synced: 0,
-    errors: 0,
-    skipped: products.length - linked.length,
-    results: [],
+export async function pullCatalogFromTiendanube(
+  onProgress?: (done: number, total: number, message: string) => void
+): Promise<PullFromTnResult> {
+  const result: PullFromTnResult = {
+    created: 0,
+    updated: 0,
+    hidden: 0,
+    unchanged: 0,
+    errors: [],
   };
 
-  for (let i = 0; i < linked.length; i++) {
-    const product = linked[i];
-    const updates: { stock?: number; price?: number } = {};
-    if (field === 'stock' || field === 'both') updates.stock = product.stock;
-    if (field === 'price' || field === 'both') updates.price = product.price;
+  const [tnProducts, localProducts] = await Promise.all([
+    fetchTiendanubeProducts(),
+    getProducts(),
+  ]);
 
-    const res: SyncStockResult = await updateTiendanubeVariant(
-      product.tiendanubeId!,
-      product.tiendanubeVariantId!,
-      updates
-    );
+  const localByTnId = new Map<number, Product>();
+  for (const p of localProducts) {
+    if (typeof p.tiendanubeId === 'number') {
+      localByTnId.set(p.tiendanubeId, p);
+    }
+  }
 
-    const item: SyncProductResult = {
-      productId: product.id,
-      productName: product.name,
-      tiendanubeId: product.tiendanubeId!,
-      field,
-      ok: res.ok,
-      error: res.error,
-    };
+  const seenTnIds = new Set<number>();
+  const total = tnProducts.length + localProducts.filter((p) => p.tiendanubeId).length;
+  let done = 0;
 
-    result.results.push(item);
-    if (res.ok) result.synced++;
-    else result.errors++;
+  for (const tn of tnProducts) {
+    seenTnIds.add(tn.id);
+    done++;
+    try {
+      if (!tn.variants?.[0]) {
+        result.errors.push(`TN #${tn.id} sin variantes — omitido`);
+        onProgress?.(done, total, `Omitido #${tn.id}`);
+        continue;
+      }
 
-    onProgress?.(i + 1, linked.length, item);
+      const fields = mapTnToLocalFields(tn);
+      const existing = localByTnId.get(tn.id);
+
+      if (existing) {
+        const changed =
+          existing.name !== fields.name ||
+          existing.price !== fields.price ||
+          existing.stock !== fields.stock ||
+          existing.description !== fields.description ||
+          existing.imageUrl !== fields.imageUrl ||
+          existing.category !== fields.category ||
+          existing.tiendanubeVariantId !== fields.tiendanubeVariantId ||
+          existing.hidden === true;
+
+        if (changed) {
+          await updateProduct(existing.id, fields);
+          result.updated++;
+          onProgress?.(done, total, `Actualizado: ${fields.name}`);
+        } else {
+          result.unchanged++;
+          onProgress?.(done, total, `Sin cambios: ${fields.name}`);
+        }
+      } else {
+        await createProduct(fields);
+        result.created++;
+        onProgress?.(done, total, `Creado: ${fields.name}`);
+      }
+    } catch (e) {
+      result.errors.push(`TN #${tn.id}: ${(e as Error).message}`);
+      onProgress?.(done, total, `Error en #${tn.id}`);
+    }
+  }
+
+  // Ocultar locales vinculados que ya no están en TN (no borrar)
+  for (const local of localProducts) {
+    if (typeof local.tiendanubeId !== 'number') continue;
+    done++;
+    if (seenTnIds.has(local.tiendanubeId)) continue;
+    if (local.hidden) {
+      result.unchanged++;
+      continue;
+    }
+    try {
+      await updateProduct(local.id, { hidden: true });
+      result.hidden++;
+      onProgress?.(done, total, `Ocultado: ${local.name}`);
+    } catch (e) {
+      result.errors.push(`${local.name}: ${(e as Error).message}`);
+    }
   }
 
   return result;
 }
 
 /**
- * Vincula un producto local con un producto de Tiendanube.
- * Guarda tiendanubeId y tiendanubeVariantId en Firestore.
- *
- * Usa la primera variante del producto de Tiendanube (asume sin variantes múltiples).
+ * App → TN: SOLO stock. Nunca borra ni crea productos en Tiendanube.
  */
-export async function linkProductToTiendanube(
-  localProductId: string,
-  tnProduct: TiendanubeProduct
-): Promise<void> {
-  const defaultVariant = tnProduct.variants[0];
-  if (!defaultVariant) throw new Error('El producto de Tiendanube no tiene variantes');
-
-  await updateProduct(localProductId, {
-    tiendanubeId: tnProduct.id,
-    tiendanubeVariantId: defaultVariant.id,
-  });
+export async function pushStockToTiendanube(
+  product: Product
+): Promise<{ ok: boolean; error?: string }> {
+  if (!product.tiendanubeId || !product.tiendanubeVariantId) {
+    return { ok: false, error: 'Producto no vinculado a Tiendanube' };
+  }
+  return updateTiendanubeStock(product.tiendanubeId, product.tiendanubeVariantId, product.stock);
 }
 
-/**
- * Desvincula un producto local de Tiendanube (borra los IDs guardados).
- */
-export async function unlinkProductFromTiendanube(localProductId: string): Promise<void> {
-  // Firestore acepta undefined para borrar campos; usamos null para limpiar
-  await updateProduct(localProductId, {
-    tiendanubeId: undefined,
-    tiendanubeVariantId: undefined,
-  });
-}
+export async function pushAllLinkedStockToTiendanube(
+  products: Product[],
+  onProgress?: (done: number, total: number) => void
+): Promise<{ synced: number; errors: number; skipped: number }> {
+  const linked = products.filter(
+    (p) => p.tiendanubeId && p.tiendanubeVariantId && !p.hidden
+  );
+  let synced = 0;
+  let errors = 0;
 
-/**
- * Estadísticas rápidas sobre el estado de la vinculación.
- */
-export interface LinkStats {
-  total: number;
-  linked: number;
-  unlinked: number;
-  linkPercent: number;
-}
+  for (let i = 0; i < linked.length; i++) {
+    const res = await pushStockToTiendanube(linked[i]);
+    if (res.ok) synced++;
+    else errors++;
+    onProgress?.(i + 1, linked.length);
+  }
 
-export function getLinkStats(products: Product[]): LinkStats {
-  const linked = products.filter((p) => p.tiendanubeId).length;
   return {
-    total: products.length,
-    linked,
-    unlinked: products.length - linked,
-    linkPercent: products.length > 0 ? Math.round((linked / products.length) * 100) : 0,
+    synced,
+    errors,
+    skipped: products.length - linked.length,
   };
 }
 
-/**
- * Busca el nombre del producto de Tiendanube más parecido al local.
- * Útil para sugerir vinculaciones automáticas durante el setup inicial.
- */
-export function suggestTiendanubeMatch(
-  localName: string,
-  tnProducts: TiendanubeProduct[]
-): TiendanubeProduct | undefined {
-  const needle = localName.toLowerCase().trim();
-
-  // Coincidencia exacta
-  const exact = tnProducts.find(
-    (p) => getTiendanubeProductName(p).toLowerCase().trim() === needle
-  );
-  if (exact) return exact;
-
-  // Coincidencia parcial (el nombre local contiene el de TN o viceversa)
-  return tnProducts.find((p) => {
-    const tnName = getTiendanubeProductName(p).toLowerCase().trim();
-    return tnName.includes(needle) || needle.includes(tnName);
-  });
-}
-
-export { fetchTiendanubeProducts, getTiendanubeProductName };
+export {
+  fetchTiendanubeProducts,
+  getTiendanubeProductName,
+  type TiendanubeProduct,
+};

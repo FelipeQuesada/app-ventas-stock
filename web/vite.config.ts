@@ -10,4 +10,15 @@ export default defineConfig({
       '@advance-coat/shared': fileURLToPath(new URL('../shared/src', import.meta.url)),
     },
   },
+  server: {
+    // Evita CORS: el browser llama a /api/tiendanube y Vite reenvía a la API real
+    proxy: {
+      '/api/tiendanube': {
+        target: 'https://api.tiendanube.com',
+        changeOrigin: true,
+        secure: true,
+        rewrite: (path) => path.replace(/^\/api\/tiendanube/, ''),
+      },
+    },
+  },
 });

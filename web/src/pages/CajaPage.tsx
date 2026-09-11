@@ -19,6 +19,7 @@ import {
   getOrCreateCajaCentral,
   getTodayCashTotal,
   saveCaja,
+  persistCajaCambio,
   withdrawFromCajaCentral,
 } from '../services/caja';
 import { getSales } from '../services/sales';
@@ -114,19 +115,32 @@ export function CajaPage() {
     setCopied(false);
   }
 
-  function handleAgregarDinero() {
+  async function handleAgregarDinero() {
+    if (!user) return;
     const amount = Number(montoAgregar);
     if (!Number.isFinite(amount) || amount <= 0) {
       window.alert('Ingresá un monto válido para agregar');
       return;
     }
     const next = cambioNum + amount;
-    setCajaCambio(String(next));
-    setMontoAgregar('');
-    setAgregarVisible(false);
-    setInfo(
-      `Se sumaron ${formatCurrency(amount)} a caja cambio. Nuevo monto: ${formatCurrency(next)}`
-    );
+    try {
+      await persistCajaCambio({
+        date: today,
+        cajaCambio: next,
+        cashSales,
+        updatedBy: user.uid,
+        updatedByName: profile?.name,
+      });
+      setCajaCambio(String(next));
+      setMontoAgregar('');
+      setAgregarVisible(false);
+      setSinMovimiento(false);
+      setInfo(
+        `Se sumaron ${formatCurrency(amount)} a caja cambio. Nuevo monto: ${formatCurrency(next)}`
+      );
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : 'No se pudo guardar el dinero agregado');
+    }
   }
 
   async function copyShareMessage() {
@@ -460,7 +474,7 @@ export function CajaPage() {
               />
             </div>
             <p className="caja-hint">
-              Se suma al fondo de cambio del día. Queda guardado al cerrar la caja.
+              Se suma al fondo de cambio del día y queda guardado al instante.
             </p>
 
             <div className="caja-modal-actions">

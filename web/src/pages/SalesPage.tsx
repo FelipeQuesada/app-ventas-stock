@@ -29,6 +29,60 @@ const PAYMENT_ICONS: Record<string, typeof Landmark> = {
   'credit-card': CreditCard,
   'qr-code': QrCode,
 };
+
+/** Input numérico que permite borrar y escribir sin forzar valor al instante. */
+function DraftNumberInput({
+  value,
+  min = 0,
+  step,
+  onCommit,
+}: {
+  value: number;
+  min?: number;
+  step?: string;
+  onCommit: (n: number) => void;
+}) {
+  const [draft, setDraft] = useState(String(value));
+
+  useEffect(() => {
+    setDraft(String(value));
+  }, [value]);
+
+  function commit() {
+    const n = Number(draft.replace(',', '.'));
+    if (!Number.isFinite(n) || n < min) {
+      setDraft(String(value));
+      return;
+    }
+    onCommit(n);
+    setDraft(String(n));
+  }
+
+  return (
+    <input
+      type="number"
+      min={min}
+      step={step}
+      value={draft}
+      onChange={(e) => {
+        const raw = e.target.value;
+        setDraft(raw);
+        if (raw.trim() === '') return;
+        const n = Number(raw.replace(',', '.'));
+        if (Number.isFinite(n) && n >= min) onCommit(n);
+      }}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          commit();
+          (e.target as HTMLInputElement).blur();
+        }
+      }}
+    />
+  );
+}
+
 export function SalesPage() {
   const { user } = useAuth();
   const cart = useCart();
@@ -119,7 +173,7 @@ export function SalesPage() {
     if (!showBrowseResults) return [];
     return products
       .filter((p) => {
-        if (p.stock <= 0) return false;
+        if (p.hidden) return false;
         if (category && p.category !== category) return false;
         if (!searchTerm) return true;
         return (
@@ -129,11 +183,6 @@ export function SalesPage() {
       })
       .slice(0, 15);
   }, [products, searchTerm, category, showBrowseResults]);
-
-  const stockById = useMemo(() => {
-    const map = new Map(products.map((p) => [p.id, p.stock]));
-    return map;
-  }, [products]);
 
   const subtotal = cart.items.reduce((sum, item) => sum + item.subtotal, 0);
   const discountAmount = calculateDiscount(
@@ -381,12 +430,12 @@ export function SalesPage() {
                   setSearch('');
                   setCategory(null);
                 }}
-                disabled={p.stock <= 0}
               >
                 <div className="product-pick-info">
                   <strong>{p.name}</strong>
                   <span className="muted">
                     {formatCurrency(p.price)} · Stock {p.stock}
+                    {p.stock <= 0 ? ' (sin stock cargado)' : ''}
                   </span>
                 </div>
                 <span className="product-pick-add" aria-hidden>
@@ -478,21 +527,37 @@ export function SalesPage() {
             <div className="cart-item" key={item.productId}>
               <div className="cart-item-body">
                 <strong>{item.productName}</strong>
-                <div className="muted">{formatCurrency(item.unitPrice)} c/u</div>
-                <div className="qty-controls">
-                  <input
-                    type="number"
-                    min={1}
-                    value={item.quantity}
-                    onChange={(e) =>
-                      cart.updateQuantity(
-                        item.productId,
-                        Number(e.target.value) || 1,
-                        stockById.get(item.productId)
-                      )
-                    }
-                  />
-                  <span className="muted">{formatCurrency(item.subtotal)}</span>
+                <div className="cart-item-fields">
+                  <label className="cart-field">
+                    <span>Cantidad</span>
+                    <DraftNumberInput
+                      value={item.quantity}
+                      min={1}
+                      onCommit={(n) => cart.updateQuantity(item.productId, n)}
+                    />
+                  </label>
+                  <label className="cart-field">
+                    <span>Precio c/u</span>
+                    <DraftNumberInput
+                      value={item.unitPrice}
+                      min={0}
+                      step="1"
+                      onCommit={(n) => cart.updateUnitPrice(item.productId, n)}
+                    />
+                  </label>
+                  <label className="cart-field">
+                    <span>Total línea</span>
+                    <DraftNumberInput
+                      value={item.subtotal}
+                      min={0}
+                      step="1"
+                      onCommit={(n) => cart.updateSubtotal(item.productId, n)}
+                    />
+                  </label>
+                </div>
+                <div className="muted cart-item-hint">
+                  {formatCurrency(item.unitPrice)} c/u · {item.quantity} un. ={' '}
+                  {formatCurrency(item.subtotal)}
                 </div>
               </div>
               <button

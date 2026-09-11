@@ -12,14 +12,21 @@
 
 const STORE_ID = import.meta.env.VITE_TIENDANUBE_STORE_ID as string;
 const TOKEN = import.meta.env.VITE_TIENDANUBE_TOKEN as string;
-const BASE_URL = `https://api.tiendanube.com/v1/${STORE_ID}`;
+
+/**
+ * En el browser no llamamos directo a api.tiendanube.com (CORS).
+ * Usamos el proxy: Vite en local y rewrite de Vercel en producción.
+ */
+const BASE_URL = `/api/tiendanube/v1/${STORE_ID}`;
 
 /** Headers requeridos por Tiendanube */
 function headers(): HeadersInit {
+  // La doc de ejemplo usa Authentication; Authorization también es aceptado en varios casos.
   return {
     Authentication: `bearer ${TOKEN}`,
+    Authorization: `bearer ${TOKEN}`,
     'Content-Type': 'application/json',
-    'User-Agent': 'AdvanceCoatApp/1.0',
+    'User-Agent': 'Advance Coat Sync (advancecoat.arg@gmail.com)',
   };
 }
 
