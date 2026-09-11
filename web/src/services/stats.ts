@@ -1,5 +1,6 @@
 import {
   startOfDay,
+  endOfDay,
   subDays,
   format,
   startOfMonth,
@@ -312,6 +313,118 @@ export function getDailyRevenueInMonth(sales: Sale[], month: Date): DailySalesDa
       count: daySales.length,
     };
   });
+}
+
+export interface PeriodDayPoint {
+  dayIndex: number;
+  label: string;
+  revenue: number;
+  count: number;
+}
+
+export interface PeriodTotals {
+  revenue: number;
+  salesCount: number;
+  units: number;
+}
+
+export interface PeriodComparePoint {
+  index: string;
+  currentRevenue: number | null;
+  previousRevenue: number | null;
+  currentCount: number | null;
+  previousCount: number | null;
+}
+
+export interface PeriodComparisonResult {
+  chart: PeriodComparePoint[];
+  current: PeriodTotals;
+  previous: PeriodTotals;
+  revenueChangePct: number | null;
+  salesChangePct: number | null;
+}
+
+function salesInRange(sales: Sale[], start: Date, end: Date): Sale[] {
+  const from = startOfDay(start).getTime();
+  const to = endOfDay(end).getTime();
+  return sales.filter((s) => {
+    const t = s.date.getTime();
+    return t >= from && t <= to;
+  });
+}
+
+function buildDailySeries(sales: Sale[], start: Date, end: Date): PeriodDayPoint[] {
+  const interval = eachDayOfInterval({
+    start: startOfDay(start),
+    end: startOfDay(end),
+  });
+
+  return interval.map((day, index) => {
+    const daySales = sales.filter(
+      (s) => startOfDay(s.date).getTime() === day.getTime()
+    );
+    return {
+      dayIndex: index + 1,
+      label: format(day, 'dd/MM', { locale: es }),
+      revenue: daySales.reduce((sum, s) => sum + s.total, 0),
+      count: daySales.length,
+    };
+  });
+}
+
+function sumTotals(sales: Sale[]): PeriodTotals {
+  return {
+    revenue: sales.reduce((sum, s) => sum + s.total, 0),
+    salesCount: sales.length,
+    units: sales.reduce(
+      (sum, s) => sum + s.items.reduce((itemSum, item) => itemSum + item.quantity, 0),
+      0
+    ),
+  };
+}
+
+/** Variación porcentual: null si no hay base para comparar. */
+export function percentChange(current: number, previous: number): number | null {
+  if (previous === 0) {
+    if (current === 0) return 0;
+    return null;
+  }
+  return ((current - previous) / previous) * 100;
+}
+
+/**
+ * Compara dos rangos día a día (mismo índice: día 1, día 2…).
+ * Ideal para ver si el período actual va arriba/abajo vs otro.
+ */
+export function buildPeriodComparison(
+  sales: Sale[],
+  currentRange: { start: Date; end: Date },
+  previousRange: { start: Date; end: Date }
+): PeriodComparisonResult {
+  const currentSales = salesInRange(sales, currentRange.start, currentRange.end);
+  const previousSales = salesInRange(sales, previousRange.start, previousRange.end);
+  const currentSeries = buildDailySeries(currentSales, currentRange.start, currentRange.end);
+  const previousSeries = buildDailySeries(previousSales, previousRange.start, previousRange.end);
+  const len = Math.max(currentSeries.length, previousSeries.length, 1);
+
+  const chart: PeriodComparePoint[] = Array.from({ length: len }, (_, i) => ({
+    index: `Día ${i + 1}`,
+    currentRevenue: currentSeries[i]?.revenue ?? null,
+    previousRevenue: previousSeries[i]?.revenue ?? null,
+    currentCount: currentSeries[i]?.count ?? null,
+    previousCount: previousSeries[i]?.count ?? null,
+  }));
+
+  const current = sumTotals(currentSales);
+  const previous = sumTotals(previousSales);
+
+  return {
+    chart,
+    current,
+    previous,
+    revenueChangePct: percentChange(current.revenue, previous.revenue),
+    salesChangePct: percentChange(current.salesCount, previous.salesCount),
+  };
 }
 
 export { CHART_COLORS };

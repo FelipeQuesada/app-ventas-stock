@@ -21,7 +21,6 @@ import { AdminSetupPage } from './pages/admin/AdminSetupPage';
 import { AdminDashboardPage } from './pages/admin/AdminDashboardPage';
 import { AdminUsersPage } from './pages/admin/AdminUsersPage';
 import { AdminInvoicesPage } from './pages/admin/AdminInvoicesPage';
-import { SyncTiendanubePage } from './pages/SyncTiendanubePage';
 import { PresupuestoPage } from './pages/PresupuestoPage';
 import { PresupuestoListPage } from './pages/PresupuestoListPage';
 
@@ -56,7 +55,7 @@ export default function App() {
               <Route path="/caja/list" element={<CajaListPage />} />
               <Route path="/caja/edit/:date" element={<CajaEditPage />} />
               <Route path="/statistics" element={<StatisticsPage />} />
-              <Route path="/tiendanube" element={<SyncTiendanubePage />} />
+              <Route path="/tiendanube" element={<Navigate to="/" replace />} />
               <Route path="/profile" element={<ProfilePage />} />
               <Route path="/users" element={<Navigate to="/admin/users" replace />} />
             </Route>

@@ -5,6 +5,9 @@ import {
   BarChart,
   CartesianGrid,
   Cell,
+  Legend,
+  Line,
+  LineChart,
   Pie,
   PieChart,
   ResponsiveContainer,
@@ -18,6 +21,9 @@ import {
   createDefaultPeriod,
   isDateInRange,
   formatPeriodLabel,
+  formatDateRangeLabel,
+  getPrecedingRange,
+  getPresetRange,
   computeResinAccounting,
   buildResinAccountingCatalogMap,
   RESIN_UNIT_LABELS,
@@ -39,7 +45,22 @@ import {
   getSellerRevenueStats,
   getTotalCustomers,
   truncateLabel,
+  buildPeriodComparison,
 } from '../services/stats';
+
+function formatPct(value: number | null): string {
+  if (value == null) return 'Sin base';
+  const rounded = Math.round(value * 10) / 10;
+  const sign = rounded > 0 ? '+' : '';
+  return `${sign}${rounded}%`;
+}
+
+function pctClass(value: number | null): string {
+  if (value == null) return 'stats-delta-neutral';
+  if (value > 0) return 'stats-delta-up';
+  if (value < 0) return 'stats-delta-down';
+  return 'stats-delta-neutral';
+}
 
 function RankRow({
   rank,
@@ -84,6 +105,14 @@ export function StatisticsPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState<PeriodSelection>(createDefaultPeriod());
+  const [period1, setPeriod1] = useState<PeriodSelection>(() => ({
+    preset: 'last_month',
+    range: getPresetRange('last_month'),
+  }));
+  const [period2, setPeriod2] = useState<PeriodSelection>(() => ({
+    preset: 'custom',
+    range: getPrecedingRange(getPresetRange('last_month')),
+  }));
 
   useEffect(() => {
     let cancelled = false;
@@ -106,6 +135,11 @@ export function StatisticsPage() {
   const filtered = useMemo(
     () => sales.filter((sale) => isDateInRange(sale.date, period.range)),
     [sales, period]
+  );
+
+  const periodComparison = useMemo(
+    () => buildPeriodComparison(sales, period1.range, period2.range),
+    [sales, period1.range, period2.range]
   );
 
   const revenue = useMemo(
@@ -420,6 +454,152 @@ export function StatisticsPage() {
             ))}
           </div>
         </div>
+      </div>
+
+      <div className="card stats-compare-card">
+        <h3 className="card-title">Comparativa período 1 vs período 2</h3>
+        <p className="card-subtitle">
+          Gráfico de líneas con cantidad de ventas y recaudación · alineado por día del período
+        </p>
+
+        <div className="stats-compare-periods">
+          <div className="stats-compare-period">
+            <h4 className="stats-section-title">Período 1</h4>
+            <PeriodFilter value={period1} onChange={setPeriod1} />
+            <p className="muted">{formatDateRangeLabel(period1.range)}</p>
+          </div>
+          <div className="stats-compare-period">
+            <h4 className="stats-section-title">Período 2</h4>
+            <PeriodFilter value={period2} onChange={setPeriod2} />
+            <p className="muted">{formatDateRangeLabel(period2.range)}</p>
+          </div>
+        </div>
+
+        <div className="kpi-grid stats-compare-kpis">
+          <div className="kpi-card">
+            <div className="kpi-label">Recaudación P1 → P2</div>
+            <div className="kpi-value">{formatCurrency(periodComparison.current.revenue)}</div>
+            <div className="kpi-hint">
+              P2: {formatCurrency(periodComparison.previous.revenue)}
+            </div>
+            <div className={`kpi-hint ${pctClass(periodComparison.revenueChangePct)}`}>
+              {formatPct(periodComparison.revenueChangePct)} vs período 2
+            </div>
+          </div>
+          <div className="kpi-card">
+            <div className="kpi-label">Ventas P1 → P2</div>
+            <div className="kpi-value">{periodComparison.current.salesCount}</div>
+            <div className="kpi-hint">P2: {periodComparison.previous.salesCount}</div>
+            <div className={`kpi-hint ${pctClass(periodComparison.salesChangePct)}`}>
+              {formatPct(periodComparison.salesChangePct)} vs período 2
+            </div>
+          </div>
+        </div>
+
+        <div className="stats-chart-box stats-compare-chart-box">
+          <ResponsiveContainer width="100%" height={360}>
+            <LineChart
+              data={periodComparison.chart}
+              margin={{ top: 12, right: 28, left: 4, bottom: 8 }}
+            >
+              <CartesianGrid strokeDasharray="3 3" stroke="#E8ECF4" vertical={false} />
+              <XAxis
+                dataKey="index"
+                tick={{ fontSize: 11, fill: '#64748B' }}
+                tickLine={false}
+                axisLine={false}
+                tickMargin={10}
+                minTickGap={28}
+                interval="preserveStartEnd"
+                tickFormatter={(value) => String(value).replace(/^Día\s+/i, '')}
+              />
+              <YAxis
+                yAxisId="revenue"
+                tick={{ fontSize: 11, fill: '#64748B' }}
+                tickLine={false}
+                axisLine={false}
+                width={52}
+                tickMargin={6}
+                tickFormatter={(v) =>
+                  Number(v) >= 1000 ? `${Math.round(Number(v) / 1000)}k` : String(v)
+                }
+              />
+              <YAxis
+                yAxisId="count"
+                orientation="right"
+                tick={{ fontSize: 11, fill: '#64748B' }}
+                tickLine={false}
+                axisLine={false}
+                width={36}
+                tickMargin={6}
+                allowDecimals={false}
+              />
+              <Tooltip
+                labelFormatter={(label) => String(label)}
+                formatter={(value: number, name: string) => {
+                  if (String(name).toLowerCase().includes('recaud')) {
+                    return [formatCurrency(value), name];
+                  }
+                  return [value, name];
+                }}
+                contentStyle={{ borderRadius: 10, borderColor: '#E2E8F0' }}
+              />
+              <Legend
+                verticalAlign="top"
+                align="center"
+                height={36}
+                iconType="plainline"
+                wrapperStyle={{ paddingBottom: 8, fontSize: 12 }}
+              />
+              <Line
+                yAxisId="revenue"
+                type="monotone"
+                dataKey="currentRevenue"
+                name="Recaudación P1"
+                stroke="#2563EB"
+                strokeWidth={2.5}
+                dot={false}
+                connectNulls
+              />
+              <Line
+                yAxisId="revenue"
+                type="monotone"
+                dataKey="previousRevenue"
+                name="Recaudación P2"
+                stroke="#93C5FD"
+                strokeWidth={2}
+                strokeDasharray="6 4"
+                dot={false}
+                connectNulls
+              />
+              <Line
+                yAxisId="count"
+                type="monotone"
+                dataKey="currentCount"
+                name="Ventas P1"
+                stroke="#059669"
+                strokeWidth={2.5}
+                dot={false}
+                connectNulls
+              />
+              <Line
+                yAxisId="count"
+                type="monotone"
+                dataKey="previousCount"
+                name="Ventas P2"
+                stroke="#6EE7B7"
+                strokeWidth={2}
+                strokeDasharray="6 4"
+                dot={false}
+                connectNulls
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+        <p className="stats-compare-hint">
+          Izquierda: plata ($) · Derecha: cantidad de ventas · El número del eje X es el día del
+          período (1 = primer día)
+        </p>
       </div>
     </div>
   );

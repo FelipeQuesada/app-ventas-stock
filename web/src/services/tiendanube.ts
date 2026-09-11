@@ -1,14 +1,19 @@
 /**
  * Servicio para comunicarse con la API de Tiendanube.
  *
- * Variables de entorno necesarias en web/.env:
- *   VITE_TIENDANUBE_STORE_ID   — ID numérico de la tienda (ej: 1234567)
- *   VITE_TIENDANUBE_TOKEN      — Access token de Tiendanube
+ * DESCONECTADO: la integración está apagada a propósito.
+ * Cuando armes una app/cuenta nueva en Partners, poné
+ * VITE_TIENDANUBE_ENABLED=true y configurá STORE_ID + TOKEN.
  *
- * Cómo obtener el token:
- *   Panel Tiendanube → Configuración → Aplicaciones → API → Crear token de acceso
- *   O pedirlo desde la sección "Mis aplicaciones" si usás partner.
+ * Variables de entorno:
+ *   VITE_TIENDANUBE_ENABLED    — "true" para reactivar
+ *   VITE_TIENDANUBE_STORE_ID   — ID numérico de la tienda
+ *   VITE_TIENDANUBE_TOKEN      — Access token
  */
+
+/** Apagado hasta nueva cuenta Partners / nueva app. */
+const ENABLED =
+  String(import.meta.env.VITE_TIENDANUBE_ENABLED ?? '').toLowerCase() === 'true';
 
 const STORE_ID = import.meta.env.VITE_TIENDANUBE_STORE_ID as string;
 const TOKEN = import.meta.env.VITE_TIENDANUBE_TOKEN as string;
@@ -19,9 +24,16 @@ const TOKEN = import.meta.env.VITE_TIENDANUBE_TOKEN as string;
  */
 const BASE_URL = `/api/tiendanube/v1/${STORE_ID}`;
 
+function assertEnabled(): void {
+  if (!ENABLED) {
+    throw new Error(
+      'Tiendanube está desconectada. Cuando tengas la nueva app en Partners, activá VITE_TIENDANUBE_ENABLED=true.'
+    );
+  }
+}
+
 /** Headers requeridos por Tiendanube */
 function headers(): HeadersInit {
-  // La doc de ejemplo usa Authentication; Authorization también es aceptado en varios casos.
   return {
     Authentication: `bearer ${TOKEN}`,
     Authorization: `bearer ${TOKEN}`,
@@ -31,6 +43,7 @@ function headers(): HeadersInit {
 }
 
 async function tnFetch<T>(path: string, init?: RequestInit): Promise<T> {
+  assertEnabled();
   const res = await fetch(`${BASE_URL}${path}`, {
     ...init,
     headers: { ...headers(), ...(init?.headers ?? {}) },
@@ -172,7 +185,12 @@ export function getTiendanubeProductName(p: TiendanubeProduct): string {
   );
 }
 
-/** Indica si están configuradas las variables de entorno de Tiendanube */
+/** Indica si Tiendanube está habilitada y con credenciales */
 export function isTiendanubeConfigured(): boolean {
-  return Boolean(STORE_ID && TOKEN);
+  return ENABLED && Boolean(STORE_ID && TOKEN);
+}
+
+/** True solo si la integración está encendida (flag). */
+export function isTiendanubeEnabled(): boolean {
+  return ENABLED;
 }

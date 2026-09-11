@@ -93,3 +93,31 @@ export function normalizeRange(a: Date, b: Date): DateRange {
   const end = endOfDay(a <= b ? b : a);
   return { start, end };
 }
+
+/** Período inmediatamente anterior, con la misma cantidad de días. */
+export function getPrecedingRange(range: DateRange): DateRange {
+  const start = startOfDay(range.start);
+  const end = startOfDay(range.end);
+  const days = differenceInCalendarDays(end, start) + 1;
+  const prevEnd = endOfDay(subDays(start, 1));
+  const prevStart = startOfDay(subDays(start, days));
+  return { start: prevStart, end: prevEnd };
+}
+
+/** Mismo rango calendario, un año atrás. */
+export function getSameRangeLastYear(range: DateRange): DateRange {
+  return {
+    start: startOfDay(subYears(range.start, 1)),
+    end: endOfDay(subYears(range.end, 1)),
+  };
+}
+
+export function formatDateRangeLabel(range: DateRange): string {
+  const { start, end } = range;
+  const sameDay = differenceInCalendarDays(end, start) === 0;
+  if (sameDay) {
+    return format(start, "d 'de' MMMM yyyy", { locale: es });
+  }
+  return `${format(start, 'dd/MM/yyyy')} – ${format(end, 'dd/MM/yyyy')}`;
+}
+

@@ -3090,3 +3090,74 @@ table.data-table tr.caja-row-retiro:hover td {
   border-color: #c7d2fe;
   font-weight: 600;
 }
+
+.stats-compare-card {
+  margin-bottom: 16px;
+  margin-top: 16px;
+}
+
+.stats-compare-periods {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+@media (min-width: 900px) {
+  .stats-compare-periods {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.stats-compare-period .period-trigger {
+  margin-bottom: 6px;
+}
+
+.stats-compare-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.stats-compare-controls .chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.stats-compare-custom {
+  margin-bottom: 12px;
+}
+
+.stats-compare-kpis {
+  margin-bottom: 16px;
+}
+
+.stats-compare-chart-box {
+  height: 360px;
+  margin-top: 4px;
+}
+
+.stats-compare-hint {
+  margin: 14px 0 0;
+  padding-top: 4px;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-secondary);
+}
+
+.stats-delta-up {
+  color: #059669 !important;
+  font-weight: 600;
+}
+
+.stats-delta-down {
+  color: #dc2626 !important;
+  font-weight: 600;
+}
+
+.stats-delta-neutral {
+  color: var(--text-secondary) !important;
+  font-weight: 600;
+}
