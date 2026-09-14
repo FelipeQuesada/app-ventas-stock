@@ -79,6 +79,16 @@ function formatDisplayDate(iso: string): string {
   return format(d, 'dd/MM/yyyy');
 }
 
+/** Nombre sugerido al guardar el PDF (también va en <title>). */
+export function buildPresupuestoDocumentTitle(clientName?: string): string {
+  const clean = (clientName ?? '')
+    .trim()
+    .replace(/[\\/:*?"<>|]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  return clean ? `Presupuesto Advance Coat ${clean}` : 'Presupuesto Advance Coat';
+}
+
 export function defaultValidUntil(fromIso: string, days = 10): string {
   const d = parseISO(fromIso);
   if (!isValid(d)) return fromIso;
@@ -138,7 +148,7 @@ export function buildPresupuestoHtml(data: PresupuestoData): string {
 <html lang="es">
 <head>
   <meta charset="utf-8" />
-  <title>Presupuesto Advance Coat</title>
+  <title>${escapeHtml(buildPresupuestoDocumentTitle(data.clientName))}</title>
   <style>
     @page { size: A4; margin: 12mm; }
     * { box-sizing: border-box; }
@@ -311,7 +321,7 @@ export function buildPresupuestoHtml(data: PresupuestoData): string {
         <h3>PARA</h3>
         <p><strong>${escapeHtml(data.clientName || '—')}</strong></p>
         ${data.clientCuit ? `<p>CUIT / CUIL: ${escapeHtml(data.clientCuit)}</p>` : ''}
-        <p>Teléfono: ${escapeHtml(data.clientPhone || '—')}</p>
+        ${data.clientPhone ? `<p>Teléfono: ${escapeHtml(data.clientPhone)}</p>` : ''}
         ${data.clientEmail ? `<p>Email: ${escapeHtml(data.clientEmail)}</p>` : ''}
       </div>
     </div>

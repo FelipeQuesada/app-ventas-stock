@@ -142,11 +142,14 @@ function saveWorkbook(workbook: XLSX.WorkBook, fileName: string) {
   downloadBlob(blob, fileName);
 }
 
-export function printHtml(html: string) {
+export function printHtml(html: string, documentTitle?: string) {
   const win = window.open('', '_blank');
   if (!win) throw new Error('No se pudo abrir la ventana de impresión');
   win.document.write(html);
   win.document.close();
+  if (documentTitle?.trim()) {
+    win.document.title = documentTitle.trim();
+  }
   win.focus();
   setTimeout(() => {
     win.print();

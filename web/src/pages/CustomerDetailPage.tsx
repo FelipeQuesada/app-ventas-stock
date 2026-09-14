@@ -15,7 +15,7 @@ import {
   getPresupuestosByCustomerId,
   getPresupuestosByCustomerPhone,
 } from '../services/presupuestos';
-import { buildPresupuestoHtml, presupuestoToPdfData } from '../services/presupuesto';
+import { buildPresupuestoHtml, presupuestoToPdfData, buildPresupuestoDocumentTitle } from '../services/presupuesto';
 import { printHtml } from '../services/export';
 
 export function CustomerDetailPage() {
@@ -220,7 +220,12 @@ export function CustomerDetailPage() {
                         type="button"
                         className="btn btn-ghost btn-sm"
                         title="PDF"
-                        onClick={() => printHtml(buildPresupuestoHtml(presupuestoToPdfData(p)))}
+                        onClick={() =>
+                          printHtml(
+                            buildPresupuestoHtml(presupuestoToPdfData(p)),
+                            buildPresupuestoDocumentTitle(p.customer.name)
+                          )
+                        }
                       >
                         <FileText size={14} /> PDF
                       </button>

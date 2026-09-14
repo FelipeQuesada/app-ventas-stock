@@ -17,6 +17,7 @@ import { getProducts } from '../services/products';
 import { printHtml } from '../services/export';
 import {
   buildPresupuestoHtml,
+  buildPresupuestoDocumentTitle,
   defaultValidUntil,
   type PresupuestoItem,
 } from '../services/presupuesto';
@@ -371,7 +372,8 @@ export function PresupuestoPage() {
           discountType,
           discountValue: Number(discountValue) || 0,
           discountAmount,
-        })
+        }),
+        buildPresupuestoDocumentTitle(clientName)
       );
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo guardar el presupuesto');
@@ -452,7 +454,7 @@ export function PresupuestoPage() {
           />
         </div>
         <div className="field">
-          <label>CUIT / CUIL</label>
+          <label>CUIT / CUIL (opcional)</label>
           <input
             value={clientCuit}
             onChange={(e) => setClientCuit(e.target.value)}
@@ -461,7 +463,7 @@ export function PresupuestoPage() {
           />
         </div>
         <div className="field">
-          <label>Teléfono</label>
+          <label>Teléfono (opcional)</label>
           <input
             value={clientPhone}
             onChange={(e) => setClientPhone(e.target.value)}

@@ -5,7 +5,7 @@ import type { Presupuesto } from '@advance-coat/shared';
 import { formatCurrency, formatShortDateTime } from '@advance-coat/shared';
 import { format, isValid } from 'date-fns';
 import { printHtml } from '../services/export';
-import { presupuestoToPdfData, buildPresupuestoHtml } from '../services/presupuesto';
+import { presupuestoToPdfData, buildPresupuestoHtml, buildPresupuestoDocumentTitle } from '../services/presupuesto';
 import { deletePresupuesto, getPresupuestos } from '../services/presupuestos';
 
 function formatDay(date: Date | undefined): string {
@@ -51,7 +51,10 @@ export function PresupuestoListPage() {
   const total = rows.reduce((sum, p) => sum + (p.total || 0), 0);
 
   function openPdf(p: Presupuesto) {
-    printHtml(buildPresupuestoHtml(presupuestoToPdfData(p)));
+    printHtml(
+      buildPresupuestoHtml(presupuestoToPdfData(p)),
+      buildPresupuestoDocumentTitle(p.customer.name)
+    );
   }
 
   async function handleDelete(p: Presupuesto) {
