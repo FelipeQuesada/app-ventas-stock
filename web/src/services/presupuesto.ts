@@ -1,5 +1,12 @@
 import { format, addDays, parseISO, isValid } from 'date-fns';
-import { formatCurrency, type Presupuesto, type PresupuestoItem } from '@advance-coat/shared';
+import {
+  calculateDiscount,
+  calculateSaleTotal,
+  formatCurrency,
+  type DiscountType,
+  type Presupuesto,
+  type PresupuestoItem,
+} from '@advance-coat/shared';
 
 export type { PresupuestoItem };
 
@@ -16,6 +23,9 @@ export interface PresupuestoData {
   items: PresupuestoItem[];
   notes?: string;
   signerName?: string;
+  discountType?: DiscountType | null;
+  discountValue?: number;
+  discountAmount?: number;
 }
 
 function toIsoDate(value: Date | string): string {
@@ -37,6 +47,9 @@ export function presupuestoToPdfData(p: Presupuesto): PresupuestoData {
     items: p.items,
     notes: p.notes,
     signerName: p.contactName,
+    discountType: p.discountType,
+    discountValue: p.discountValue,
+    discountAmount: p.discountAmount,
   };
 }
 
@@ -73,7 +86,15 @@ export function defaultValidUntil(fromIso: string, days = 10): string {
 }
 
 export function buildPresupuestoHtml(data: PresupuestoData): string {
-  const total = data.items.reduce((sum, item) => sum + item.subtotal, 0);
+  const subtotal = data.items.reduce((sum, item) => sum + item.subtotal, 0);
+  const discountAmount =
+    data.discountAmount ??
+    calculateDiscount(subtotal, data.discountType ?? null, data.discountValue ?? 0);
+  const total = calculateSaleTotal(subtotal, discountAmount);
+  const discountLabel =
+    data.discountType === 'percent'
+      ? `Descuento (${data.discountValue ?? 0}%)`
+      : 'Descuento';
   const logoUrl =
     typeof window !== 'undefined'
       ? `${window.location.origin}/logo-advance.png`
@@ -191,15 +212,31 @@ export function buildPresupuestoHtml(data: PresupuestoData): string {
       margin-top: 10px;
     }
     .total-box {
-      min-width: 240px;
+      min-width: 260px;
       background: ${BRAND.soft};
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      padding: 12px 16px;
+      color: ${BRAND.dark};
+    }
+    .total-row {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      padding: 12px 16px;
-      font-weight: 700;
+      gap: 16px;
+      font-size: 13px;
+      font-weight: 600;
+    }
+    .total-row.final {
+      margin-top: 4px;
+      padding-top: 8px;
+      border-top: 1px solid ${BRAND.light};
       font-size: 15px;
-      color: ${BRAND.dark};
+      font-weight: 700;
+    }
+    .total-row.discount {
+      color: #b45309;
     }
     .details {
       display: grid;
@@ -293,8 +330,16 @@ export function buildPresupuestoHtml(data: PresupuestoData): string {
 
     <div class="total-wrap">
       <div class="total-box">
-        <span>TOTAL</span>
-        <span>${escapeHtml(formatMoney(total))}</span>
+        ${
+          discountAmount > 0
+            ? `<div class="total-row"><span>Subtotal</span><span>${escapeHtml(formatMoney(subtotal))}</span></div>
+        <div class="total-row discount"><span>${escapeHtml(discountLabel)}</span><span>-${escapeHtml(formatMoney(discountAmount))}</span></div>`
+            : ''
+        }
+        <div class="total-row final">
+          <span>TOTAL</span>
+          <span>${escapeHtml(formatMoney(total))}</span>
+        </div>
       </div>
     </div>
 

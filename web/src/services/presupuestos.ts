@@ -11,8 +11,8 @@ import {
   Timestamp,
   updateDoc,
 } from 'firebase/firestore';
-import type { Presupuesto, PresupuestoItem, SaleCustomer } from '@advance-coat/shared';
-import { normalizePhoneKey } from '@advance-coat/shared';
+import type { DiscountType, Presupuesto, PresupuestoItem, SaleCustomer } from '@advance-coat/shared';
+import { calculateDiscount, calculateSaleTotal, normalizePhoneKey } from '@advance-coat/shared';
 import { db } from '../lib/firebase';
 import { saveCustomer } from './customers';
 
@@ -65,6 +65,10 @@ function mapPresupuesto(id: string, data: Record<string, unknown>): Presupuesto 
     customerId: (data.customerId as string) || undefined,
     items: sanitizeItems((data.items as PresupuestoItem[]) ?? []),
     notes: (data.notes as string) || undefined,
+    subtotal: (data.subtotal as number) ?? (data.total as number) ?? 0,
+    discountType: (data.discountType as DiscountType | undefined) || undefined,
+    discountValue: (data.discountValue as number) || undefined,
+    discountAmount: (data.discountAmount as number) || undefined,
     total: (data.total as number) ?? 0,
     createdBy: (data.createdBy as string) ?? '',
     createdByName: (data.createdByName as string) || undefined,
@@ -90,6 +94,9 @@ export interface CreatePresupuestoInput {
   customer: SaleCustomer;
   items: PresupuestoItem[];
   notes?: string;
+  discountType?: DiscountType | null;
+  discountValue?: number;
+  discountAmount?: number;
   createdBy: string;
   createdByName?: string;
 }
@@ -101,7 +108,12 @@ async function upsertCustomerId(customer: SaleCustomer): Promise<string> {
 
 function buildPayload(input: CreatePresupuestoInput, customerId: string) {
   const customer = normalizeCustomer(input.customer);
-  const total = input.items.reduce((sum, item) => sum + item.subtotal, 0);
+  const subtotal = input.items.reduce((sum, item) => sum + item.subtotal, 0);
+  const discountType = input.discountType ?? null;
+  const discountValue = input.discountValue ?? 0;
+  const discountAmount =
+    input.discountAmount ?? calculateDiscount(subtotal, discountType, discountValue);
+  const total = calculateSaleTotal(subtotal, discountAmount);
   return {
     recordType: RECORD_TYPE,
     date: Timestamp.fromDate(input.date),
@@ -114,10 +126,13 @@ function buildPayload(input: CreatePresupuestoInput, customerId: string) {
     phoneKey: normalizePhoneKey(customer.phone) ?? '',
     items: sanitizeItems(input.items),
     notes: input.notes?.trim() || null,
+    subtotal,
+    discountType: discountType || null,
+    discountValue: discountType ? discountValue : 0,
+    discountAmount,
     total,
     paymentMethod: 'efectivo',
     paymentMethodLabel: 'Presupuesto',
-    subtotal: total,
     customerCount: 1,
   };
 }

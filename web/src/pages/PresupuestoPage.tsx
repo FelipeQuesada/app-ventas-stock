@@ -2,9 +2,11 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { FileText, Plus, Search, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
-import type { Product } from '@advance-coat/shared';
+import type { DiscountType, Product } from '@advance-coat/shared';
 import {
   SALE_SELLERS,
+  calculateDiscount,
+  calculateSaleTotal,
   createExtraItem,
   formatCurrency,
   getUniqueProductCategories,
@@ -109,6 +111,8 @@ export function PresupuestoPage() {
   const [clientEmail, setClientEmail] = useState('');
   const [clientCuit, setClientCuit] = useState('');
   const [notes, setNotes] = useState('');
+  const [discountType, setDiscountType] = useState<DiscountType | null>(null);
+  const [discountValue, setDiscountValue] = useState('');
   const [showExtraForm, setShowExtraForm] = useState(false);
   const [extraDesc, setExtraDesc] = useState('');
   const [extraQty, setExtraQty] = useState('1');
@@ -137,6 +141,12 @@ export function PresupuestoPage() {
             setClientCuit(existing.customer.cuit || '');
             setNotes(existing.notes || '');
             setItems(existing.items || []);
+            setDiscountType(existing.discountType ?? null);
+            setDiscountValue(
+              existing.discountValue != null && existing.discountValue > 0
+                ? String(existing.discountValue)
+                : ''
+            );
           } else if (!cancelled) {
             setError('Presupuesto no encontrado');
           }
@@ -174,7 +184,13 @@ export function PresupuestoPage() {
       .slice(0, 15);
   }, [products, searchTerm, category, showBrowseResults]);
 
-  const total = items.reduce((sum, item) => sum + item.subtotal, 0);
+  const subtotal = items.reduce((sum, item) => sum + item.subtotal, 0);
+  const discountAmount = calculateDiscount(
+    subtotal,
+    discountType,
+    Number(discountValue) || 0
+  );
+  const total = calculateSaleTotal(subtotal, discountAmount);
 
   function applyContact(name: string) {
     setContactName(name);
@@ -326,6 +342,9 @@ export function PresupuestoPage() {
         },
         items,
         notes: notes.trim() || undefined,
+        discountType: discountType ?? null,
+        discountValue: Number(discountValue) || 0,
+        discountAmount,
         createdBy: user?.uid ?? '',
         createdByName: profile?.name || contactName.trim(),
       };
@@ -349,6 +368,9 @@ export function PresupuestoPage() {
           clientCuit: clientCuit.trim() || undefined,
           items,
           notes: notes.trim() || undefined,
+          discountType,
+          discountValue: Number(discountValue) || 0,
+          discountAmount,
         })
       );
     } catch (err) {
@@ -613,6 +635,36 @@ export function PresupuestoPage() {
           </div>
         )}
 
+        <h4 className="sale-section-title">Descuento</h4>
+        <div className="chip-group">
+          <button
+            type="button"
+            className={`chip ${discountType === 'percent' ? 'active' : ''}`}
+            onClick={() => setDiscountType(discountType === 'percent' ? null : 'percent')}
+          >
+            Porcentaje %
+          </button>
+          <button
+            type="button"
+            className={`chip ${discountType === 'fixed' ? 'active' : ''}`}
+            onClick={() => setDiscountType(discountType === 'fixed' ? null : 'fixed')}
+          >
+            Monto fijo $
+          </button>
+        </div>
+        {discountType ? (
+          <div className="field">
+            <label>{discountType === 'percent' ? 'Descuento (%)' : 'Descuento ($)'}</label>
+            <input
+              type="number"
+              min="0"
+              value={discountValue}
+              onChange={(e) => setDiscountValue(e.target.value)}
+              placeholder="0"
+            />
+          </div>
+        ) : null}
+
         <div className="field">
           <label>Otros detalles (opcional)</label>
           <textarea
@@ -624,6 +676,19 @@ export function PresupuestoPage() {
         </div>
 
         <div className="sale-summary-card">
+          <div className="row">
+            <span>Subtotal</span>
+            <strong>{formatCurrency(subtotal)}</strong>
+          </div>
+          {discountAmount > 0 ? (
+            <div className="row">
+              <span>
+                Descuento
+                {discountType === 'percent' ? ` (${discountValue || 0}%)` : ''}
+              </span>
+              <strong>-{formatCurrency(discountAmount)}</strong>
+            </div>
+          ) : null}
           <div className="row sale-total-row">
             <span>Total presupuesto</span>
             <strong>{formatCurrency(total)}</strong>

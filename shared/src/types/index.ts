@@ -122,6 +122,10 @@ export interface Presupuesto {
   customerId?: string;
   items: PresupuestoItem[];
   notes?: string;
+  subtotal: number;
+  discountType?: DiscountType;
+  discountValue?: number;
+  discountAmount?: number;
   total: number;
   createdBy: string;
   createdByName?: string;
