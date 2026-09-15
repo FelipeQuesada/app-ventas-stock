@@ -21,7 +21,7 @@ import {
   formatCurrency,
   getLowStockProducts,
 } from '@advance-coat/shared';
-import { getSales, getTodaySales } from '../services/sales';
+import { getSales, getTodaySales, getMonthSales } from '../services/sales';
 import { getProducts } from '../services/products';
 import {
   getDailySalesChart,
@@ -64,7 +64,9 @@ export function DashboardPage() {
 
   const today = getTodaySales(sales);
   const todayTotal = today.reduce((sum, s) => sum + s.total, 0);
-  const avgTicket = getAverageTicket(today.length ? today : sales.slice(0, 50));
+  const monthSales = getMonthSales(sales);
+  const monthTotal = monthSales.reduce((sum, s) => sum + s.total, 0);
+  const avgTicket = getAverageTicket(monthSales);
   const lowStock = getLowStockProducts(products);
   const chartData = getDailySalesChart(sales, 30);
 
@@ -110,15 +112,17 @@ export function DashboardPage() {
           <div className="kpi-hint">{today.length} operaciones</div>
         </div>
         <div className="kpi-card">
-          <div className="kpi-label">Recaudación del día</div>
-          <div className="kpi-value">{formatCurrency(todayTotal)}</div>
-          <div className="kpi-hint">Total cobrado hoy</div>
+          <div className="kpi-label">Recaudación del mes</div>
+          <div className="kpi-value">{formatCurrency(monthTotal)}</div>
+          <div className="kpi-hint">
+            {monthSales.length} venta{monthSales.length === 1 ? '' : 's'} este mes
+          </div>
         </div>
         {isAdmin && (
           <div className="kpi-card">
             <div className="kpi-label">Ticket promedio</div>
             <div className="kpi-value">{formatCurrency(avgTicket)}</div>
-            <div className="kpi-hint">Basado en ventas recientes</div>
+            <div className="kpi-hint">Promedio del mes actual</div>
           </div>
         )}
         <div className="kpi-card">

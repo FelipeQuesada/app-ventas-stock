@@ -7,9 +7,10 @@ import { QuickAction } from '@/components/QuickAction';
 import { ChartCard, StatsLineChart } from '@/components/ui/ChartCard';
 import { LoadingScreen } from '@/components/ui/EmptyState';
 import { getProducts } from '@/services/products';
-import { getSales, getTodaySales } from '@/services/sales';
+import { getSales, getTodaySales, getMonthSales } from '@/services/sales';
 import {
   getDailySalesChart,
+  getAverageTicket,
 } from '@/services/stats';
 import { syncPendingSales, getPendingSalesCount } from '@/services/offlineQueue';
 import { formatCurrency, capitalize } from '@/utils/format';
@@ -25,6 +26,8 @@ export default function DashboardScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [todaySales, setTodaySales] = useState(0);
   const [todayRevenue, setTodayRevenue] = useState(0);
+  const [monthRevenue, setMonthRevenue] = useState(0);
+  const [avgTicket, setAvgTicket] = useState(0);
   const [lowStockCount, setLowStockCount] = useState(0);
   const [totalSales, setTotalSales] = useState(0);
   const [chartData, setChartData] = useState<{ label: string; value: number }[]>([]);
@@ -35,9 +38,12 @@ export default function DashboardScreen() {
     try {
       const [products, sales] = await Promise.all([getProducts(), getSales()]);
       const today = getTodaySales(sales);
+      const month = getMonthSales(sales);
       const lowStock = getLowStockProducts(products);
       setTodaySales(today.length);
       setTodayRevenue(today.reduce((sum, s) => sum + s.total, 0));
+      setMonthRevenue(month.reduce((sum, s) => sum + s.total, 0));
+      setAvgTicket(getAverageTicket(month));
       setLowStockCount(lowStock.length);
       setTotalSales(sales.length);
       setChartData(getDailySalesChart(sales, 30).map((d) => ({ label: d.label, value: d.value })));
@@ -124,8 +130,8 @@ export default function DashboardScreen() {
             subtitle={formatCurrency(todayRevenue)}
           />
           <StatCard
-            title="Recaudación del día"
-            value={formatCurrency(todayRevenue)}
+            title="Recaudación del mes"
+            value={formatCurrency(monthRevenue)}
             icon="attach-money"
             iconColor={colors.success}
           />
@@ -138,13 +144,23 @@ export default function DashboardScreen() {
           />
         </View>
         {isAdmin && (
-          <StatCard
-            title="Total ventas"
-            value={totalSales}
-            icon="receipt-long"
-            iconColor={colors.primary}
-            style={styles.statFullWidth}
-          />
+          <>
+            <StatCard
+              title="Ticket promedio"
+              value={formatCurrency(avgTicket)}
+              icon="receipt"
+              iconColor={colors.primary}
+              subtitle="Mes actual"
+              style={styles.statFullWidth}
+            />
+            <StatCard
+              title="Total ventas"
+              value={totalSales}
+              icon="receipt-long"
+              iconColor={colors.primary}
+              style={styles.statFullWidth}
+            />
+          </>
         )}
       </View>
 

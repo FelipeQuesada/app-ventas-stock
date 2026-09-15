@@ -339,7 +339,7 @@ export function StatisticsPage() {
 
         <div className="card">
           <h3 className="card-title">Ventas por vendedor</h3>
-          <p className="card-subtitle">Quién cerró más $ en el período</p>
+          <p className="card-subtitle">Quién cerró más $ en el período (mes actual por defecto)</p>
           {sellers.length === 0 ? (
             <p className="muted">Sin datos de vendedor.</p>
           ) : (

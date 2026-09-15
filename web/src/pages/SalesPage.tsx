@@ -16,6 +16,9 @@ import {
   isInvoiceEligibleMethod,
   getUniqueProductCategories,
   buildSaleDateFromPicker,
+  isValidCuitCuil,
+  limitCuitInput,
+  normalizeCuitDigits,
 } from '@advance-coat/shared';
 import { getProducts } from '../services/products';
 import { createSale, updateSale, getSale } from '../services/sales';
@@ -239,6 +242,10 @@ export function SalesPage() {
         setError('Para factura completá teléfono, nombre, email y CUIT');
         return;
       }
+      if (!isValidCuitCuil(customerCuit)) {
+        setError('El CUIT / CUIL debe tener exactamente 11 números');
+        return;
+      }
     }
     if (selectedPayments.length === 0) {
       setError('Seleccioná una forma de pago');
@@ -279,7 +286,7 @@ export function SalesPage() {
           name: customerName,
           email: customerEmail,
           phone: customerPhone,
-          cuit: customerCuit.trim() || '',
+          cuit: wantsInvoice ? normalizeCuitDigits(customerCuit) : customerCuit.trim() || '',
         },
         subtotal,
         discountType: discountType ?? undefined,
@@ -782,10 +789,13 @@ export function SalesPage() {
                 <label>CUIT / CUIL *</label>
                 <input
                   value={customerCuit}
-                  onChange={(e) => setCustomerCuit(e.target.value)}
-                  placeholder="20-12345678-9"
+                  onChange={(e) => setCustomerCuit(limitCuitInput(e.target.value))}
+                  placeholder="20123456789"
                   inputMode="numeric"
+                  maxLength={13}
+                  autoComplete="off"
                 />
+                <p className="caja-hint">Tiene que tener 11 números (sin letras).</p>
               </div>
               <p className="caja-hint">Queda pendiente en el panel admin para emitir.</p>
             </>

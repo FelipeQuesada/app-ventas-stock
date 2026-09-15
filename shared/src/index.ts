@@ -8,6 +8,7 @@ export * from './utils/phone';
 export * from './utils/stock';
 export * from './utils/datePeriod';
 export * from './utils/discount';
+export * from './utils/cuit';
 export * from './utils/sale';
 export * from './utils/productList';
 export * from './utils/caja';

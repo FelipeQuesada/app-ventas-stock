@@ -3,6 +3,7 @@ import {
   endOfDay,
   subDays,
   subYears,
+  startOfMonth,
   isWithinInterval,
   format,
   differenceInCalendarDays,
@@ -33,7 +34,7 @@ export const PERIOD_PRESETS: { id: Exclude<PeriodPresetId, 'custom'>; label: str
   { id: 'yesterday', label: 'Ayer' },
   { id: 'last_week', label: 'Última semana' },
   { id: 'last_15', label: 'Últimos 15 días' },
-  { id: 'last_month', label: 'Último mes' },
+  { id: 'last_month', label: 'Mes actual' },
   { id: 'last_year', label: 'Último año' },
 ];
 
@@ -52,7 +53,7 @@ export function getPresetRange(preset: Exclude<PeriodPresetId, 'custom'>, now = 
     case 'last_15':
       return { start: startOfDay(subDays(today, 14)), end: endOfDay(now) };
     case 'last_month':
-      return { start: startOfDay(subDays(today, 29)), end: endOfDay(now) };
+      return { start: startOfMonth(now), end: endOfDay(now) };
     case 'last_year':
       return { start: startOfDay(subYears(today, 1)), end: endOfDay(now) };
     default:

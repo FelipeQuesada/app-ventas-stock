@@ -38,6 +38,7 @@ import { formatCurrency } from '@/utils/format';
 import { calculateChange } from '@/utils/discount';
 import { normalizePhoneKey } from '@/utils/phone';
 import { createExtraItem, isExtraItem } from '@/utils/sale';
+import { isValidCuitCuil, limitCuitInput, normalizeCuitDigits } from '@/utils/cuit';
 import {
   filterProductsForSale,
   getProductSalesCounts,
@@ -459,7 +460,7 @@ export function SaleForm({ mode, saleId }: SaleFormProps) {
       name: customerName.trim(),
       email: customerEmail.trim(),
       phone: customerPhone.trim(),
-      cuit: customerCuit.trim() || '',
+      cuit: wantsInvoice ? normalizeCuitDigits(customerCuit) : customerCuit.trim() || '',
     },
     subtotal,
     discountType: discountType ?? undefined,
@@ -513,6 +514,10 @@ export function SaleForm({ mode, saleId }: SaleFormProps) {
         !customerCuit.trim()
       ) {
         showAlert('Error', 'Para factura completá teléfono, nombre, email y CUIT');
+        return;
+      }
+      if (!isValidCuitCuil(customerCuit)) {
+        showAlert('Error', 'El CUIT / CUIL debe tener exactamente 11 números');
         return;
       }
     }
@@ -862,10 +867,12 @@ export function SaleForm({ mode, saleId }: SaleFormProps) {
               <Input
                 label="CUIT / CUIL *"
                 value={customerCuit}
-                onChangeText={setCustomerCuit}
-                placeholder="20-12345678-9"
+                onChangeText={(text) => setCustomerCuit(limitCuitInput(text))}
+                placeholder="20123456789"
                 keyboardType="number-pad"
+                maxLength={13}
               />
+              <Text style={styles.hint}>Tiene que tener 11 números (sin letras).</Text>
               <Text style={styles.hint}>Queda pendiente en el panel admin para emitir.</Text>
             </>
           ) : null}
