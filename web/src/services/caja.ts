@@ -334,6 +334,7 @@ export async function withdrawFromCajaCentral(input: {
     retiroAmount: input.amount,
     balanceAfter: newBalance,
     closedByName: input.actorName,
+    telegramEventId: historyId,
     updatedBy: input.userId,
     updatedByName: input.userName ?? '',
     updatedAt: serverTimestamp(),
@@ -384,6 +385,7 @@ export async function saveCaja(input: SaveCajaInput): Promise<void> {
       : Math.max(0, input.totalGuardado - previousGuardado);
 
   await setDoc(doc(db, COLLECTION, id), {
+    entryType: 'cierre',
     date: Timestamp.fromDate(input.date),
     cajaCambio: input.cajaCambio,
     cajaTotal: input.cajaTotal,
@@ -393,6 +395,7 @@ export async function saveCaja(input: SaveCajaInput): Promise<void> {
     cambioCierre,
     sinMovimiento,
     closedByName: input.closedByName,
+    telegramEventId: `cierre-${id}-${Date.now()}`,
     updatedBy: input.updatedBy,
     updatedByName: input.updatedByName ?? '',
     updatedAt: serverTimestamp(),
