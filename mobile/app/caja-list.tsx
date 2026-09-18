@@ -17,6 +17,7 @@ import { CajaListItem } from '@/components/ui/CajaListItem';
 import { EmptyState, LoadingScreen } from '@/components/ui/EmptyState';
 import { Button } from '@/components/ui/Button';
 import { Card } from '@/components/ui/Card';
+import { useAuth } from '@/context/AuthContext';
 import { deleteCajaRecord, getCajaHistory } from '@/services/caja';
 import { exportCajaRecordsToExcel, buildCajaPdfHtml } from '@/services/export';
 import { DailyCaja } from '@/types/caja';
@@ -33,6 +34,8 @@ import { colors, radius, spacing, typography } from '@/constants/theme';
 
 export default function CajaListScreen() {
   const router = useRouter();
+  const { profile } = useAuth();
+  const isAdmin = profile?.role === 'admin';
   const [records, setRecords] = useState<DailyCaja[]>([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
@@ -137,6 +140,15 @@ export default function CajaListScreen() {
     <View style={styles.headerSection}>
       <PeriodFilter value={period} onChange={setPeriod} />
 
+      {isAdmin ? (
+        <Button
+          title="Registrar día faltante"
+          onPress={() => router.push('/caja-register')}
+          size="sm"
+          style={styles.missingBtn}
+        />
+      ) : null}
+
       <Card style={styles.exportCard}>
         <Text style={styles.exportTitle}>Exportar caja</Text>
         <Text style={styles.exportSubtitle}>
@@ -198,7 +210,7 @@ export default function CajaListScreen() {
 
       <TouchableOpacity
         style={styles.fab}
-        onPress={() => router.push('/caja-edit/new')}
+        onPress={() => router.push(isAdmin ? '/caja-register' : '/caja-edit/new')}
         activeOpacity={0.8}
       >
         <MaterialIcons name="add" size={28} color={colors.white} />
@@ -340,6 +352,9 @@ const styles = StyleSheet.create({
   headerSection: {
     gap: spacing.sm,
     marginBottom: spacing.sm,
+  },
+  missingBtn: {
+    marginBottom: spacing.xs,
   },
   exportCard: {
     gap: spacing.sm,

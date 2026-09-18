@@ -124,6 +124,14 @@ export default function RootLayout() {
               }}
             />
             <Stack.Screen
+              name="caja-register"
+              options={{
+                ...stackHeaderOptions,
+                title: 'Día faltante',
+                headerBackTitle: 'Volver',
+              }}
+            />
+            <Stack.Screen
               name="caja-edit/[date]"
               options={{
                 ...stackHeaderOptions,

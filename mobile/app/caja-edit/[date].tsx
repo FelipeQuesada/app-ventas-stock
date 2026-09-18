@@ -54,9 +54,11 @@ export default function CajaEditScreen() {
   const [saving, setSaving] = useState(false);
   const [cajaDate, setCajaDate] = useState(new Date());
   const [cajaCambio, setCajaCambio] = useState('');
+  const [cajaTotalStr, setCajaTotalStr] = useState('');
   const [cashSales, setCashSales] = useState(0);
   const [totalGuardado, setTotalGuardado] = useState('');
   const [closedByName, setClosedByName] = useState('');
+  const [totalManual, setTotalManual] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -69,8 +71,10 @@ export default function CajaEditScreen() {
             getCajaCambioFromPreviousDay(new Date()),
           ]);
           if (cancelled) return;
-          setCashSales(getCashTotalForDate(sales, new Date()));
+          const cash = getCashTotalForDate(sales, new Date());
+          setCashSales(cash);
           setCajaCambio(previousCambio.toString());
+          setCajaTotalStr(String(calculateCajaTotal(cash, previousCambio)));
           return;
         }
 
@@ -84,11 +88,16 @@ export default function CajaEditScreen() {
         setCajaDate(parsedDate);
         const [record, sales] = await Promise.all([getCajaByDate(parsedDate), getSales()]);
         if (cancelled) return;
-        setCashSales(getCashTotalForDate(sales, parsedDate));
+        const cash = getCashTotalForDate(sales, parsedDate);
+        setCashSales(cash);
         if (record) {
           setCajaCambio(record.cajaCambio.toString());
+          setCajaTotalStr(String(record.cajaTotal));
           setTotalGuardado(record.totalGuardado.toString());
           if (record.closedByName) setClosedByName(record.closedByName);
+          setTotalManual(true);
+        } else {
+          setCajaTotalStr(String(calculateCajaTotal(cash, 0)));
         }
       } catch {
         showAlert('Error', 'No se pudo cargar el registro');
@@ -103,7 +112,7 @@ export default function CajaEditScreen() {
   }, [isNew, dateParam, router]);
 
   const cajaCambioAmount = parseFloat(cajaCambio.replace(',', '.')) || 0;
-  const cajaTotalAmount = calculateCajaTotal(cashSales, cajaCambioAmount);
+  const cajaTotalAmount = parseFloat(cajaTotalStr.replace(',', '.')) || 0;
   const totalGuardadoAmount = parseFloat(totalGuardado.replace(',', '.')) || 0;
   const ganancia = cajaTotalAmount - cajaCambioAmount;
   const cambioCierre = cajaTotalAmount - totalGuardadoAmount;
@@ -112,10 +121,16 @@ export default function CajaEditScreen() {
     setCajaDate(next);
     try {
       const sales = await getSales();
-      setCashSales(getCashTotalForDate(sales, next));
+      const cash = getCashTotalForDate(sales, next);
+      setCashSales(cash);
       if (isNew) {
         const previousCambio = await getCajaCambioFromPreviousDay(next);
         setCajaCambio(previousCambio.toString());
+        if (!totalManual) {
+          setCajaTotalStr(String(calculateCajaTotal(cash, previousCambio)));
+        }
+      } else if (!totalManual) {
+        setCajaTotalStr(String(calculateCajaTotal(cash, cajaCambioAmount)));
       }
     } catch {
       // keep current values
@@ -144,7 +159,7 @@ export default function CajaEditScreen() {
         cajaCambio: cajaCambioAmount,
         cajaTotal: cajaTotalAmount,
         totalGuardado: totalGuardadoAmount,
-        depositoCentral: 0,
+        depositoCentral: isNew ? totalGuardadoAmount : 0,
         closedByName: closer,
         updatedBy: user!.uid,
         updatedByName: profile?.name,
@@ -195,15 +210,30 @@ export default function CajaEditScreen() {
           <Input
             label="Caja cambio"
             value={cajaCambio}
-            onChangeText={setCajaCambio}
+            onChangeText={(v) => {
+              setCajaCambio(v);
+              if (!totalManual) {
+                const cambio = parseFloat(v.replace(',', '.')) || 0;
+                setCajaTotalStr(String(calculateCajaTotal(cashSales, cambio)));
+              }
+            }}
             keyboardType="decimal-pad"
             placeholder="0"
           />
           <Text style={styles.hint}>Efectivo que quedó del día anterior</Text>
 
-          <CajaRow label="Caja total" value={formatCurrency(cajaTotalAmount)} highlight />
+          <Input
+            label="Caja total"
+            value={cajaTotalStr}
+            onChangeText={(v) => {
+              setTotalManual(true);
+              setCajaTotalStr(v);
+            }}
+            keyboardType="decimal-pad"
+            placeholder="0"
+          />
           <Text style={styles.hint}>
-            Ventas efectivo ({formatCurrency(cashSales)}) + cambio — no editable
+            Sugerido: ventas efectivo ({formatCurrency(cashSales)}) + cambio. Editable.
           </Text>
 
           <Input

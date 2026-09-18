@@ -16,6 +16,7 @@ import { syncPendingSales, getPendingSalesCount } from '@/services/offlineQueue'
 import { formatCurrency, capitalize } from '@/utils/format';
 import { showAlert } from '@/utils/alert';
 import { getLowStockProducts, LOW_STOCK_THRESHOLD } from '@/utils/stock';
+import { MissingCajaBanner } from '@/components/MissingCajaBanner';
 import { colors, spacing, typography } from '@/constants/theme';
 
 export default function DashboardScreen() {
@@ -119,6 +120,8 @@ export default function DashboardScreen() {
           {pendingCount} venta(s) pendiente(s) de sincronizar
         </Text>
       )}
+
+      <MissingCajaBanner />
 
       <View style={styles.statsGrid}>
         <View style={styles.statsTopRow}>

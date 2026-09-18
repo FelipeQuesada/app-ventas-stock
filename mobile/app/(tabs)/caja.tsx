@@ -40,6 +40,7 @@ import {
 } from '@/utils/caja';
 import { buildWhatsAppUrl } from '@/utils/saleTicket';
 import { showAlert, showConfirm } from '@/utils/alert';
+import { MissingCajaBanner } from '@/components/MissingCajaBanner';
 import { colors, spacing, typography, radius } from '@/constants/theme';
 
 function CajaRow({
@@ -375,6 +376,7 @@ export default function CajaScreen() {
         />
       }
     >
+      <MissingCajaBanner />
       <View style={styles.headerRow}>
         <View style={styles.headerText}>
           <Text style={styles.date}>{formatDate(today)}</Text>
