@@ -98,6 +98,13 @@ export async function getSalesByDateRange(start: Date, end: Date): Promise<Sale[
     .map((d) => mapSale(d.id, d.data()));
 }
 
+/** Ventas de un día calendario (local). */
+export async function getSalesForDay(date: Date): Promise<Sale[]> {
+  const start = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const end = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 23, 59, 59, 999);
+  return getSalesByDateRange(start, end);
+}
+
 export interface CreateSaleInput {
   date: Date;
   items: SaleItem[];

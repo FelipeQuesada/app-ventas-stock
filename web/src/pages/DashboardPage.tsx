@@ -21,13 +21,14 @@ import {
   formatCurrency,
   getLowStockProducts,
 } from '@advance-coat/shared';
-import { getSales, getTodaySales, getMonthSales } from '../services/sales';
+import { getSalesByDateRange, getTodaySales, getMonthSales } from '../services/sales';
 import { getProducts } from '../services/products';
 import {
   getDailySalesChart,
   getAverageTicket,
 } from '../services/stats';
 import type { Sale, Product } from '@advance-coat/shared';
+import { startOfMonth, subDays, startOfDay, endOfDay } from 'date-fns';
 import { useAuth } from '../context/AuthContext';
 import { MissingCajaBanner } from '../components/MissingCajaBanner';
 
@@ -44,7 +45,16 @@ export function DashboardPage() {
     let cancelled = false;
     (async () => {
       try {
-        const [s, p] = await Promise.all([getSales(), getProducts()]);
+        const now = new Date();
+        const rangeStart = startOfDay(
+          subDays(now, 30).getTime() < startOfMonth(now).getTime()
+            ? subDays(now, 30)
+            : startOfMonth(now)
+        );
+        const [s, p] = await Promise.all([
+          getSalesByDateRange(rangeStart, endOfDay(now)),
+          getProducts(),
+        ]);
         if (!cancelled) {
           setSales(s);
           setProducts(p);

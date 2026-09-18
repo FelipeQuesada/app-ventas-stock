@@ -20,6 +20,14 @@ import { db, storage } from '../lib/firebase';
 import { logAudit } from './audit';
 
 const COLLECTION = 'products';
+const PRODUCTS_TTL_MS = 60_000;
+
+let productsCache: { at: number; data: Product[] } | null = null;
+let productsInflight: Promise<Product[]> | null = null;
+
+export function invalidateProductsCache() {
+  productsCache = null;
+}
 
 function mapProduct(id: string, data: Record<string, unknown>): Product {
   return {
@@ -40,9 +48,23 @@ function mapProduct(id: string, data: Record<string, unknown>): Product {
 }
 
 export async function getProducts(): Promise<Product[]> {
-  const q = query(collection(db, COLLECTION), orderBy('name'));
-  const snap = await getDocs(q);
-  return snap.docs.map((d) => mapProduct(d.id, d.data()));
+  if (productsCache && Date.now() - productsCache.at < PRODUCTS_TTL_MS) {
+    return productsCache.data;
+  }
+
+  if (productsInflight) return productsInflight;
+
+  productsInflight = (async () => {
+    const q = query(collection(db, COLLECTION), orderBy('name'));
+    const snap = await getDocs(q);
+    const data = snap.docs.map((d) => mapProduct(d.id, d.data()));
+    productsCache = { at: Date.now(), data };
+    return data;
+  })().finally(() => {
+    productsInflight = null;
+  });
+
+  return productsInflight;
 }
 
 export function subscribeProducts(
@@ -53,7 +75,9 @@ export function subscribeProducts(
   return onSnapshot(
     q,
     (snap) => {
-      onData(snap.docs.map((d) => mapProduct(d.id, d.data())));
+      const data = snap.docs.map((d) => mapProduct(d.id, d.data()));
+      productsCache = { at: Date.now(), data };
+      onData(data);
     },
     (error) => {
       onError?.(error);
@@ -81,6 +105,7 @@ export async function createProduct(
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
+  invalidateProductsCache();
   return docRef.id;
 }
 
@@ -98,6 +123,7 @@ export async function updateProduct(
     ...(imageUrl !== undefined ? { imageUrl } : {}),
     updatedAt: serverTimestamp(),
   });
+  invalidateProductsCache();
 }
 
 export async function updateProductStock(
@@ -109,6 +135,7 @@ export async function updateProductStock(
     stock,
     updatedAt: serverTimestamp(),
   });
+  invalidateProductsCache();
 
   if (actor?.userId) {
     await logAudit({
@@ -125,6 +152,7 @@ export async function updateProductStock(
 
 export async function deleteProduct(id: string) {
   await deleteDoc(doc(db, COLLECTION, id));
+  invalidateProductsCache();
 }
 
 export async function deleteAllProducts(): Promise<number> {
@@ -144,6 +172,7 @@ export async function deleteAllProducts(): Promise<number> {
     if (snap.docs.length < 500) break;
   }
 
+  invalidateProductsCache();
   return totalDeleted;
 }
 

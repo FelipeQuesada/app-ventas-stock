@@ -37,15 +37,18 @@ service cloud.firestore {
     }
 
     match /products/{productId} {
-      allow read, write: if isAuthenticated();
+      allow read, create, update: if isAuthenticated();
+      allow delete: if isAdmin();
     }
 
     match /sales/{saleId} {
-      allow read, create, update, delete: if isAuthenticated();
+      allow read, create, update: if isAuthenticated();
+      allow delete: if isAdmin();
     }
 
     match /caja/{dateId} {
-      allow read, write: if isAuthenticated();
+      allow read, create, update: if isAuthenticated();
+      allow delete: if isAdmin();
     }
 
     // Caja central: get autenticado (depósitos al cerrar); list/UI saldo solo admin.

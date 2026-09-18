@@ -22,7 +22,7 @@ import {
   persistCajaCambio,
   withdrawFromCajaCentral,
 } from '../services/caja';
-import { getSales } from '../services/sales';
+import { getSalesForDay } from '../services/sales';
 import { useAuth } from '../context/AuthContext';
 import { MissingCajaBanner } from '../components/MissingCajaBanner';
 
@@ -76,7 +76,7 @@ export function CajaPage() {
         const [existing, prevCambio, sales] = await Promise.all([
           getCajaByDate(today),
           getCajaCambioFromPreviousDay(today),
-          getSales(),
+          getSalesForDay(today),
         ]);
         if (cancelled) return;
         setCashSales(getTodayCashTotal(sales));

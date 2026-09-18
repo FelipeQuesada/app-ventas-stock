@@ -15,7 +15,7 @@ import {
   getOrCreateCajaCentral,
   registerMissingCajaDay,
 } from '../services/caja';
-import { getSales } from '../services/sales';
+import { getSalesForDay } from '../services/sales';
 import { useAuth } from '../context/AuthContext';
 
 function parseDateInput(value: string): Date | null {
@@ -57,7 +57,7 @@ export function CajaRegisterMissingPage() {
     let cancelled = false;
     (async () => {
       try {
-        const sales = await getSales();
+        const sales = await getSalesForDay(date ?? new Date());
         if (cancelled) return;
         if (date) {
           const cash = getCashTotalForDate(sales, date);
@@ -88,7 +88,7 @@ export function CajaRegisterMissingPage() {
     if (!date || totalManual) return;
     let cancelled = false;
     (async () => {
-      const sales = await getSales();
+      const sales = await getSalesForDay(date);
       if (cancelled) return;
       const cash = getCashTotalForDate(sales, date);
       setCashSales(cash);

@@ -1,20 +1,14 @@
 import React from 'react';
-import { Platform } from 'react-native';
 import { Tabs } from 'expo-router';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { HeaderTitle } from '@/components/HeaderTitle';
+import { FloatingTabBar } from '@/components/FloatingTabBar';
 import { colors, typography } from '@/constants/theme';
 
 export default function TabLayout() {
-  const insets = useSafeAreaInsets();
-  // En tablets Android la barra de navegación del sistema suele tapar el menú
-  const minBottom = Platform.OS === 'android' ? 16 : 8;
-  const tabBarBottomPad = Math.max(insets.bottom, minBottom);
-  const tabBarHeight = 56 + tabBarBottomPad;
-
   return (
     <Tabs
+      tabBar={(props) => <FloatingTabBar {...props} />}
       screenOptions={{
         headerShown: true,
         headerStyle: { backgroundColor: colors.surface },
@@ -22,19 +16,13 @@ export default function TabLayout() {
         headerTitleStyle: { fontFamily: 'Inter_600SemiBold', ...typography.h3 },
         headerTitle: ({ children }) => <HeaderTitle>{children}</HeaderTitle>,
         tabBarStyle: {
-          backgroundColor: colors.surface,
-          borderTopColor: colors.border,
-          height: tabBarHeight,
-          paddingBottom: tabBarBottomPad,
-          paddingTop: 8,
+          backgroundColor: 'transparent',
+          borderTopWidth: 0,
+          elevation: 0,
+          shadowOpacity: 0,
         },
-        tabBarSafeAreaInsets: { bottom: 0 },
-        tabBarActiveTintColor: colors.primary,
-        tabBarInactiveTintColor: colors.textMuted,
-        tabBarLabelStyle: {
-          fontFamily: 'Inter_500Medium',
-          fontSize: 11,
-        },
+        tabBarActiveTintColor: '#2563EB',
+        tabBarInactiveTintColor: colors.textSecondary,
       }}
     >
       <Tabs.Screen

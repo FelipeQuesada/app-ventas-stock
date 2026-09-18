@@ -15,7 +15,7 @@ import {
   parseCajaId,
   saveCaja,
 } from '../services/caja';
-import { getSales } from '../services/sales';
+import { getSalesForDay } from '../services/sales';
 import { useAuth } from '../context/AuthContext';
 
 export function CajaEditPage() {
@@ -42,7 +42,7 @@ export function CajaEditPage() {
     let cancelled = false;
     (async () => {
       try {
-        const [existing, sales] = await Promise.all([getCajaByDate(date), getSales()]);
+        const [existing, sales] = await Promise.all([getCajaByDate(date), getSalesForDay(date)]);
         if (!cancelled) {
           setCashSales(getCashTotalForDate(sales, date));
           if (!existing || existing.entryType === 'retiro') {

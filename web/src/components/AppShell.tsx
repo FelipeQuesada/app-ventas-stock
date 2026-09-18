@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
@@ -84,6 +84,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     );
   });
 
+  const activeIndex = useMemo(() => {
+    if (open || moreActive) return BOTTOM_NAV.length;
+    const idx = BOTTOM_NAV.findIndex((item) => {
+      if (item.end) return location.pathname === item.to;
+      return (
+        item.to === location.pathname ||
+        (item.to !== '/' && location.pathname.startsWith(item.to))
+      );
+    });
+    return idx >= 0 ? idx : 0;
+  }, [location.pathname, open, moreActive]);
+
   return (
     <div className="app-shell">
       <AnimatePresence>
@@ -163,28 +175,43 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <main className="page-content">{children}</main>
 
         <nav className="bottom-nav" aria-label="Navegación principal">
-          {BOTTOM_NAV.map((item) => {
-            const Icon = item.icon;
-            return (
-              <NavLink
-                key={item.to}
-                to={item.to}
-                end={item.end}
-                className={({ isActive }) => `bottom-nav-link ${isActive ? 'active' : ''}`}
+          <div className="bottom-nav-pill">
+            <div className="bottom-nav-track">
+              <div
+                className="bottom-nav-indicator"
+                style={{ transform: `translate3d(${activeIndex * 100}%, 0, 0)` }}
+                aria-hidden
+              />
+              {BOTTOM_NAV.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <NavLink
+                    key={item.to}
+                    to={item.to}
+                    end={item.end}
+                    className={({ isActive }) =>
+                      `bottom-nav-link ${isActive && !open ? 'active' : ''}`
+                    }
+                  >
+                    {({ isActive }) => (
+                      <>
+                        <Icon size={20} strokeWidth={isActive && !open ? 2.4 : 2} />
+                        <span>{item.label}</span>
+                      </>
+                    )}
+                  </NavLink>
+                );
+              })}
+              <button
+                type="button"
+                className={`bottom-nav-link ${moreActive || open ? 'active' : ''}`}
+                onClick={() => setOpen(true)}
               >
-                <Icon size={22} />
-                <span>{item.label}</span>
-              </NavLink>
-            );
-          })}
-          <button
-            type="button"
-            className={`bottom-nav-link ${moreActive || open ? 'active' : ''}`}
-            onClick={() => setOpen(true)}
-          >
-            <MoreHorizontal size={22} />
-            <span>Más</span>
-          </button>
+                <MoreHorizontal size={20} strokeWidth={moreActive || open ? 2.4 : 2} />
+                <span>Más</span>
+              </button>
+            </div>
+          </div>
         </nav>
       </div>
     </div>
