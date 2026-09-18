@@ -36,6 +36,7 @@ export function CajaRegisterMissingPage() {
 
   const [dateStr, setDateStr] = useState(initialDate);
   const [cajaCambio, setCajaCambio] = useState(isPaulaBackfill ? '27700' : '0');
+  const [cajaTotalStr, setCajaTotalStr] = useState(isPaulaBackfill ? '67700' : '');
   const [totalGuardado, setTotalGuardado] = useState(isPaulaBackfill ? '40000' : '0');
   const [closedByName, setClosedByName] = useState(isPaulaBackfill ? 'Paula' : '');
   const [retiroAmount, setRetiroAmount] = useState(isPaulaBackfill ? '40000' : '');
@@ -44,6 +45,7 @@ export function CajaRegisterMissingPage() {
   const [centralBalance, setCentralBalance] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [totalManual, setTotalManual] = useState(isPaulaBackfill);
 
   const date = useMemo(() => parseDateInput(dateStr), [dateStr]);
 
@@ -57,7 +59,14 @@ export function CajaRegisterMissingPage() {
       try {
         const sales = await getSales();
         if (cancelled) return;
-        if (date) setCashSales(getCashTotalForDate(sales, date));
+        if (date) {
+          const cash = getCashTotalForDate(sales, date);
+          setCashSales(cash);
+          if (!totalManual) {
+            const cambio = Number(cajaCambio) || 0;
+            setCajaTotalStr(String(calculateCajaTotal(cash, cambio)));
+          }
+        }
         if (user) {
           const central = await getOrCreateCajaCentral({
             userId: user.uid,
@@ -72,24 +81,30 @@ export function CajaRegisterMissingPage() {
     return () => {
       cancelled = true;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dateStr, isAdmin, user?.uid, profile?.name]);
 
   useEffect(() => {
-    if (!date) return;
+    if (!date || totalManual) return;
     let cancelled = false;
     (async () => {
       const sales = await getSales();
-      if (!cancelled) setCashSales(getCashTotalForDate(sales, date));
+      if (cancelled) return;
+      const cash = getCashTotalForDate(sales, date);
+      setCashSales(cash);
+      const cambio = Number(cajaCambio) || 0;
+      setCajaTotalStr(String(calculateCajaTotal(cash, cambio)));
     })();
     return () => {
       cancelled = true;
     };
-  }, [dateStr]);
+  }, [dateStr, cajaCambio, totalManual, date]);
 
   const cambioNum = Number(cajaCambio) || 0;
   const guardadoNum = Number(totalGuardado) || 0;
   const retiroNum = Number(retiroAmount) || 0;
-  const cajaTotal = calculateCajaTotal(cashSales, cambioNum);
+  const cajaTotal = Number(cajaTotalStr) || 0;
+  const suggestedTotal = calculateCajaTotal(cashSales, cambioNum);
   const ganancia = calculateCajaGanancia(cajaTotal, cambioNum);
   const cambioCierre = calculateCambioCierre(cajaTotal, guardadoNum);
 
@@ -189,9 +204,19 @@ export function CajaRegisterMissingPage() {
         </div>
         <div className="field">
           <label>Caja total</label>
-          <input type="number" value={cajaTotal} readOnly disabled />
+          <input
+            type="number"
+            value={cajaTotalStr}
+            onChange={(e) => {
+              setTotalManual(true);
+              setCajaTotalStr(e.target.value);
+            }}
+            required
+          />
           <p className="hint" style={{ marginTop: 6 }}>
-            Ventas efectivo ({formatCurrency(cashSales)}) + cambio ({formatCurrency(cambioNum)})
+            Sugerido por app: ventas efectivo ({formatCurrency(cashSales)}) + cambio (
+            {formatCurrency(cambioNum)}) = {formatCurrency(suggestedTotal)}. Podés editarlo si
+            cerraron a mano.
           </p>
         </div>
         <div className="field">
