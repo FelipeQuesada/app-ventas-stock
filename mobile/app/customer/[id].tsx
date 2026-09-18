@@ -8,6 +8,8 @@ import { Input } from '@/components/ui/Input';
 import { EmptyState, LoadingScreen } from '@/components/ui/EmptyState';
 import { getCustomer, updateCustomer } from '@/services/customers';
 import { fetchCustomerPurchaseStats } from '@/services/sales';
+import { getPresupuestosByCustomerId, getPresupuestosByCustomerPhone } from '@/services/presupuestos';
+import type { Presupuesto } from '@advance-coat/shared';
 import { Customer, Sale } from '@/types';
 import { formatCurrency, formatDate } from '@/utils/format';
 import { showAlert } from '@/utils/alert';
@@ -18,6 +20,7 @@ export default function CustomerDetailScreen() {
   const router = useRouter();
   const [customer, setCustomer] = useState<Customer | null>(null);
   const [sales, setSales] = useState<Sale[]>([]);
+  const [presupuestos, setPresupuestos] = useState<Presupuesto[]>([]);
   const [totalSpent, setTotalSpent] = useState(0);
   const [topProduct, setTopProduct] = useState<{ name: string; quantity: number } | null>(null);
   const [loading, setLoading] = useState(true);
@@ -47,6 +50,11 @@ export default function CustomerDetailScreen() {
         setTotalSpent(0);
         setTopProduct(null);
       }
+      const byId = await getPresupuestosByCustomerId(data.id);
+      const byPhone = data.phone ? await getPresupuestosByCustomerPhone(data.phone) : [];
+      const map = new Map<string, Presupuesto>();
+      [...byId, ...byPhone].forEach((p) => map.set(p.id, p));
+      setPresupuestos([...map.values()].sort((a, b) => b.date.getTime() - a.date.getTime()));
     } catch (error) {
       console.error(error);
       showAlert('Error', 'No se pudo cargar el historial');
@@ -120,6 +128,36 @@ export default function CustomerDetailScreen() {
                   : 'Sin compras aún'}
               </Text>
             </Card>
+
+            <View style={styles.presHeader}>
+              <Text style={styles.historyTitle}>Presupuestos</Text>
+              <Button
+                title="Nuevo"
+                size="sm"
+                onPress={() =>
+                  router.push(
+                    `/presupuesto?clientName=${encodeURIComponent(customer.name || '')}&clientPhone=${encodeURIComponent(customer.phone || '')}` as Href
+                  )
+                }
+              />
+            </View>
+            {presupuestos.length === 0 ? (
+              <Text style={styles.meta}>Sin presupuestos para este cliente</Text>
+            ) : (
+              presupuestos.map((p) => (
+                <Card key={p.id} style={styles.saleCard}>
+                  <Text style={styles.saleDate}>{formatDate(p.date)}</Text>
+                  <Text style={styles.saleTotal}>{formatCurrency(p.total)}</Text>
+                  <Button
+                    title="Ver / editar"
+                    variant="outline"
+                    size="sm"
+                    onPress={() => router.push(`/presupuesto?edit=${p.id}` as Href)}
+                    style={styles.saleBtn}
+                  />
+                </Card>
+              ))
+            )}
 
             <Text style={styles.historyTitle}>Historial de ventas</Text>
           </View>
@@ -240,6 +278,12 @@ const styles = StyleSheet.create({
     ...typography.h3,
     fontFamily: 'Inter_600SemiBold',
     color: colors.text,
+    marginTop: spacing.sm,
+  },
+  presHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     marginTop: spacing.sm,
   },
   saleCard: {

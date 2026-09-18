@@ -116,6 +116,22 @@ export default function RootLayout() {
               }}
             />
             <Stack.Screen
+              name="presupuesto"
+              options={{
+                ...stackHeaderOptions,
+                title: 'Presupuesto',
+                headerBackTitle: 'Volver',
+              }}
+            />
+            <Stack.Screen
+              name="presupuesto-list"
+              options={{
+                ...stackHeaderOptions,
+                title: 'Historial presupuestos',
+                headerBackTitle: 'Volver',
+              }}
+            />
+            <Stack.Screen
               name="caja-list"
               options={{
                 ...stackHeaderOptions,

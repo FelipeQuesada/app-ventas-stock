@@ -175,6 +175,8 @@ export default function DashboardScreen() {
 
       <Text style={styles.sectionTitle}>Accesos rápidos</Text>
       <View style={styles.quickActions}>
+        <QuickAction title="Presupuesto" icon="description" href="/presupuesto" color={colors.primary} />
+        <QuickAction title="Hist. presupuestos" icon="folder-open" href="/presupuesto-list" color={colors.primary} />
         <QuickAction title="Caja" icon="point-of-sale" href="/caja" color={colors.primary} />
         <QuickAction title="Historial caja" icon="history" href="/caja-list" color={colors.primary} />
         <QuickAction title="Nueva venta" icon="add-shopping-cart" href="/(tabs)/sales" color={colors.accent} />
