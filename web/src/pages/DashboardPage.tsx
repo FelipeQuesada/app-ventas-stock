@@ -29,6 +29,7 @@ import {
 } from '../services/stats';
 import type { Sale, Product } from '@advance-coat/shared';
 import { useAuth } from '../context/AuthContext';
+import { MissingCajaBanner } from '../components/MissingCajaBanner';
 
 export function DashboardPage() {
   const navigate = useNavigate();
@@ -72,6 +73,7 @@ export function DashboardPage() {
 
   return (
     <div>
+      <MissingCajaBanner />
       {showLowStock && lowStock.length > 0 && (
         <div className="alert alert-warning">
           <AlertTriangle size={20} color="#B45309" />

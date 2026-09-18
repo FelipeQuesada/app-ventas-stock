@@ -54,6 +54,7 @@ const TITLES: Record<string, string> = {
   '/customers': 'Clientes',
   '/caja': 'Caja del día',
   '/caja/list': 'Historial de caja',
+  '/caja/register': 'Día faltante',
   '/statistics': 'Estadísticas',
   '/users': 'Usuarios',
   '/profile': 'Perfil',
@@ -64,6 +65,7 @@ function resolveTitle(pathname: string): string {
   if (pathname.startsWith('/products/')) return 'Editar producto';
   if (pathname.startsWith('/customers/')) return 'Detalle de cliente';
   if (pathname.startsWith('/caja/edit/')) return 'Editar caja';
+  if (pathname.startsWith('/caja/register')) return 'Día faltante';
   return 'Advance Coat';
 }
 

@@ -15,6 +15,7 @@ import { CustomerDetailPage } from './pages/CustomerDetailPage';
 import { CajaPage } from './pages/CajaPage';
 import { CajaListPage } from './pages/CajaListPage';
 import { CajaEditPage } from './pages/CajaEditPage';
+import { CajaRegisterMissingPage } from './pages/CajaRegisterMissingPage';
 import { StatisticsPage } from './pages/StatisticsPage';
 import { ProfilePage } from './pages/ProfilePage';
 import { AdminSetupPage } from './pages/admin/AdminSetupPage';
@@ -53,6 +54,7 @@ export default function App() {
               <Route path="/customers/:id" element={<CustomerDetailPage />} />
               <Route path="/caja" element={<CajaPage />} />
               <Route path="/caja/list" element={<CajaListPage />} />
+              <Route path="/caja/register" element={<CajaRegisterMissingPage />} />
               <Route path="/caja/edit/:date" element={<CajaEditPage />} />
               <Route path="/statistics" element={<StatisticsPage />} />
               <Route path="/tiendanube" element={<Navigate to="/" replace />} />

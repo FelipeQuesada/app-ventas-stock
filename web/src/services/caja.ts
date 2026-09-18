@@ -119,6 +119,78 @@ export async function getCajaByDate(date: Date): Promise<DailyCaja | null> {
   return mapCaja(snap.id, snap.data());
 }
 
+/** True si existe documento de cierre (id yyyy-MM-dd), no un retiro. */
+export async function hasCajaCierreOnDate(date: Date): Promise<boolean> {
+  const caja = await getCajaByDate(date);
+  return !!caja && caja.entryType !== 'retiro';
+}
+
+/** Día calendario anterior a `from` (default: hoy). */
+export function getPreviousCalendarDay(from = new Date()): Date {
+  return new Date(from.getFullYear(), from.getMonth(), from.getDate() - 1);
+}
+
+/**
+ * Si el día calendario anterior no tiene cierre, lo devuelve; si no, null.
+ */
+export async function getMissingPreviousDayCierre(
+  from = new Date()
+): Promise<Date | null> {
+  const previous = getPreviousCalendarDay(from);
+  const has = await hasCajaCierreOnDate(previous);
+  return has ? null : previous;
+}
+
+/** Cierre de un día que no se cargó desde la app (+ retiro opcional). */
+export async function registerMissingCajaDay(input: {
+  date: Date;
+  cajaCambio: number;
+  cajaTotal: number;
+  totalGuardado: number;
+  closedByName: string;
+  updatedBy: string;
+  updatedByName?: string;
+  retiroAmount?: number;
+  retiroByName?: string;
+}): Promise<void> {
+  const existing = await getCajaByDate(input.date);
+  if (existing && existing.entryType !== 'retiro') {
+    throw new Error('Ya hay un cierre para esa fecha. Usá Editar en el historial.');
+  }
+  if (input.totalGuardado < 0) {
+    throw new Error('El total guardado no puede ser negativo');
+  }
+  if (input.totalGuardado > input.cajaTotal) {
+    throw new Error('El total guardado no puede superar la caja total');
+  }
+  const retiro = input.retiroAmount ?? 0;
+  if (retiro < 0) throw new Error('El retiro no puede ser negativo');
+  if (retiro > input.totalGuardado) {
+    throw new Error('El retiro no puede ser mayor a lo guardado ese día');
+  }
+
+  await saveCaja({
+    date: input.date,
+    cajaCambio: input.cajaCambio,
+    cajaTotal: input.cajaTotal,
+    totalGuardado: input.totalGuardado,
+    depositoCentral: input.totalGuardado,
+    closedByName: input.closedByName,
+    updatedBy: input.updatedBy,
+    updatedByName: input.updatedByName,
+  });
+
+  if (retiro > 0) {
+    await withdrawFromCajaCentral({
+      amount: retiro,
+      actorName: input.retiroByName?.trim() || input.closedByName,
+      userId: input.updatedBy,
+      userName: input.updatedByName,
+      date: input.date,
+    });
+  }
+}
+
 /** Cambio que quedó en el último cierre anterior, aunque no haya sido ayer. */
 export async function getCajaCambioFromPreviousDay(date: Date): Promise<number> {
   const previous = await getPreviousCaja(date);
@@ -280,6 +352,8 @@ export async function withdrawFromCajaCentral(input: {
   actorName: string;
   userId: string;
   userName?: string;
+  /** Fecha del retiro en historial (default: ahora) */
+  date?: Date;
 }): Promise<CajaCentral> {
   if (input.amount <= 0) throw new Error('Ingresá un monto válido para el retiro');
 
@@ -306,11 +380,14 @@ export async function withdrawFromCajaCentral(input: {
     return next;
   });
 
+  const eventDate = input.date ?? new Date();
+  const historyId = `retiro-${format(eventDate, 'yyyy-MM-dd-HHmmss')}`;
+
   try {
     await addDoc(collection(db, CENTRAL_MOVEMENTS), {
       type: 'retiro',
       amount: input.amount,
-      date: Timestamp.now(),
+      date: Timestamp.fromDate(eventDate),
       actorName: input.actorName,
       userId: input.userId,
       userName: input.userName ?? '',
@@ -320,11 +397,9 @@ export async function withdrawFromCajaCentral(input: {
     // auditoría opcional
   }
 
-  const now = new Date();
-  const historyId = `retiro-${format(now, 'yyyy-MM-dd-HHmmss')}`;
   await setDoc(doc(db, COLLECTION, historyId), {
     entryType: 'retiro',
-    date: Timestamp.fromDate(now),
+    date: Timestamp.fromDate(eventDate),
     cajaCambio: 0,
     cajaTotal: 0,
     ganancia: 0,

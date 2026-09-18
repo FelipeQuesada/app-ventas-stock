@@ -277,6 +277,8 @@ export async function withdrawFromCajaCentral(input: {
   actorName: string;
   userId: string;
   userName?: string;
+  /** Fecha del retiro en historial (default: ahora) */
+  date?: Date;
 }): Promise<CajaCentral> {
   if (input.amount <= 0) throw new Error('Ingresá un monto válido para el retiro');
 
@@ -303,11 +305,14 @@ export async function withdrawFromCajaCentral(input: {
     return next;
   });
 
+  const eventDate = input.date ?? new Date();
+  const historyId = `retiro-${format(eventDate, 'yyyy-MM-dd-HHmmss')}`;
+
   try {
     await addDoc(collection(db, CENTRAL_MOVEMENTS), {
       type: 'retiro',
       amount: input.amount,
-      date: Timestamp.now(),
+      date: Timestamp.fromDate(eventDate),
       actorName: input.actorName,
       userId: input.userId,
       userName: input.userName ?? '',
@@ -317,11 +322,9 @@ export async function withdrawFromCajaCentral(input: {
     // auditoría opcional
   }
 
-  const now = new Date();
-  const historyId = `retiro-${format(now, 'yyyy-MM-dd-HHmmss')}`;
   await setDoc(doc(db, COLLECTION, historyId), {
     entryType: 'retiro',
-    date: Timestamp.fromDate(now),
+    date: Timestamp.fromDate(eventDate),
     cajaCambio: 0,
     cajaTotal: 0,
     ganancia: 0,

@@ -9,7 +9,12 @@ import {
   calculateCambioCierre,
   SALE_SELLERS,
 } from '@advance-coat/shared';
-import { getCajaByDate, getCashTotalForDate, parseCajaId, saveCaja } from '../services/caja';
+import {
+  getCajaByDate,
+  getCashTotalForDate,
+  parseCajaId,
+  saveCaja,
+} from '../services/caja';
 import { getSales } from '../services/sales';
 import { useAuth } from '../context/AuthContext';
 
@@ -23,6 +28,7 @@ export function CajaEditPage() {
   const [totalGuardado, setTotalGuardado] = useState('');
   const [closedByName, setClosedByName] = useState('');
   const [cashSales, setCashSales] = useState(0);
+  const [isNew, setIsNew] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -37,15 +43,19 @@ export function CajaEditPage() {
     (async () => {
       try {
         const [existing, sales] = await Promise.all([getCajaByDate(date), getSales()]);
-        if (!existing) {
-          setError('No hay caja para esa fecha');
-          return;
-        }
         if (!cancelled) {
           setCashSales(getCashTotalForDate(sales, date));
-          setCajaCambio(String(existing.cajaCambio));
-          setTotalGuardado(String(existing.totalGuardado));
-          setClosedByName(existing.closedByName ?? '');
+          if (!existing || existing.entryType === 'retiro') {
+            setIsNew(true);
+            setCajaCambio('0');
+            setTotalGuardado('0');
+            setClosedByName('');
+          } else {
+            setIsNew(false);
+            setCajaCambio(String(existing.cajaCambio));
+            setTotalGuardado(String(existing.totalGuardado));
+            setClosedByName(existing.closedByName ?? '');
+          }
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -71,7 +81,7 @@ export function CajaEditPage() {
         cajaCambio: cambioNum,
         cajaTotal: totalNum,
         totalGuardado: guardadoNum,
-        depositoCentral: 0,
+        depositoCentral: isNew ? guardadoNum : 0,
         closedByName: closer,
         updatedBy: user.uid,
         updatedByName: profile?.name,
@@ -101,9 +111,18 @@ export function CajaEditPage() {
       <Link to="/caja/list" className="btn btn-ghost btn-sm" style={{ marginBottom: 12 }}>
         <ArrowLeft size={14} /> Volver
       </Link>
-      <h3>Editar caja · {formatShortDate(date)}</h3>
+      <h3>
+        {isNew ? 'Crear caja' : 'Editar caja'} · {formatShortDate(date)}
+      </h3>
+      {isNew ? (
+        <p className="muted" style={{ marginTop: 6 }}>
+          No había cierre para este día. Al guardar se deposita el total guardado en caja central.
+          Si también hubo retiro, usá{' '}
+          <Link to={`/caja/register?date=${dateParam}`}>Registrar día faltante</Link>.
+        </p>
+      ) : null}
 
-      <form className="card" onSubmit={handleSave} style={{ marginTop: 16 }}>
+      <form className="card" onSubmit={(e) => void handleSave(e)} style={{ marginTop: 16 }}>
         <div className="field">
           <label>Caja cambio</label>
           <input

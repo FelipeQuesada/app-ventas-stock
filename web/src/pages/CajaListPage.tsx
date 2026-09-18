@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Download, FileText, Pencil, Trash2 } from 'lucide-react';
+import { Download, FileText, Pencil, Plus, Trash2 } from 'lucide-react';
 import type { DailyCaja, PeriodSelection } from '@advance-coat/shared';
 import {
   formatCurrency,
@@ -12,8 +12,11 @@ import {
 import { getCajaHistory, deleteCajaRecord } from '../services/caja';
 import { exportCajaRecordsToExcel, exportCajaRecordsToPdf } from '../services/export';
 import { PeriodFilter } from '../components/PeriodFilter';
+import { useAuth } from '../context/AuthContext';
 
 export function CajaListPage() {
+  const { profile } = useAuth();
+  const isAdmin = profile?.role === 'admin';
   const [records, setRecords] = useState<DailyCaja[]>([]);
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState<PeriodSelection>(() => createDefaultPeriod());
@@ -63,6 +66,11 @@ export function CajaListPage() {
           </p>
         </div>
         <div className="actions">
+          {isAdmin ? (
+            <Link to="/caja/register" className="btn btn-primary btn-sm">
+              <Plus size={14} /> Día faltante
+            </Link>
+          ) : null}
           <Link to="/caja" className="btn btn-ghost btn-sm">
             Caja de hoy
           </Link>
@@ -97,6 +105,11 @@ export function CajaListPage() {
         <div className="empty-state card">
           <h3>Sin movimientos</h3>
           <p>No hay cierres ni retiros en este período.</p>
+          {isAdmin ? (
+            <Link to="/caja/register" className="btn btn-primary" style={{ marginTop: 12 }}>
+              Registrar día faltante
+            </Link>
+          ) : null}
         </div>
       ) : (
         <div className="table-wrap">
