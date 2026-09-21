@@ -20,3 +20,4 @@ export * from './utils/salesReport';
 export * from './utils/salesReportExcel';
 export * from './utils/flex';
 export * from './utils/flexExcel';
+export * from './utils/flexLabels';

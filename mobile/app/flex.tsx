@@ -35,6 +35,7 @@ import { DatePickerField } from '@/components/ui/DatePickerField';
 import { LoadingScreen } from '@/components/ui/EmptyState';
 import { addFlexShipment, deleteFlexShipment, getFlexShipmentsByMonth } from '@/services/flex';
 import { exportFlexMonthToExcel } from '@/services/export';
+import { ImportFlexLabelsModal } from '@/components/ImportFlexLabelsModal';
 import { formatCurrency } from '@/utils/format';
 import { colors, spacing, typography } from '@/constants/theme';
 
@@ -46,6 +47,7 @@ export default function FlexScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
 
   const [entryDate, setEntryDate] = useState(() => new Date());
   const [locality, setLocality] = useState('CABA');
@@ -146,6 +148,20 @@ export default function FlexScreen() {
     }
   }
 
+  function handleImported(info: { rows: number; packages: number; firstDate: Date | null }) {
+    if (info.firstDate) {
+      const nextMonth = new Date(info.firstDate.getFullYear(), info.firstDate.getMonth(), 1);
+      if (
+        nextMonth.getFullYear() !== month.getFullYear() ||
+        nextMonth.getMonth() !== month.getMonth()
+      ) {
+        setMonth(nextMonth);
+        return;
+      }
+    }
+    void load();
+  }
+
   if (loading) return <LoadingScreen />;
 
   return (
@@ -171,6 +187,12 @@ export default function FlexScreen() {
         title={exporting ? 'Exportando…' : 'Exportar Excel mensual'}
         onPress={() => void handleExport()}
         disabled={exporting}
+        style={styles.exportBtn}
+      />
+      <Button
+        title="Importar PDF de etiquetas"
+        variant="outline"
+        onPress={() => setImportOpen(true)}
         style={styles.exportBtn}
       />
 
@@ -272,6 +294,17 @@ export default function FlexScreen() {
         )}
         <Text style={styles.hint}>Mantené pulsado un registro para eliminarlo</Text>
       </Card>
+
+      {user ? (
+        <ImportFlexLabelsModal
+          visible={importOpen}
+          onClose={() => setImportOpen(false)}
+          onImported={handleImported}
+          referenceYear={month.getFullYear()}
+          createdBy={user.uid}
+          createdByName={profile?.name}
+        />
+      ) : null}
     </ScrollView>
   );
 }

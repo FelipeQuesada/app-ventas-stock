@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Download, Package, Plus, Trash2, Truck, Calendar, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Download, Package, Plus, Trash2, Truck, Calendar, ChevronLeft, ChevronRight, FileUp } from 'lucide-react';
 import { addMonths, format, subMonths } from 'date-fns';
 import { es } from 'date-fns/locale';
 import {
@@ -20,6 +20,8 @@ import {
 import { useAuth } from '../context/AuthContext';
 import { addFlexShipment, deleteFlexShipment, getFlexShipmentsByMonth } from '../services/flex';
 import { exportFlexMonthToExcel } from '../services/export';
+import { ImportFlexLabelsModal } from '../components/ImportFlexLabelsModal';
+import { DateField } from '../components/DateField';
 
 function monthInputValue(date: Date): string {
   return format(date, 'yyyy-MM');
@@ -37,6 +39,7 @@ export function FlexPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
 
   const [entryDate, setEntryDate] = useState(() => format(new Date(), 'yyyy-MM-dd'));
   const [locality, setLocality] = useState('CABA');
@@ -127,6 +130,21 @@ export function FlexPage() {
     }
   }
 
+  function handleImported(info: { rows: number; packages: number; firstDate: Date | null }) {
+    window.alert(`Se importaron ${info.packages} paquete(s) en ${info.rows} grupo(s).`);
+    if (info.firstDate) {
+      const nextMonth = new Date(info.firstDate.getFullYear(), info.firstDate.getMonth(), 1);
+      if (
+        nextMonth.getFullYear() !== month.getFullYear() ||
+        nextMonth.getMonth() !== month.getMonth()
+      ) {
+        setMonth(nextMonth);
+        return;
+      }
+    }
+    void load();
+  }
+
   const recent = [...shipments].reverse().slice(0, 20);
 
   return (
@@ -172,6 +190,9 @@ export function FlexPage() {
               <ChevronRight size={18} />
             </button>
           </div>
+          <button type="button" className="btn btn-ghost" onClick={() => setImportOpen(true)}>
+            <FileUp size={16} /> Importar PDF
+          </button>
           <button type="button" className="btn btn-primary" onClick={() => void handleExport()} disabled={exporting}>
             <Download size={16} /> {exporting ? 'Exportando…' : 'Excel mensual'}
           </button>
@@ -183,20 +204,10 @@ export function FlexPage() {
           <h3 className="card-title">Cargar envío</h3>
           <p className="card-subtitle">Elegí el lugar; la zona y el precio se asignan solos</p>
 
-          <div className="field">
-            <label>Fecha</label>
-            <input
-              type="date"
-              className="input"
-              value={entryDate}
-              onChange={(e) => setEntryDate(e.target.value)}
-              required
-            />
-          </div>
+          <DateField label="Fecha" value={entryDate} onChange={setEntryDate} />
 
           <div className="field">
-            <label>Lugar</label>
-            <select
+            <label>Lugar</label>            <select
               className="input"
               value={locality}
               onChange={(e) => setLocality(e.target.value)}
@@ -243,6 +254,15 @@ export function FlexPage() {
 
           <button type="submit" className="btn btn-primary" disabled={saving || !zone}>
             <Plus size={16} /> {saving ? 'Guardando…' : 'Agregar'}
+          </button>
+
+          <button
+            type="button"
+            className="btn btn-ghost"
+            style={{ marginTop: 10, width: '100%' }}
+            onClick={() => setImportOpen(true)}
+          >
+            <FileUp size={16} /> O importar PDF de etiquetas
           </button>
         </form>
 
@@ -356,6 +376,19 @@ export function FlexPage() {
                   </tr>
                 ))}
               </tbody>
+              <tfoot>
+                <tr className="flex-control-total">
+                  <td className="flex-col-date">Total mes</td>
+                  <td className="flex-col-caba has-value">{summary.counts.caba}</td>
+                  <td className="flex-col-z1 has-value">{summary.counts.zona1}</td>
+                  <td className="flex-col-z2 has-value">{summary.counts.zona2}</td>
+                  <td className="flex-col-z3 has-value">{summary.counts.zona3}</td>
+                  <td className="flex-col-pedidos has-value">{summary.totalPedidos}</td>
+                  <td className="flex-col-recaudado has-value">
+                    {formatCurrency(summary.totalRecaudado)}
+                  </td>
+                </tr>
+              </tfoot>
             </table>
           </div>
         )}
@@ -389,6 +422,17 @@ export function FlexPage() {
           </ul>
         )}
       </div>
+
+      {user && (
+        <ImportFlexLabelsModal
+          open={importOpen}
+          onClose={() => setImportOpen(false)}
+          onImported={handleImported}
+          referenceYear={month.getFullYear()}
+          createdBy={user.uid}
+          createdByName={profile?.name}
+        />
+      )}
     </div>
   );
 }

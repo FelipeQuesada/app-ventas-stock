@@ -88,6 +88,27 @@ export async function addFlexShipment(input: {
   return docRef.id;
 }
 
+export async function addFlexShipmentsBatch(
+  items: Array<{
+    date: Date;
+    zone: FlexZoneId;
+    locality: string;
+    quantity: number;
+  }>,
+  meta: { createdBy: string; createdByName?: string }
+): Promise<number> {
+  let count = 0;
+  for (const item of items) {
+    await addFlexShipment({
+      ...item,
+      createdBy: meta.createdBy,
+      createdByName: meta.createdByName,
+    });
+    count += 1;
+  }
+  return count;
+}
+
 export async function deleteFlexShipment(id: string): Promise<void> {
   await deleteDoc(doc(db, COLLECTION, id));
 }
