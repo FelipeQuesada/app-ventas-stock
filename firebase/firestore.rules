@@ -17,23 +17,16 @@ service cloud.firestore {
       return hasOwnProfile() && get(ownProfilePath()).data.role == 'admin';
     }
 
-    function isOwnerBootstrap() {
-      return isAuthenticated()
-        && request.auth.token.email == 'felimq09@gmail.com'
-        && request.resource.data.email == 'felimq09@gmail.com'
-        && request.resource.data.role == 'admin'
-        && request.resource.data.active == true;
-    }
-
     match /users/{userId} {
       allow get: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
       allow list: if isAdmin();
-      allow create: if isAdmin()
-        || (request.auth.uid == userId && isOwnerBootstrap());
+      allow create: if isAdmin();
+      // Empleados pueden editar datos propios, nunca role ni active.
       allow update: if isAdmin()
         || (request.auth.uid == userId
-            && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role']))
-        || (request.auth.uid == userId && isOwnerBootstrap());
+            && !request.resource.data.diff(resource.data).affectedKeys()
+                .hasAny(['role', 'active']));
+      allow delete: if isAdmin();
     }
 
     match /products/{productId} {

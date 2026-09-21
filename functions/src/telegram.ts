@@ -1,13 +1,15 @@
 import { logger } from 'firebase-functions';
 
-const TELEGRAM_CHAT_ID = '-5524760869';
-
-export async function sendTelegramMessage(token: string, text: string): Promise<void> {
+export async function sendTelegramMessage(
+  token: string,
+  chatId: string,
+  text: string
+): Promise<void> {
   const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
-      chat_id: TELEGRAM_CHAT_ID,
+      chat_id: chatId,
       text,
     }),
   });

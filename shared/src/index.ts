@@ -21,3 +21,4 @@ export * from './utils/salesReportExcel';
 export * from './utils/flex';
 export * from './utils/flexExcel';
 export * from './utils/flexLabels';
+export * from './utils/flexPdf';

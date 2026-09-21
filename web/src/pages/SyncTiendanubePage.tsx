@@ -136,9 +136,8 @@ export function SyncTiendanubePage() {
           <div>
             <strong>Credenciales no configuradas</strong>
             <p className="muted" style={{ margin: '4px 0 0' }}>
-              En <code>web/.env</code> agregá{' '}
-              <code>VITE_TIENDANUBE_STORE_ID</code> y <code>VITE_TIENDANUBE_TOKEN</code>,
-              y reiniciá el servidor.
+              Tiendanube está desconectada. Las credenciales no viven en el navegador;
+              cuando se reactive, van solo como secrets de Cloud Functions.
             </p>
           </div>
         </div>

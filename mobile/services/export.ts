@@ -17,6 +17,7 @@ import {
   buildSalesReportExcelBuffer,
   computeResinAccounting,
   buildFlexMonthExcelBuffer,
+  buildFlexMonthPdfHtml,
   type ResinAccountingOptions,
   type FlexShipment,
 } from '@advance-coat/shared';
@@ -592,6 +593,15 @@ export async function exportFlexMonthToExcel(
     dialogTitle: `Control Flex ${format(month, 'MMMM yyyy', { locale: es })}`,
     UTI: 'com.microsoft.excel.xlsx',
   });
+}
+
+export function buildFlexMonthPdf(
+  month: Date,
+  shipments: FlexShipment[]
+): { html: string; title: string } {
+  const monthLabel = format(month, 'MMMM yyyy', { locale: es });
+  const title = `Control Flex ${monthLabel}`;
+  return { html: buildFlexMonthPdfHtml(month, shipments), title };
 }
 
 

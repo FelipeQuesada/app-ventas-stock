@@ -2,6 +2,7 @@ import { initializeApp } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { logger } from 'firebase-functions';
 import { defineSecret } from 'firebase-functions/params';
+import { onRequest } from 'firebase-functions/v2/https';
 import { onDocumentCreated, onDocumentWritten } from 'firebase-functions/v2/firestore';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { buildCajaCierreText, buildCajaRetiroText } from './cajaMessages';
@@ -10,13 +11,51 @@ import { sendTelegramMessage } from './telegram';
 
 initializeApp();
 
-/** Token de BotFather — setear con: firebase functions:secrets:set TELEGRAM_BOT_TOKEN */
+/** Token de BotFather — firebase functions:secrets:set TELEGRAM_BOT_TOKEN */
 const telegramBotToken = defineSecret('TELEGRAM_BOT_TOKEN');
+/** ID del grupo/chat — firebase functions:secrets:set TELEGRAM_CHAT_ID */
+const telegramChatId = defineSecret('TELEGRAM_CHAT_ID');
+/**
+ * JSON de config web del cliente (apiKey, authDomain, projectId, …).
+ * firebase functions:secrets:set WEB_CLIENT_FIREBASE_CONFIG
+ * (no puede empezar con FIREBASE_ — prefijo reservado)
+ */
+const firebaseWebConfig = defineSecret('WEB_CLIENT_FIREBASE_CONFIG');
 
 const functionOpts = {
   region: 'southamerica-east1' as const,
-  secrets: [telegramBotToken],
+  secrets: [telegramBotToken, telegramChatId],
 };
+
+/** Expone la config pública del cliente sin versionarla en el repo ni en Vercel VITE_*. */
+export const getWebFirebaseConfig = onRequest(
+  {
+    region: 'southamerica-east1',
+    secrets: [firebaseWebConfig],
+    cors: true,
+  },
+  (req, res) => {
+    if (req.method === 'OPTIONS') {
+      res.status(204).send('');
+      return;
+    }
+    if (req.method !== 'GET') {
+      res.status(405).json({ error: 'Method not allowed' });
+      return;
+    }
+    try {
+      const parsed = JSON.parse(firebaseWebConfig.value()) as Record<string, unknown>;
+      if (!parsed.apiKey || !parsed.projectId || !parsed.authDomain) {
+        throw new Error('WEB_CLIENT_FIREBASE_CONFIG incompleto');
+      }
+      res.set('Cache-Control', 'public, max-age=300');
+      res.status(200).json(parsed);
+    } catch (err) {
+      logger.error('getWebFirebaseConfig falló', err);
+      res.status(500).json({ error: 'Config no disponible' });
+    }
+  }
+);
 
 function argentinaDateId(date = new Date()): string {
   return new Intl.DateTimeFormat('en-CA', {
@@ -25,6 +64,10 @@ function argentinaDateId(date = new Date()): string {
     month: '2-digit',
     day: '2-digit',
   }).format(date);
+}
+
+async function notifyTelegram(text: string): Promise<void> {
+  await sendTelegramMessage(telegramBotToken.value(), telegramChatId.value(), text);
 }
 
 export const onSaleCreatedNotifyTelegram = onDocumentCreated(
@@ -45,7 +88,7 @@ export const onSaleCreatedNotifyTelegram = onDocumentCreated(
       return;
     }
 
-    await sendTelegramMessage(telegramBotToken.value(), buildSaleGroupTextFromDoc(data));
+    await notifyTelegram(buildSaleGroupTextFromDoc(data));
     logger.info('Venta notificada a Telegram', { saleId: event.params.saleId });
   }
 );
@@ -115,7 +158,7 @@ export const onCajaWrittenNotifyTelegram = onDocumentWritten(
 
     const text = isRetiro ? buildCajaRetiroText(data) : buildCajaCierreText(data);
 
-    await sendTelegramMessage(telegramBotToken.value(), text);
+    await notifyTelegram(text);
     logger.info('Caja notificada a Telegram', {
       cajaId,
       entryType: isRetiro ? 'retiro' : 'cierre',
@@ -130,7 +173,7 @@ export const remindMissingCajaCierreTelegram = onSchedule(
     schedule: '0 21 * * 1-5',
     timeZone: 'America/Argentina/Buenos_Aires',
     region: 'southamerica-east1',
-    secrets: [telegramBotToken],
+    secrets: [telegramBotToken, telegramChatId],
   },
   async () => {
     const dayId = argentinaDateId();
@@ -150,7 +193,7 @@ export const remindMissingCajaCierreTelegram = onSchedule(
       'Si cerraron a mano, cargalo en Historial de caja → Día faltante.',
     ].join('\n');
 
-    await sendTelegramMessage(telegramBotToken.value(), text);
+    await notifyTelegram(text);
     logger.info('Recordatorio de caja enviado', { dayId });
   }
 );

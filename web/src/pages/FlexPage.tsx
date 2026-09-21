@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Download, Package, Plus, Trash2, Truck, Calendar, ChevronLeft, ChevronRight, FileUp } from 'lucide-react';
+import { Download, Package, Plus, Trash2, Truck, Calendar, ChevronLeft, ChevronRight, FileUp, FileText } from 'lucide-react';
 import { addMonths, format, subMonths } from 'date-fns';
 import { es } from 'date-fns/locale';
 import {
@@ -19,9 +19,10 @@ import {
 } from '@advance-coat/shared';
 import { useAuth } from '../context/AuthContext';
 import { addFlexShipment, deleteFlexShipment, getFlexShipmentsByMonth } from '../services/flex';
-import { exportFlexMonthToExcel } from '../services/export';
+import { buildFlexMonthPdf, exportFlexMonthToExcel } from '../services/export';
 import { ImportFlexLabelsModal } from '../components/ImportFlexLabelsModal';
 import { DateField } from '../components/DateField';
+import { PdfPreviewModal, type PdfPreviewState } from '../components/PdfPreviewModal';
 
 function monthInputValue(date: Date): string {
   return format(date, 'yyyy-MM');
@@ -40,6 +41,7 @@ export function FlexPage() {
   const [saving, setSaving] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [pdfPreview, setPdfPreview] = useState<PdfPreviewState>(null);
 
   const [entryDate, setEntryDate] = useState(() => format(new Date(), 'yyyy-MM-dd'));
   const [locality, setLocality] = useState('CABA');
@@ -130,6 +132,15 @@ export function FlexPage() {
     }
   }
 
+  function handleExportPdf() {
+    try {
+      const preview = buildFlexMonthPdf(month, shipments);
+      setPdfPreview(preview);
+    } catch (err) {
+      window.alert(err instanceof Error ? err.message : 'No se pudo generar el PDF');
+    }
+  }
+
   function handleImported(info: { rows: number; packages: number; firstDate: Date | null }) {
     window.alert(`Se importaron ${info.packages} paquete(s) en ${info.rows} grupo(s).`);
     if (info.firstDate) {
@@ -192,6 +203,9 @@ export function FlexPage() {
           </div>
           <button type="button" className="btn btn-ghost" onClick={() => setImportOpen(true)}>
             <FileUp size={16} /> Importar PDF
+          </button>
+          <button type="button" className="btn btn-ghost" onClick={handleExportPdf}>
+            <FileText size={16} /> PDF mensual
           </button>
           <button type="button" className="btn btn-primary" onClick={() => void handleExport()} disabled={exporting}>
             <Download size={16} /> {exporting ? 'Exportando…' : 'Excel mensual'}
@@ -433,6 +447,13 @@ export function FlexPage() {
           createdByName={profile?.name}
         />
       )}
+
+      <PdfPreviewModal
+        open={!!pdfPreview}
+        html={pdfPreview?.html ?? null}
+        title={pdfPreview?.title}
+        onClose={() => setPdfPreview(null)}
+      />
     </div>
   );
 }

@@ -34,8 +34,9 @@ import { MonthPickerField } from '@/components/ui/MonthPickerField';
 import { DatePickerField } from '@/components/ui/DatePickerField';
 import { LoadingScreen } from '@/components/ui/EmptyState';
 import { addFlexShipment, deleteFlexShipment, getFlexShipmentsByMonth } from '@/services/flex';
-import { exportFlexMonthToExcel } from '@/services/export';
+import { buildFlexMonthPdf, exportFlexMonthToExcel } from '@/services/export';
 import { ImportFlexLabelsModal } from '@/components/ImportFlexLabelsModal';
+import { PdfPreviewModal, PdfPreviewState } from '@/components/ui/PdfPreviewModal';
 import { formatCurrency } from '@/utils/format';
 import { colors, spacing, typography } from '@/constants/theme';
 
@@ -48,6 +49,7 @@ export default function FlexScreen() {
   const [saving, setSaving] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [pdfPreview, setPdfPreview] = useState<PdfPreviewState>(null);
 
   const [entryDate, setEntryDate] = useState(() => new Date());
   const [locality, setLocality] = useState('CABA');
@@ -148,6 +150,14 @@ export default function FlexScreen() {
     }
   }
 
+  function handleExportPdf() {
+    try {
+      setPdfPreview(buildFlexMonthPdf(month, shipments));
+    } catch (err) {
+      Alert.alert('Error', err instanceof Error ? err.message : 'No se pudo generar el PDF');
+    }
+  }
+
   function handleImported(info: { rows: number; packages: number; firstDate: Date | null }) {
     if (info.firstDate) {
       const nextMonth = new Date(info.firstDate.getFullYear(), info.firstDate.getMonth(), 1);
@@ -187,6 +197,12 @@ export default function FlexScreen() {
         title={exporting ? 'Exportando…' : 'Exportar Excel mensual'}
         onPress={() => void handleExport()}
         disabled={exporting}
+        style={styles.exportBtn}
+      />
+      <Button
+        title="PDF mensual"
+        variant="outline"
+        onPress={handleExportPdf}
         style={styles.exportBtn}
       />
       <Button
@@ -305,6 +321,13 @@ export default function FlexScreen() {
           createdByName={profile?.name}
         />
       ) : null}
+
+      <PdfPreviewModal
+        visible={!!pdfPreview}
+        html={pdfPreview?.html ?? null}
+        title={pdfPreview?.title}
+        onClose={() => setPdfPreview(null)}
+      />
     </ScrollView>
   );
 }

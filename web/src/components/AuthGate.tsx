@@ -2,7 +2,7 @@ import { Navigate, Outlet, useLocation } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
 import { AppShell } from './AppShell';
-import { OWNER_ADMIN_EMAIL, signOutUser } from '../services/auth';
+import { signOutUser } from '../services/auth';
 
 export function AuthGate() {
   const { user, profile, loading, profileError } = useAuth();
@@ -17,10 +17,6 @@ export function AuthGate() {
   }
 
   if (!profile) {
-    const email = user.email?.toLowerCase() ?? '';
-    if (email === OWNER_ADMIN_EMAIL) {
-      return <Navigate to="/admin/setup" replace />;
-    }
     return (
       <div className="loading-screen" style={{ flexDirection: 'column', gap: 12, padding: 24 }}>
         <p style={{ margin: 0, textAlign: 'center' }}>

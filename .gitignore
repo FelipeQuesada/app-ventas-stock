@@ -42,13 +42,13 @@ yarn-error.*
 .DS_Store
 *.pem
 
-# env
+# env — nunca commitear secretos ni plantillas con nombres de claves
 .env
 .env*.local
 .env*
-!.env.example
-!mobile/.env.example
-!web/.env.example
+functions/.secret-*
+functions/_write_web_config_secret.py
+web/src/lib/firebaseConfig.local.ts
 
 # typescript
 *.tsbuildinfo

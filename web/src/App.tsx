@@ -18,7 +18,6 @@ import { CajaEditPage } from './pages/CajaEditPage';
 import { CajaRegisterMissingPage } from './pages/CajaRegisterMissingPage';
 import { StatisticsPage } from './pages/StatisticsPage';
 import { ProfilePage } from './pages/ProfilePage';
-import { AdminSetupPage } from './pages/admin/AdminSetupPage';
 import { AdminDashboardPage } from './pages/admin/AdminDashboardPage';
 import { AdminUsersPage } from './pages/admin/AdminUsersPage';
 import { AdminInvoicesPage } from './pages/admin/AdminInvoicesPage';
@@ -33,7 +32,7 @@ export default function App() {
         <CartProvider>
           <Routes>
             <Route path="/login" element={<LoginPage />} />
-            <Route path="/admin/setup" element={<AdminSetupPage />} />
+            <Route path="/admin/setup" element={<Navigate to="/login" replace />} />
 
             <Route element={<AdminGate />}>
               <Route path="/admin" element={<AdminDashboardPage />} />
