@@ -117,9 +117,14 @@ export async function getCajaByDate(date: Date): Promise<DailyCaja | null> {
 }
 
 /** True si existe documento de cierre (id yyyy-MM-dd), no un retiro. */
+/** True si existe documento de cierre (id yyyy-MM-dd), no un retiro. */
 export async function hasCajaCierreOnDate(date: Date): Promise<boolean> {
-  const caja = await getCajaByDate(date);
-  return !!caja && caja.entryType !== 'retiro';
+  const id = dateToId(date);
+  const snap = await getDoc(doc(db, COLLECTION, id));
+  if (!snap.exists()) return false;
+  const data = snap.data();
+  if (data.entryType === 'retiro') return false;
+  return data.entryType === 'cierre' || typeof data.telegramEventId === 'string' || !data.entryType;
 }
 
 /** Día calendario anterior a `from` (default: hoy). */
@@ -127,11 +132,21 @@ export function getPreviousCalendarDay(from = new Date()): Date {
   return new Date(from.getFullYear(), from.getMonth(), from.getDate() - 1);
 }
 
-/** Si el día calendario anterior no tiene cierre, lo devuelve; si no, null. */
+/** Último día hábil (lun–vie) anterior a `from`. */
+export function getPreviousBusinessDay(from = new Date()): Date {
+  let day = getPreviousCalendarDay(from);
+  // 0 = domingo, 6 = sábado
+  while (day.getDay() === 0 || day.getDay() === 6) {
+    day = getPreviousCalendarDay(day);
+  }
+  return day;
+}
+
+/** Si el último día hábil anterior no tiene cierre, lo devuelve; si no, null. */
 export async function getMissingPreviousDayCierre(
   from = new Date()
 ): Promise<Date | null> {
-  const previous = getPreviousCalendarDay(from);
+  const previous = getPreviousBusinessDay(from);
   const has = await hasCajaCierreOnDate(previous);
   return has ? null : previous;
 }
@@ -471,14 +486,25 @@ export async function saveCaja(input: SaveCajaInput): Promise<void> {
     updatedAt: serverTimestamp(),
   });
 
+  // El aviso de Telegram ya se dispara con el setDoc de arriba.
+  // El depósito a central no debe hacer fallar el cierre (empleados / reglas / red).
   if (!sinMovimiento && deposito > 0) {
-    await depositToCajaCentral({
-      amount: deposito,
-      actorName: input.closedByName,
-      userId: input.updatedBy,
-      userName: input.updatedByName,
-      cajaDateId: id,
-    });
+    try {
+      await depositToCajaCentral({
+        amount: deposito,
+        actorName: input.closedByName,
+        userId: input.updatedBy,
+        userName: input.updatedByName,
+        cajaDateId: id,
+      });
+    } catch (err) {
+      console.error('Depósito a caja central falló tras guardar cierre', err);
+      throw new Error(
+        err instanceof Error
+          ? `Cierre guardado, pero no se pudo depositar en caja central: ${err.message}`
+          : 'Cierre guardado, pero no se pudo depositar en caja central'
+      );
+    }
   }
 
   await logAudit({

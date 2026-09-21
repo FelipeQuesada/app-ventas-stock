@@ -16,6 +16,7 @@ import {
   X,
   MoreHorizontal,
   FileText,
+  Truck,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
@@ -37,6 +38,7 @@ const DRAWER_NAV = [
   { to: '/customers', label: 'Clientes', icon: Users },
   { to: '/caja', label: 'Caja', icon: Wallet, end: true },
   { to: '/caja/list', label: 'Historial caja', icon: ListOrdered },
+  { to: '/flex', label: 'Flex', icon: Truck },
   { to: '/statistics', label: 'Estadísticas', icon: BarChart3, adminOnly: true },
   { to: '/admin', label: 'Panel admin', icon: Shield, adminOnly: true },
   { to: '/profile', label: 'Perfil', icon: User },
@@ -55,6 +57,7 @@ const TITLES: Record<string, string> = {
   '/caja': 'Caja del día',
   '/caja/list': 'Historial de caja',
   '/caja/register': 'Día faltante',
+  '/flex': 'Flex',
   '/statistics': 'Estadísticas',
   '/users': 'Usuarios',
   '/profile': 'Perfil',

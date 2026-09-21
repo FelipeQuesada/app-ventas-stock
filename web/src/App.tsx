@@ -24,6 +24,7 @@ import { AdminUsersPage } from './pages/admin/AdminUsersPage';
 import { AdminInvoicesPage } from './pages/admin/AdminInvoicesPage';
 import { PresupuestoPage } from './pages/PresupuestoPage';
 import { PresupuestoListPage } from './pages/PresupuestoListPage';
+import { FlexPage } from './pages/FlexPage';
 
 export default function App() {
   return (
@@ -56,6 +57,7 @@ export default function App() {
               <Route path="/caja/list" element={<CajaListPage />} />
               <Route path="/caja/register" element={<CajaRegisterMissingPage />} />
               <Route path="/caja/edit/:date" element={<CajaEditPage />} />
+              <Route path="/flex" element={<FlexPage />} />
               <Route path="/statistics" element={<StatisticsPage />} />
               <Route path="/tiendanube" element={<Navigate to="/" replace />} />
               <Route path="/profile" element={<ProfilePage />} />

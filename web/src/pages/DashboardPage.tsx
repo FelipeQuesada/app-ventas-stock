@@ -16,6 +16,7 @@ import {
   Wallet,
   AlertTriangle,
   BarChart3,
+  Truck,
 } from 'lucide-react';
 import {
   formatCurrency,
@@ -30,7 +31,6 @@ import {
 import type { Sale, Product } from '@advance-coat/shared';
 import { startOfMonth, subDays, startOfDay, endOfDay } from 'date-fns';
 import { useAuth } from '../context/AuthContext';
-import { MissingCajaBanner } from '../components/MissingCajaBanner';
 
 export function DashboardPage() {
   const navigate = useNavigate();
@@ -83,7 +83,6 @@ export function DashboardPage() {
 
   return (
     <div>
-      <MissingCajaBanner />
       {showLowStock && lowStock.length > 0 && (
         <div className="alert alert-warning">
           <AlertTriangle size={20} color="#B45309" />
@@ -198,6 +197,10 @@ export function DashboardPage() {
             <Link to="/caja" className="quick-link">
               <div className="icon-box"><Wallet size={18} /></div>
               <span>Caja</span>
+            </Link>
+            <Link to="/flex" className="quick-link">
+              <div className="icon-box"><Truck size={18} /></div>
+              <span>Flex</span>
             </Link>
             {isAdmin && (
               <Link to="/statistics" className="quick-link">

@@ -10,7 +10,9 @@ import {
   buildSalesHistoryReportHtml,
   buildSalesReportExcelBuffer,
   computeResinAccounting,
+  buildFlexMonthExcelBuffer,
   type ResinAccountingOptions,
+  type FlexShipment,
 } from '@advance-coat/shared';
 import { getMonthSales, getDaySales } from './sales';
 import { getMonthCaja } from './caja';
@@ -451,4 +453,16 @@ export async function exportCustomersToPdf(customers: Customer[]): Promise<void>
     throw new Error('No hay clientes para exportar');
   }
   printHtml(buildCustomersPdfHtml(customers));
+}
+
+export async function exportFlexMonthToExcel(
+  month: Date,
+  shipments: FlexShipment[]
+): Promise<void> {
+  const buffer = await buildFlexMonthExcelBuffer({ month, shipments });
+  const monthLabel = format(month, 'yyyy-MM');
+  const blob = new Blob([buffer], {
+    type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  });
+  downloadBlob(blob, `flex-control-${monthLabel}.xlsx`);
 }

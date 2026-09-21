@@ -16,7 +16,6 @@ import { syncPendingSales, getPendingSalesCount } from '@/services/offlineQueue'
 import { formatCurrency, capitalize } from '@/utils/format';
 import { showAlert } from '@/utils/alert';
 import { getLowStockProducts, LOW_STOCK_THRESHOLD } from '@/utils/stock';
-import { MissingCajaBanner } from '@/components/MissingCajaBanner';
 import { colors, spacing, typography } from '@/constants/theme';
 
 export default function DashboardScreen() {
@@ -121,8 +120,6 @@ export default function DashboardScreen() {
         </Text>
       )}
 
-      <MissingCajaBanner />
-
       <View style={styles.statsGrid}>
         <View style={styles.statsTopRow}>
           <StatCard
@@ -178,6 +175,7 @@ export default function DashboardScreen() {
         <QuickAction title="Presupuesto" icon="description" href="/presupuesto" color={colors.primary} />
         <QuickAction title="Hist. presupuestos" icon="folder-open" href="/presupuesto-list" color={colors.primary} />
         <QuickAction title="Caja" icon="point-of-sale" href="/caja" color={colors.primary} />
+        <QuickAction title="Flex" icon="local-shipping" href="/flex" color={colors.accent} />
         <QuickAction title="Historial caja" icon="history" href="/caja-list" color={colors.primary} />
         <QuickAction title="Nueva venta" icon="add-shopping-cart" href="/(tabs)/sales" color={colors.accent} />
         <QuickAction title="Historial ventas" icon="receipt-long" href="/sales-list" color={colors.primary} />

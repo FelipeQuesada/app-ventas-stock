@@ -24,7 +24,6 @@ import {
 } from '../services/caja';
 import { getSalesForDay } from '../services/sales';
 import { useAuth } from '../context/AuthContext';
-import { MissingCajaBanner } from '../components/MissingCajaBanner';
 
 function CajaRow({
   label,
@@ -319,7 +318,6 @@ export function CajaPage() {
 
   return (
     <form className="caja-page" onSubmit={handleSave}>
-      <MissingCajaBanner />
       <div className="caja-header">
         <div>
           <h3 className="caja-date">{capitalize(formatDate(today))}</h3>

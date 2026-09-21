@@ -52,8 +52,9 @@ export const onSaleCreatedNotifyTelegram = onDocumentCreated(
 
 /**
  * Cierre de caja y retiros.
- * Solo dispara si el cliente setea telegramEventId (saveCaja / withdraw).
- * Así no avisa al guardar solo el fondo de cambio.
+ * Dispara si cambia telegramEventId, o si es un cierre explícito (entryType === 'cierre')
+ * con cambios de totales — cubre clientes viejos sin telegramEventId.
+ * No avisa al solo actualizar el fondo de cambio (persistCajaCambio no setea entryType).
  */
 export const onCajaWrittenNotifyTelegram = onDocumentWritten(
   {
@@ -70,33 +71,63 @@ export const onCajaWrittenNotifyTelegram = onDocumentWritten(
     const data = after.data();
     if (!data) return;
 
-    const eventId = typeof data.telegramEventId === 'string' ? data.telegramEventId : '';
-    if (!eventId) return;
-
     const before = event.data?.before;
     const beforeData = before?.exists ? before.data() : undefined;
+
+    const eventId = typeof data.telegramEventId === 'string' ? data.telegramEventId : '';
     const prevEventId =
       beforeData && typeof beforeData.telegramEventId === 'string'
         ? beforeData.telegramEventId
         : '';
-    if (prevEventId === eventId) return;
 
-    const text =
-      data.entryType === 'retiro' ? buildCajaRetiroText(data) : buildCajaCierreText(data);
+    const isRetiro = data.entryType === 'retiro' || cajaId.startsWith('retiro-');
+    let shouldNotify = false;
+
+    if (eventId && eventId !== prevEventId) {
+      shouldNotify = true;
+    } else if (!isRetiro && data.entryType === 'cierre') {
+      // Fallback: cierre real sin telegramEventId (apps viejas)
+      const fp = [
+        data.cajaTotal,
+        data.totalGuardado,
+        data.closedByName,
+        data.sinMovimiento === true,
+      ].join('|');
+      const prevFp = beforeData
+        ? [
+            beforeData.cajaTotal,
+            beforeData.totalGuardado,
+            beforeData.closedByName,
+            beforeData.sinMovimiento === true,
+          ].join('|')
+        : '';
+      shouldNotify = fp !== prevFp && typeof data.closedByName === 'string' && data.closedByName.length > 0;
+    }
+
+    if (!shouldNotify) {
+      logger.info('Caja write sin notificación Telegram', {
+        cajaId,
+        entryType: data.entryType ?? null,
+        hasEventId: Boolean(eventId),
+      });
+      return;
+    }
+
+    const text = isRetiro ? buildCajaRetiroText(data) : buildCajaCierreText(data);
 
     await sendTelegramMessage(telegramBotToken.value(), text);
     logger.info('Caja notificada a Telegram', {
       cajaId,
-      entryType: data.entryType === 'retiro' ? 'retiro' : 'cierre',
-      eventId,
+      entryType: isRetiro ? 'retiro' : 'cierre',
+      eventId: eventId || 'fallback-cierre',
     });
   }
 );
 
-/** 21:00 Argentina — avisa si el día aún no tiene cierre en la app. */
+/** 21:00 Argentina, lunes a viernes — avisa si el día aún no tiene cierre real. */
 export const remindMissingCajaCierreTelegram = onSchedule(
   {
-    schedule: '0 21 * * *',
+    schedule: '0 21 * * 1-5',
     timeZone: 'America/Argentina/Buenos_Aires',
     region: 'southamerica-east1',
     secrets: [telegramBotToken],
@@ -104,7 +135,10 @@ export const remindMissingCajaCierreTelegram = onSchedule(
   async () => {
     const dayId = argentinaDateId();
     const snap = await getFirestore().collection('caja').doc(dayId).get();
-    if (snap.exists) {
+    const data = snap.exists ? snap.data() : undefined;
+    const hasCierre = !!data && data.entryType === 'cierre';
+
+    if (hasCierre) {
       logger.info('Cierre ya registrado; sin recordatorio', { dayId });
       return;
     }

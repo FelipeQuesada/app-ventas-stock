@@ -16,7 +16,9 @@ import {
   buildSalesHistoryReportHtml,
   buildSalesReportExcelBuffer,
   computeResinAccounting,
+  buildFlexMonthExcelBuffer,
   type ResinAccountingOptions,
+  type FlexShipment,
 } from '@advance-coat/shared';
 import { getMonthSales, getDaySales } from '@/services/sales';
 import { getMonthCaja } from '@/services/caja';
@@ -553,6 +555,43 @@ export async function exportCustomersToPdf(customers: Customer[]): Promise<void>
     throw new Error('No hay clientes para exportar');
   }
   await sharePdfFromHtml(buildCustomersPdfHtml(customers), 'Lista de clientes');
+}
+
+export async function exportFlexMonthToExcel(
+  month: Date,
+  shipments: FlexShipment[]
+): Promise<void> {
+  const fileName = `flex-control-${format(month, 'yyyy-MM')}.xlsx`;
+  const buffer = await buildFlexMonthExcelBuffer({ month, shipments });
+
+  if (Platform.OS === 'web') {
+    const blob = new Blob([buffer], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    return;
+  }
+
+  const bytes = new Uint8Array(buffer);
+  let binary = '';
+  for (let i = 0; i < bytes.byteLength; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  const base64 = btoa(binary);
+  const fileUri = `${documentDirectory}${fileName}`;
+  await writeAsStringAsync(fileUri, base64, { encoding: EncodingType.Base64 });
+  await Sharing.shareAsync(fileUri, {
+    mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    dialogTitle: `Control Flex ${format(month, 'MMMM yyyy', { locale: es })}`,
+    UTI: 'com.microsoft.excel.xlsx',
+  });
 }
 
 

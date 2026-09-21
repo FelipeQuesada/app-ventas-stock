@@ -81,6 +81,11 @@ service cloud.firestore {
       allow read, create, update, delete: if isAuthenticated();
     }
 
+    match /flexShipments/{shipmentId} {
+      allow read, create, update: if isAuthenticated();
+      allow delete: if isAuthenticated();
+    }
+
     match /auditLogs/{logId} {
       allow read: if isAuthenticated();
       allow create: if isAuthenticated();
