@@ -22,8 +22,14 @@ let initPromise: Promise<void> | null = null;
 
 async function configFromLocalDev(): Promise<FirebaseOptions | null> {
   if (!import.meta.env.DEV) return null;
+  // Glob opcional: si el archivo gitignored no existe (CI/Vercel), el mapa queda vacío.
+  const loaders = import.meta.glob<{ localFirebaseConfig: FirebaseOptions }>(
+    './firebaseConfig.local.ts',
+  );
+  const loader = loaders['./firebaseConfig.local.ts'];
+  if (!loader) return null;
   try {
-    const mod = await import('./firebaseConfig.local');
+    const mod = await loader();
     return mod.localFirebaseConfig;
   } catch {
     return null;
