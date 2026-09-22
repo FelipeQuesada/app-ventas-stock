@@ -523,7 +523,8 @@ export default function CajaScreen() {
               autoFocus
             />
             <Text style={styles.withdrawHint}>
-              Se suma al fondo de cambio del día y queda guardado al instante.
+              Se suma al fondo de cambio del día (no es el cierre). Para avisar por Telegram usá
+              “Guardar cierre de caja”.
             </Text>
 
             <View style={styles.modalActions}>

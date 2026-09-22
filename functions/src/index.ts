@@ -95,9 +95,9 @@ export const onSaleCreatedNotifyTelegram = onDocumentCreated(
 
 /**
  * Cierre de caja y retiros.
- * Dispara si cambia telegramEventId, o si es un cierre explícito (entryType === 'cierre')
- * con cambios de totales — cubre clientes viejos sin telegramEventId.
- * No avisa al solo actualizar el fondo de cambio (persistCajaCambio no setea entryType).
+ * Dispara si cambia telegramEventId, o si es un cierre (entryType === 'cierre' o legacy
+ * sin entryType) con cambios de totales — cubre clientes viejos sin telegramEventId.
+ * No avisa al solo actualizar el fondo de cambio (entryType === 'fondo').
  */
 export const onCajaWrittenNotifyTelegram = onDocumentWritten(
   {
@@ -124,12 +124,18 @@ export const onCajaWrittenNotifyTelegram = onDocumentWritten(
         : '';
 
     const isRetiro = data.entryType === 'retiro' || cajaId.startsWith('retiro-');
+    const isFondo = data.entryType === 'fondo';
+    if (isFondo) {
+      logger.info('Caja fondo sin notificación Telegram', { cajaId });
+      return;
+    }
+
     let shouldNotify = false;
 
     if (eventId && eventId !== prevEventId) {
       shouldNotify = true;
-    } else if (!isRetiro && data.entryType === 'cierre') {
-      // Fallback: cierre real sin telegramEventId (apps viejas)
+    } else if (!isRetiro && (data.entryType === 'cierre' || data.entryType == null)) {
+      // Fallback: cierre real (o legacy sin entryType) sin telegramEventId nuevo
       const fp = [
         data.cajaTotal,
         data.totalGuardado,
@@ -144,7 +150,8 @@ export const onCajaWrittenNotifyTelegram = onDocumentWritten(
             beforeData.sinMovimiento === true,
           ].join('|')
         : '';
-      shouldNotify = fp !== prevFp && typeof data.closedByName === 'string' && data.closedByName.length > 0;
+      shouldNotify =
+        fp !== prevFp && typeof data.closedByName === 'string' && data.closedByName.length > 0;
     }
 
     if (!shouldNotify) {

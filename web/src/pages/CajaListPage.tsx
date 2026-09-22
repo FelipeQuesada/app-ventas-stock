@@ -40,7 +40,7 @@ export function CajaListPage() {
   );
 
   const periodLabel = formatPeriodLabel(period);
-  const cierres = filtered.filter((r) => r.entryType !== 'retiro');
+  const cierres = filtered.filter((r) => r.entryType !== 'retiro' && r.entryType !== 'fondo');
   const retiros = filtered.filter((r) => r.entryType === 'retiro');
 
   async function handleDelete(record: DailyCaja) {

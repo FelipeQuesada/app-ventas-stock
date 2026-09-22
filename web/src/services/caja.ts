@@ -69,7 +69,10 @@ function getTotalGuardado(data: Record<string, unknown>): number {
 
 function mapCaja(id: string, data: Record<string, unknown>): DailyCaja {
   const totalGuardado = getTotalGuardado(data);
-  const entryType = data.entryType === 'retiro' ? 'retiro' : 'cierre';
+  const entryType =
+    data.entryType === 'retiro' || data.entryType === 'fondo' || data.entryType === 'cierre'
+      ? data.entryType
+      : 'cierre';
   return {
     id,
     date: (data.date as Timestamp)?.toDate?.() ?? new Date(),
@@ -119,15 +122,15 @@ export async function getCajaByDate(date: Date): Promise<DailyCaja | null> {
   return mapCaja(snap.id, snap.data());
 }
 
-/** True si existe documento de cierre (id yyyy-MM-dd), no un retiro. */
+/** True si existe documento de cierre real (no fondo ni retiro). */
 export async function hasCajaCierreOnDate(date: Date): Promise<boolean> {
   const id = dateToId(date);
   const snap = await getDoc(doc(db, COLLECTION, id));
   if (!snap.exists()) return false;
   const data = snap.data();
-  if (data.entryType === 'retiro') return false;
-  // Cierre actual o legacy (antes de entryType / sin el campo)
-  return data.entryType === 'cierre' || typeof data.telegramEventId === 'string' || !data.entryType;
+  if (data.entryType === 'retiro' || data.entryType === 'fondo') return false;
+  // Cierre actual o legacy con telegramEventId (apps que ya notificaron)
+  return data.entryType === 'cierre' || typeof data.telegramEventId === 'string';
 }
 
 /** Día calendario anterior a `from` (default: hoy). */
@@ -170,7 +173,7 @@ export async function registerMissingCajaDay(input: {
   retiroByName?: string;
 }): Promise<void> {
   const existing = await getCajaByDate(input.date);
-  if (existing && existing.entryType !== 'retiro') {
+  if (existing && existing.entryType === 'cierre') {
     throw new Error('Ya hay un cierre para esa fecha. Usá Editar en el historial.');
   }
   if (input.totalGuardado < 0) {
@@ -263,23 +266,28 @@ export async function getOrCreateCajaCentral(actor?: {
   if (snap.exists()) {
     const data = snap.data() as Record<string, unknown>;
     if (data.resetKey !== CENTRAL_RESET_KEY) {
-      await setDoc(
-        ref,
-        {
+      try {
+        // Solo admin puede bajar el saldo a 0 (reglas). Empleados siguen con el doc actual.
+        await setDoc(
+          ref,
+          {
+            balance: 0,
+            resetKey: CENTRAL_RESET_KEY,
+            ...actorFields,
+            updatedByName: actor?.userName ?? 'reset',
+          },
+          { merge: true }
+        );
+        return {
+          id: CENTRAL_DOC_ID,
           balance: 0,
-          resetKey: CENTRAL_RESET_KEY,
-          ...actorFields,
+          updatedAt: new Date(),
+          updatedBy: actor?.userId,
           updatedByName: actor?.userName ?? 'reset',
-        },
-        { merge: true }
-      );
-      return {
-        id: CENTRAL_DOC_ID,
-        balance: 0,
-        updatedAt: new Date(),
-        updatedBy: actor?.userId,
-        updatedByName: actor?.userName ?? 'reset',
-      };
+        };
+      } catch {
+        return mapCentral(snap.id, data);
+      }
     }
     return mapCentral(snap.id, data);
   }
@@ -505,11 +513,7 @@ export async function saveCaja(input: SaveCajaInput): Promise<void> {
       });
     } catch (err) {
       console.error('Depósito a caja central falló tras guardar cierre', err);
-      throw new Error(
-        err instanceof Error
-          ? `Cierre guardado, pero no se pudo depositar en caja central: ${err.message}`
-          : 'Cierre guardado, pero no se pudo depositar en caja central'
-      );
+      // No relanzar: el cierre ya está guardado y Telegram ya se disparó.
     }
   }
 
@@ -549,6 +553,8 @@ export async function persistCajaCambio(input: {
       guardo: totalGuardado,
       cambioCierre: calculateCambioCierre(cajaTotal, totalGuardado),
       sinMovimiento: false,
+      // No pisar un cierre real: solo marcar fondo si aún no hubo cierre.
+      ...(existing?.entryType === 'cierre' ? {} : { entryType: 'fondo' as const }),
       closedByName: existing?.closedByName ?? input.updatedByName ?? '',
       updatedBy: input.updatedBy,
       updatedByName: input.updatedByName ?? '',

@@ -474,7 +474,8 @@ export function CajaPage() {
               />
             </div>
             <p className="caja-hint">
-              Se suma al fondo de cambio del día y queda guardado al instante.
+              Se suma al fondo de cambio del día (no es el cierre). Para avisar por Telegram usá
+              “Guardar cierre de caja”.
             </p>
 
             <div className="caja-modal-actions">
