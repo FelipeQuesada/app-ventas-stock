@@ -117,10 +117,13 @@ export function buildPresupuestoHtml(data: PresupuestoData): string {
     if (!item) {
       return `<tr style="background:${stripe}"><td>&nbsp;</td><td></td><td></td><td></td></tr>`;
     }
+    const asPacks = item.wholesaleMode === 'pack' && item.packQuantity != null && item.unitsPerPack;
+    const qtyLabel = asPacks ? item.packQuantity : item.quantity;
+    const priceLabel = asPacks ? item.unitPrice * (item.unitsPerPack ?? 1) : item.unitPrice;
     return `<tr style="background:${stripe}">
       <td>${escapeHtml(item.productName)}</td>
-      <td style="text-align:center">${item.quantity}</td>
-      <td style="text-align:right">${escapeHtml(formatMoney(item.unitPrice))}</td>
+      <td style="text-align:center">${qtyLabel ?? item.quantity}</td>
+      <td style="text-align:right">${escapeHtml(formatMoney(priceLabel))}</td>
       <td style="text-align:right">${escapeHtml(formatMoney(item.subtotal))}</td>
     </tr>`;
   }).join('');

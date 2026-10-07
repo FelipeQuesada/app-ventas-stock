@@ -2,16 +2,23 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { FileText, Plus, Search, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
-import type { DiscountType, Product } from '@advance-coat/shared';
+import type { DiscountType, Product, SaleItem } from '@advance-coat/shared';
 import {
   SALE_SELLERS,
+  MAYORISTA_CATEGORY,
+  WHOLESALE_OFFERS,
   calculateDiscount,
   calculateSaleTotal,
   createExtraItem,
   formatCurrency,
   getUniqueProductCategories,
+  matchWholesaleOffer,
+  mergeWholesaleLines,
+  repriceCartLines,
+  wholesalePackCount,
 } from '@advance-coat/shared';
 import { DateField } from '../components/DateField';
+import { WholesaleSection } from '../components/WholesaleSection';
 import { useAuth } from '../context/AuthContext';
 import { getProducts } from '../services/products';
 import { printHtml } from '../services/export';
@@ -202,31 +209,82 @@ export function PresupuestoPage() {
     }
   }
 
+  function toSaleItem(item: PresupuestoItem): SaleItem {
+    return {
+      lineId: item.id,
+      productId: item.productId ?? item.id,
+      productName: item.productName,
+      category: '',
+      quantity: item.quantity,
+      unitPrice: item.unitPrice,
+      subtotal: item.subtotal,
+      wholesaleOfferId: item.wholesaleOfferId,
+      wholesaleMode: item.wholesaleMode,
+      packQuantity: item.packQuantity,
+      unitsPerPack: item.unitsPerPack,
+      listUnitPrice: item.listUnitPrice,
+      lineDiscountPercent: item.lineDiscountPercent,
+    };
+  }
+
+  function fromSaleItem(item: SaleItem): PresupuestoItem {
+    return {
+      id: item.lineId ?? item.productId,
+      productId: item.productId,
+      productName: item.productName,
+      quantity: item.quantity,
+      unitPrice: item.unitPrice,
+      subtotal: item.subtotal,
+      wholesaleOfferId: item.wholesaleOfferId,
+      wholesaleMode: item.wholesaleMode,
+      packQuantity: item.packQuantity,
+      unitsPerPack: item.unitsPerPack,
+      listUnitPrice: item.listUnitPrice,
+      lineDiscountPercent: item.lineDiscountPercent,
+    };
+  }
+
+  function addWholesaleLines(lines: SaleItem[]) {
+    setItems((current) => mergeWholesaleLines(current.map(toSaleItem), lines).map(fromSaleItem));
+  }
+
   function addProduct(product: Product) {
     setItems((current) => {
-      const existing = current.find((item) => item.productId === product.id);
+      const offer = matchWholesaleOffer(product);
+      const sales = current.map(toSaleItem);
+      const existing = sales.find(
+        (item) => item.productId === product.id && item.wholesaleMode !== 'pack'
+      );
       if (existing) {
-        return current.map((item) =>
-          item.productId === product.id
-            ? {
-                ...item,
-                quantity: item.quantity + 1,
-                subtotal: item.unitPrice * (item.quantity + 1),
-              }
-            : item
-        );
+        return repriceCartLines(
+          sales.map((item) =>
+            item === existing
+              ? {
+                  ...item,
+                  quantity: item.quantity + 1,
+                  listUnitPrice: item.listUnitPrice ?? product.price,
+                  wholesaleOfferId: offer?.id ?? item.wholesaleOfferId,
+                  wholesaleMode: offer ? 'unit' : item.wholesaleMode,
+                }
+              : item
+          )
+        ).map(fromSaleItem);
       }
-      return [
-        ...current,
+      return repriceCartLines([
+        ...sales,
         {
-          id: product.id,
+          lineId: offer ? `unit-${product.id}` : product.id,
           productId: product.id,
           productName: product.name,
+          category: product.category,
           quantity: 1,
+          listUnitPrice: product.price,
           unitPrice: product.price,
           subtotal: product.price,
+          wholesaleOfferId: offer?.id,
+          wholesaleMode: offer ? 'unit' : undefined,
         },
-      ];
+      ]).map(fromSaleItem);
     });
     setSearch('');
     setCategory(null);
@@ -235,11 +293,17 @@ export function PresupuestoPage() {
   function updateQuantity(id: string, quantity: number) {
     if (quantity < 1) return;
     setItems((current) =>
-      current.map((item) =>
-        item.id === id
-          ? { ...item, quantity, subtotal: item.unitPrice * quantity }
-          : item
-      )
+      repriceCartLines(
+        current.map((item) => {
+          const sale = toSaleItem(item);
+          if (item.id !== id) return sale;
+          if (sale.wholesaleMode === 'pack' && sale.unitsPerPack && sale.packQuantity != null) {
+            const packs = Math.round(quantity);
+            return { ...sale, quantity: packs * sale.unitsPerPack };
+          }
+          return { ...sale, quantity, subtotal: sale.unitPrice * quantity };
+        })
+      ).map(fromSaleItem)
     );
   }
 
@@ -247,7 +311,7 @@ export function PresupuestoPage() {
     if (unitPrice < 0) return;
     setItems((current) =>
       current.map((item) =>
-        item.id === id
+        item.id === id && !item.wholesaleOfferId
           ? { ...item, unitPrice, subtotal: unitPrice * item.quantity }
           : item
       )
@@ -258,7 +322,7 @@ export function PresupuestoPage() {
     if (subtotal < 0) return;
     setItems((current) =>
       current.map((item) =>
-        item.id === id
+        item.id === id && !item.wholesaleOfferId
           ? {
               ...item,
               subtotal,
@@ -270,7 +334,9 @@ export function PresupuestoPage() {
   }
 
   function removeItem(id: string) {
-    setItems((current) => current.filter((item) => item.id !== id));
+    setItems((current) =>
+      repriceCartLines(current.filter((item) => item.id !== id).map(toSaleItem)).map(fromSaleItem)
+    );
   }
 
   function handleAddExtra() {
@@ -492,14 +558,22 @@ export function PresupuestoPage() {
           />
         </div>
 
-        {categories.length > 0 && (
-          <div className="sale-category-chips">
+        <div className="sale-category-chips">
             <button
               type="button"
               className={`chip ${category === null ? 'active' : ''}`}
               onClick={() => setCategory(null)}
             >
               Todas
+            </button>
+            <button
+              type="button"
+              className={`chip ${category === MAYORISTA_CATEGORY ? 'active' : ''}`}
+              onClick={() =>
+                setCategory(category === MAYORISTA_CATEGORY ? null : MAYORISTA_CATEGORY)
+              }
+            >
+              Mayorista
             </button>
             {categories.map((c) => (
               <button
@@ -511,10 +585,13 @@ export function PresupuestoPage() {
                 {c}
               </button>
             ))}
-          </div>
+        </div>
+
+        {category === MAYORISTA_CATEGORY && (
+          <WholesaleSection products={products} onAdd={addWholesaleLines} />
         )}
 
-        {showBrowseResults && (
+        {showBrowseResults && category !== MAYORISTA_CATEGORY && (
           <div className="product-pick-list product-pick-list-open">
             {filteredProducts.length === 0 ? (
               <p className="muted sale-empty-hint">No hay productos con esa búsqueda</p>
@@ -591,19 +668,24 @@ export function PresupuestoPage() {
           </div>
         ) : (
           <div className="sale-selected-list">
-            {items.map((item) => (
+            {items.map((item) => {
+              const offer = WHOLESALE_OFFERS.find((entry) => entry.id === item.wholesaleOfferId);
+              const asPacks = item.wholesaleMode === 'pack' && item.packQuantity != null;
+              const packCount = offer ? wholesalePackCount(items.map(toSaleItem), offer.id) : 0;
+              return (
               <div className="cart-item" key={item.id}>
                 <div className="cart-item-body">
                   <strong>{item.productName}</strong>
                   <div className="cart-item-fields">
                     <label className="cart-field">
-                      <span>Cantidad</span>
+                      <span>{asPacks ? (offer?.unitLabel === 'pack' ? 'Packs' : 'Cajas') : 'Cantidad'}</span>
                       <DraftNumberInput
-                        value={item.quantity}
+                        value={asPacks ? item.packQuantity ?? 1 : item.quantity}
                         min={1}
                         onCommit={(n) => updateQuantity(item.id, n)}
                       />
                     </label>
+                    {!item.wholesaleOfferId && (
                     <label className="cart-field">
                       <span>Precio c/u</span>
                       <DraftNumberInput
@@ -613,6 +695,7 @@ export function PresupuestoPage() {
                         onCommit={(n) => updateUnitPrice(item.id, n)}
                       />
                     </label>
+                    )}
                     <label className="cart-field">
                       <span>Total línea</span>
                       <DraftNumberInput
@@ -623,6 +706,14 @@ export function PresupuestoPage() {
                       />
                     </label>
                   </div>
+                  {item.wholesaleOfferId ? (
+                    <div className="muted cart-item-hint">
+                      {item.lineDiscountPercent ?? 0}% por {packCount}{' '}
+                      {offer?.unitLabel ?? 'caja'}
+                      {packCount === 1 ? '' : 's'} · {formatCurrency(item.unitPrice)} c/u ·{' '}
+                      {item.quantity} un. = {formatCurrency(item.subtotal)}
+                    </div>
+                  ) : null}
                 </div>
                 <button
                   type="button"
@@ -633,7 +724,8 @@ export function PresupuestoPage() {
                   <Trash2 size={14} color="#EF4444" />
                 </button>
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
 

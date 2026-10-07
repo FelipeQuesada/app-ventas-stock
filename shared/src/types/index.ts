@@ -118,9 +118,16 @@ export interface PresupuestoItem {
   id: string;
   productId?: string;
   productName: string;
+  /** Unidades de stock. En un pack mayorista es cajas × unidades por caja. */
   quantity: number;
   unitPrice: number;
   subtotal: number;
+  wholesaleOfferId?: string;
+  wholesaleMode?: 'pack' | 'unit';
+  packQuantity?: number;
+  unitsPerPack?: number;
+  listUnitPrice?: number;
+  lineDiscountPercent?: number;
 }
 
 /** Presupuesto guardado (PDF + historial por cliente) */
