@@ -181,7 +181,7 @@ export function StatisticsPage() {
   const maxProductRevenue = topByRevenue[0]?.revenue ?? 1;
   const paymentTotal = payments.reduce((sum, p) => sum + p.value, 0) || 1;
   const maxCategory = categories[0]?.value ?? 1;
-  const maxSeller = sellers[0]?.value ?? 1;
+  const sellerTotal = sellers.reduce((sum, item) => sum + item.value, 0) || 1;
   const dominantPayment = payments[0];
 
   if (profile?.role !== 'admin') {
@@ -344,17 +344,20 @@ export function StatisticsPage() {
             <p className="muted">Sin datos de vendedor.</p>
           ) : (
             <div className="stats-rank-list">
-              {sellers.map((item, index) => (
-                <RankRow
-                  key={item.label}
-                  rank={index + 1}
-                  label={item.label}
-                  primary={formatCurrency(item.value)}
-                  secondary={`${Math.round((item.value / maxSeller) * 100)}% vs líder`}
-                  percent={(item.value / maxSeller) * 100}
-                  color="#6366F1"
-                />
-              ))}
+              {sellers.map((item, index) => {
+                const pct = Math.round((item.value / sellerTotal) * 100);
+                return (
+                  <RankRow
+                    key={item.label}
+                    rank={index + 1}
+                    label={item.label}
+                    primary={formatCurrency(item.value)}
+                    secondary={`${pct}% del total`}
+                    percent={pct}
+                    color="#6366F1"
+                  />
+                );
+              })}
             </div>
           )}
         </div>

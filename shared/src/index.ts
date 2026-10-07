@@ -13,6 +13,8 @@ export * from './utils/sale';
 export * from './utils/productList';
 export * from './utils/caja';
 export * from './constants/resinAccounting';
+export * from './constants/wholesale';
+export * from './utils/wholesale';
 export * from './constants/flex';
 export * from './utils/resinAccounting';
 export * from './utils/saleTicket';

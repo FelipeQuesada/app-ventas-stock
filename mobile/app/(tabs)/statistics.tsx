@@ -169,7 +169,7 @@ export default function StatisticsScreen() {
   const maxProductRevenue = topByRevenue[0]?.revenue ?? 1;
   const paymentTotal = payments.reduce((sum, p) => sum + p.value, 0) || 1;
   const maxCategory = categories[0]?.value ?? 1;
-  const maxSeller = sellers[0]?.value ?? 1;
+  const sellerTotal = sellers.reduce((sum, item) => sum + item.value, 0) || 1;
   const dominantPayment = payments[0];
   const periodLabel = formatPeriodLabel(period);
   const resinOptions = useMemo(
@@ -376,11 +376,11 @@ export default function StatisticsScreen() {
                 items={sellers.map((item) => ({
                   label: item.label,
                   value: item.value,
-                  secondary: `${Math.round((item.value / maxSeller) * 100)}% vs líder`,
+                  secondary: `${Math.round((item.value / sellerTotal) * 100)}% del total`,
                   color: '#6366F1',
                 }))}
                 formatValue={formatCurrency}
-                maxValue={maxSeller}
+                maxValue={sellerTotal}
               />
             </View>
           )}

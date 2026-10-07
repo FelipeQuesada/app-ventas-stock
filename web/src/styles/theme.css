@@ -2006,6 +2006,32 @@ table.data-table tr.caja-row-retiro:hover td {
   color: var(--accent);
 }
 
+.wholesale-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.wholesale-card {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--surface);
+}
+
+.wholesale-colors,
+.wholesale-variado {
+  padding: 0 12px 12px;
+}
+
+.wholesale-color-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
 .sale-empty-hint {
   margin: 0;
   padding: 16px;

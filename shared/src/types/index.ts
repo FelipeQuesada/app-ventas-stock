@@ -45,10 +45,24 @@ export interface SaleItem {
   productId: string;
   productName: string;
   category: string;
+  /** Unidades de stock que descuenta esta línea */
   quantity: number;
+  /** Precio unitario ya con el descuento de la línea */
   unitPrice: number;
   subtotal: number;
   isExtra?: boolean;
+  /** Identifica la línea cuando el mismo producto va en caja y en unidades */
+  lineId?: string;
+  wholesaleOfferId?: string;
+  /** pack cuenta para el escalón; unit es una unidad suelta del mismo mayorista */
+  wholesaleMode?: 'pack' | 'unit';
+  /** Cajas o packs, cuando la línea es un múltiplo exacto */
+  packQuantity?: number;
+  unitsPerPack?: number;
+  /** Precio de lista por unidad, antes del descuento de la línea */
+  listUnitPrice?: number;
+  /** Descuento de esta línea. En mayorista lo define la cantidad de cajas o packs */
+  lineDiscountPercent?: number;
 }
 
 export interface SaleCustomer {

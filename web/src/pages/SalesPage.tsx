@@ -15,6 +15,11 @@ import {
   buildSalePaymentData,
   isInvoiceEligibleMethod,
   getUniqueProductCategories,
+  MAYORISTA_CATEGORY,
+  WHOLESALE_OFFERS,
+  lineKey,
+  mergeWholesaleLines,
+  wholesalePackCount,
   buildSaleDateFromPicker,
   isValidCuitCuil,
   limitCuitInput,
@@ -25,6 +30,7 @@ import { createSale, updateSale, getSale } from '../services/sales';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
 import { SaleTicketModal } from '../components/SaleTicketModal';
+import { WholesaleSection } from '../components/WholesaleSection';
 
 const PAYMENT_ICONS: Record<string, typeof Landmark> = {
   'account-balance': Landmark,
@@ -409,6 +415,13 @@ export function SalesPage() {
           >
             Todas
           </button>
+          <button
+            type="button"
+            className={`chip ${category === MAYORISTA_CATEGORY ? 'active' : ''}`}
+            onClick={() => setCategory(category === MAYORISTA_CATEGORY ? null : MAYORISTA_CATEGORY)}
+          >
+            Mayorista
+          </button>
           {categories.map((c) => (
             <button
               key={c}
@@ -422,7 +435,14 @@ export function SalesPage() {
         </div>
       )}
 
-      {showBrowseResults && (
+      {category === MAYORISTA_CATEGORY && (
+        <WholesaleSection
+          products={products}
+          onAdd={(lines) => cart.setItems(mergeWholesaleLines(cart.items, lines))}
+        />
+      )}
+
+      {showBrowseResults && category !== MAYORISTA_CATEGORY && (
         <div className="product-pick-list product-pick-list-open">
           {filteredProducts.length === 0 ? (
             <p className="muted sale-empty-hint">No hay productos con esa búsqueda</p>
@@ -530,57 +550,78 @@ export function SalesPage() {
         </div>
       ) : (
         <div className="sale-selected-list">
-          {cart.items.map((item) => (
-            <div className="cart-item" key={item.productId}>
+          {cart.items.map((item) => {
+            const key = lineKey(item);
+            const offer = WHOLESALE_OFFERS.find((entry) => entry.id === item.wholesaleOfferId);
+            const asPacks = item.wholesaleMode === 'pack' && item.packQuantity != null;
+            const packCount = offer ? wholesalePackCount(cart.items, offer.id) : 0;
+            return (
+            <div className="cart-item" key={key}>
               <div className="cart-item-body">
                 <strong>{item.productName}</strong>
                 <div className="cart-item-fields">
                   <label className="cart-field">
-                    <span>Cantidad</span>
+                    <span>{asPacks ? (offer?.unitLabel === 'pack' ? 'Packs' : 'Cajas') : 'Cantidad'}</span>
                     <DraftNumberInput
-                      value={item.quantity}
+                      value={asPacks ? item.packQuantity ?? 1 : item.quantity}
                       min={1}
-                      onCommit={(n) => cart.updateQuantity(item.productId, n)}
+                      onCommit={(n) => cart.updateQuantity(key, n)}
                     />
                   </label>
-                  <label className="cart-field">
-                    <span>Precio c/u</span>
-                    <DraftNumberInput
-                      value={item.unitPrice}
-                      min={0}
-                      step="1"
-                      onCommit={(n) => cart.updateUnitPrice(item.productId, n)}
-                    />
-                  </label>
+                  {!item.wholesaleOfferId && (
+                    <label className="cart-field">
+                      <span>Precio c/u</span>
+                      <DraftNumberInput
+                        value={item.unitPrice}
+                        min={0}
+                        step="1"
+                        onCommit={(n) => cart.updateUnitPrice(key, n)}
+                      />
+                    </label>
+                  )}
+                  {!item.wholesaleOfferId && !item.isExtra && (
+                    <label className="cart-field">
+                      <span>Desc. línea %</span>
+                      <DraftNumberInput
+                        value={item.lineDiscountPercent ?? 0}
+                        min={0}
+                        onCommit={(n) => cart.updateLineDiscount(key, n)}
+                      />
+                    </label>
+                  )}
                   <label className="cart-field">
                     <span>Total línea</span>
                     <DraftNumberInput
                       value={item.subtotal}
                       min={0}
                       step="1"
-                      onCommit={(n) => cart.updateSubtotal(item.productId, n)}
+                      onCommit={(n) => cart.updateSubtotal(key, n)}
                     />
                   </label>
                 </div>
                 <div className="muted cart-item-hint">
-                  {formatCurrency(item.unitPrice)} c/u · {item.quantity} un. ={' '}
+                  {item.wholesaleOfferId
+                    ? `${item.lineDiscountPercent ?? 0}% por ${packCount} ${offer?.unitLabel ?? 'caja'}${packCount === 1 ? '' : 's'} · ${formatCurrency(item.unitPrice)} c/u · ${item.quantity} un.`
+                    : `${formatCurrency(item.unitPrice)} c/u · ${item.quantity} un.`}
+                  {' = '}
                   {formatCurrency(item.subtotal)}
                 </div>
               </div>
               <button
                 type="button"
                 className="btn btn-ghost btn-icon btn-sm"
-                onClick={() => cart.removeItem(item.productId)}
+                onClick={() => cart.removeItem(key)}
                 aria-label="Quitar del carrito"
               >
                 <Trash2 size={14} color="#EF4444" />
               </button>
             </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
-      <h4 className="sale-section-title">Descuento</h4>
+      <h4 className="sale-section-title">Descuento de toda la compra</h4>
       <div className="chip-group">
         <button
           type="button"
