@@ -37,6 +37,12 @@ function sanitizeItems(items: PresupuestoItem[]): PresupuestoItem[] {
       subtotal: item.subtotal,
     };
     if (item.productId) clean.productId = item.productId;
+    if (item.wholesaleOfferId) clean.wholesaleOfferId = item.wholesaleOfferId;
+    if (item.wholesaleMode) clean.wholesaleMode = item.wholesaleMode;
+    if (item.packQuantity != null) clean.packQuantity = item.packQuantity;
+    if (item.unitsPerPack != null) clean.unitsPerPack = item.unitsPerPack;
+    if (item.listUnitPrice != null) clean.listUnitPrice = item.listUnitPrice;
+    if (item.lineDiscountPercent != null) clean.lineDiscountPercent = item.lineDiscountPercent;
     return clean;
   });
 }

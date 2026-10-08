@@ -82,14 +82,13 @@ export function buildWholesalePackLine(
   stockUnits: number
 ): SaleItem {
   const packs = stockUnits / offer.unitsPerPack;
-  return {
+  const line: SaleItem = {
     lineId: `pack-${offer.id}-${product.id}`,
     productId: product.id,
     productName: product.name,
     category: product.category,
     quantity: stockUnits,
     unitsPerPack: offer.unitsPerPack,
-    packQuantity: Number.isInteger(packs) ? packs : undefined,
     listUnitPrice: offer.listUnitPrice,
     unitPrice: offer.listUnitPrice,
     subtotal: offer.listUnitPrice * stockUnits,
@@ -97,6 +96,8 @@ export function buildWholesalePackLine(
     wholesaleMode: 'pack',
     lineDiscountPercent: 0,
   };
+  if (Number.isInteger(packs)) line.packQuantity = packs;
+  return line;
 }
 
 export function repriceCartLines(items: SaleItem[]): SaleItem[] {
@@ -118,16 +119,20 @@ export function repriceCartLines(items: SaleItem[]): SaleItem[] {
       const list = item.listUnitPrice ?? offer.listUnitPrice;
       const unitPrice = discountedUnitPrice(list, percent);
       const exactPacks = item.quantity / offer.unitsPerPack;
-      return {
+      const next: SaleItem = {
         ...item,
         listUnitPrice: list,
         unitsPerPack: offer.unitsPerPack,
         lineDiscountPercent: percent,
         unitPrice,
         subtotal: unitPrice * item.quantity,
-        packQuantity:
-          item.wholesaleMode === 'pack' && Number.isInteger(exactPacks) ? exactPacks : undefined,
       };
+      if (item.wholesaleMode === 'pack' && Number.isInteger(exactPacks)) {
+        next.packQuantity = exactPacks;
+      } else {
+        delete next.packQuantity;
+      }
+      return next;
     }
 
     const percent = item.lineDiscountPercent ?? 0;

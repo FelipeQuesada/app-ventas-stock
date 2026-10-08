@@ -263,8 +263,9 @@ export function PresupuestoPage() {
                   ...item,
                   quantity: item.quantity + 1,
                   listUnitPrice: item.listUnitPrice ?? product.price,
-                  wholesaleOfferId: offer?.id ?? item.wholesaleOfferId,
-                  wholesaleMode: offer ? 'unit' : item.wholesaleMode,
+                  ...(offer
+                    ? { wholesaleOfferId: offer.id, wholesaleMode: 'unit' as const }
+                    : {}),
                 }
               : item
           )
@@ -281,8 +282,9 @@ export function PresupuestoPage() {
           listUnitPrice: product.price,
           unitPrice: product.price,
           subtotal: product.price,
-          wholesaleOfferId: offer?.id,
-          wholesaleMode: offer ? 'unit' : undefined,
+          ...(offer
+            ? { wholesaleOfferId: offer.id, wholesaleMode: 'unit' as const }
+            : {}),
         },
       ]).map(fromSaleItem);
     });

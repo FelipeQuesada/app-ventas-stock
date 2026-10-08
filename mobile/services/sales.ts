@@ -17,6 +17,11 @@ import { aggregateProductQuantities, isExtraItem } from '@/utils/sale';
 import { normalizePhoneKey } from '@/utils/phone';
 const COLLECTION = 'sales';
 
+/** Firestore rechaza `undefined` dentro del documento, también en los ítems. */
+function withoutUndefined<T extends object>(value: T): T {
+  return Object.fromEntries(Object.entries(value).filter(([, entry]) => entry !== undefined)) as T;
+}
+
 function mapSale(id: string, data: Record<string, unknown>): Sale {
   const legacyCustomer = data.customer as SaleCustomer | undefined;
   return {
@@ -150,7 +155,7 @@ async function commitSaleCreate(input: CreateSaleInput): Promise<string> {
   const saleRef = doc(collection(db, COLLECTION));
   batch.set(saleRef, {
     date: Timestamp.fromDate(input.date),
-    items: input.items,
+    items: input.items.map((item) => withoutUndefined(item)),
     paymentMethod: input.paymentMethod,
     paymentMethodLabel: input.paymentMethodLabel,
     paymentSplits: input.paymentSplits ?? null,
@@ -228,7 +233,7 @@ export async function updateSale(
   const saleRef = doc(db, COLLECTION, saleId);
   batch.update(saleRef, {
     date: Timestamp.fromDate(input.date),
-    items: input.items,
+    items: input.items.map((item) => withoutUndefined(item)),
     paymentMethod: input.paymentMethod,
     paymentMethodLabel: input.paymentMethodLabel,
     paymentSplits: input.paymentSplits ?? null,

@@ -35,29 +35,30 @@ export function CartProvider({ children }: { children: React.ReactNode }) {
                   ...item,
                   quantity: item.quantity + 1,
                   listUnitPrice: item.listUnitPrice ?? product.price,
-                  wholesaleOfferId: offer?.id ?? item.wholesaleOfferId,
-                  wholesaleMode: offer ? 'unit' : item.wholesaleMode,
+                  ...(offer
+                    ? { wholesaleOfferId: offer.id, wholesaleMode: 'unit' as const }
+                    : {}),
                 }
               : item
           )
         );
       }
 
-      return repriceCartLines([
-        ...current,
-        {
-          lineId: offer ? `unit-${product.id}` : product.id,
-          productId: product.id,
-          productName: product.name,
-          category: product.category,
-          quantity: 1,
-          listUnitPrice: product.price,
-          unitPrice: product.price,
-          subtotal: product.price,
-          wholesaleOfferId: offer?.id,
-          wholesaleMode: offer ? 'unit' : undefined,
-        },
-      ]);
+      const line: SaleItem = {
+        lineId: offer ? `unit-${product.id}` : product.id,
+        productId: product.id,
+        productName: product.name,
+        category: product.category,
+        quantity: 1,
+        listUnitPrice: product.price,
+        unitPrice: product.price,
+        subtotal: product.price,
+      };
+      if (offer) {
+        line.wholesaleOfferId = offer.id;
+        line.wholesaleMode = 'unit';
+      }
+      return repriceCartLines([...current, line]);
     });
   }, []);
 
