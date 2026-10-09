@@ -39,6 +39,10 @@ service cloud.firestore {
       allow delete: if isAdmin();
     }
 
+    match /saleDrafts/{draftId} {
+      allow read, create, update, delete: if isAuthenticated();
+    }
+
     match /caja/{dateId} {
       allow read, create, update: if isAuthenticated();
       allow delete: if isAdmin();

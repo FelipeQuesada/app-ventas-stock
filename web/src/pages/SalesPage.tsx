@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Plus, Trash2, Search, ShoppingCart, Landmark, Banknote, CreditCard, QrCode } from 'lucide-react';
 import type { DiscountType, PaymentMethod, Product, SaleItem, SaleTicketData } from '@advance-coat/shared';
@@ -27,6 +27,13 @@ import {
 } from '@advance-coat/shared';
 import { getProducts } from '../services/products';
 import { createSale, updateSale, getSale } from '../services/sales';
+import {
+  deleteSaleDraft,
+  getSaleDraft,
+  listSaleDrafts,
+  saveSaleDraft,
+  type SaleDraft,
+} from '../services/saleDrafts';
 import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
 import { SaleTicketModal } from '../components/SaleTicketModal';
@@ -98,6 +105,7 @@ export function SalesPage() {
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const editId = params.get('edit');
+  const draftId = params.get('draft');
 
   const [products, setProducts] = useState<Product[]>([]);
   const [search, setSearch] = useState('');
@@ -122,9 +130,13 @@ export function SalesPage() {
   const [showExtraForm, setShowExtraForm] = useState(false);
   const [previousItems, setPreviousItems] = useState<SaleItem[]>([]);
   const [saving, setSaving] = useState(false);
+  const [savingDraft, setSavingDraft] = useState(false);
+  const [drafts, setDrafts] = useState<SaleDraft[]>([]);
   const [ticketSale, setTicketSale] = useState<SaleTicketData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+  const loadedSaleKey = useRef<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -136,43 +148,101 @@ export function SalesPage() {
         if (editId) {
           const sale = await getSale(editId);
           if (sale && !cancelled) {
-            cart.setItems(sale.items);
-            setPreviousItems(sale.items);
-            setSeller(sale.createdByName || '');
-            if (sale.date) {
-              setSaleDate(sale.date.toISOString().slice(0, 10));
-              setOriginalSaleDate(sale.date);
-            }
-            setCustomerName(sale.customer?.name ?? '');
-            setCustomerPhone(sale.customer?.phone ?? '');
-            setCustomerEmail(sale.customer?.email ?? '');
-            setCustomerCuit(sale.customer?.cuit ?? '');
-            if (sale.paymentSplits && sale.paymentSplits.length === 2) {
-              setPaymentMode('dual');
-              setSelectedPayments(sale.paymentSplits.map((split) => split.method));
-              setSplitAmounts(
-                Object.fromEntries(
-                  sale.paymentSplits.map((split) => [split.method, String(split.amount)])
-                ) as Partial<Record<PaymentMethod, string>>
-              );
-            } else {
-              setPaymentMode('single');
-              setSelectedPayments([sale.paymentMethod]);
-            }
-            setWantsInvoice(sale.wantsInvoice === true);
-            setDiscountType(sale.discountType ?? null);
-            setDiscountValue(sale.discountValue != null ? String(sale.discountValue) : '');
-            setAmountPaid(sale.amountPaid != null ? String(sale.amountPaid) : '');
+            applyLoadedSale(sale, true);
+            loadedSaleKey.current = editId;
           }
-        } else {
-          cart.clear();
+        } else if (draftId) {
+          const draft = await getSaleDraft(draftId);
+          if (!draft && !cancelled) {
+            setError('No encontré ese borrador');
+          } else if (draft && !cancelled) {
+            applyLoadedSale(draft, false);
+            loadedSaleKey.current = draftId;
+          }
+        } else if (!cancelled) {
+          if (loadedSaleKey.current) clearNewSaleForm();
+          else cart.clear();
+          loadedSaleKey.current = null;
+        }
+
+        try {
+          const pending = await listSaleDrafts();
+          if (!cancelled) setDrafts(pending);
+        } catch {
+          if (!cancelled) setDrafts([]);
         }
       } finally {
         if (!cancelled) setLoading(false);
       }
     })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- load once per editId
-  }, [editId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- load once per edit or draft
+  }, [editId, draftId]);
+
+  function applyLoadedSale(
+    sale: {
+      items: SaleItem[];
+      createdByName?: string;
+      date?: Date;
+      customer?: { name?: string; phone?: string; email?: string; cuit?: string };
+      paymentMethod: PaymentMethod;
+      paymentSplits?: { method: PaymentMethod; amount: number }[];
+      wantsInvoice?: boolean;
+      discountType?: DiscountType | null;
+      discountValue?: number;
+      amountPaid?: number;
+    },
+    trackPreviousItems: boolean
+  ) {
+    cart.setItems(sale.items);
+    setPreviousItems(trackPreviousItems ? sale.items : []);
+    setSeller(sale.createdByName || '');
+    if (sale.date) {
+      const y = sale.date.getFullYear();
+      const m = String(sale.date.getMonth() + 1).padStart(2, '0');
+      const d = String(sale.date.getDate()).padStart(2, '0');
+      setSaleDate(`${y}-${m}-${d}`);
+      setOriginalSaleDate(sale.date);
+    }
+    setCustomerName(sale.customer?.name ?? '');
+    setCustomerPhone(sale.customer?.phone ?? '');
+    setCustomerEmail(sale.customer?.email ?? '');
+    setCustomerCuit(sale.customer?.cuit ?? '');
+    if (sale.paymentSplits && sale.paymentSplits.length === 2) {
+      setPaymentMode('dual');
+      setSelectedPayments(sale.paymentSplits.map((split) => split.method));
+      setSplitAmounts(
+        Object.fromEntries(sale.paymentSplits.map((split) => [split.method, String(split.amount)])) as Partial<
+          Record<PaymentMethod, string>
+        >
+      );
+    } else {
+      setPaymentMode('single');
+      setSelectedPayments([sale.paymentMethod]);
+      setSplitAmounts({});
+    }
+    setWantsInvoice(sale.wantsInvoice === true);
+    setDiscountType(sale.discountType ?? null);
+    setDiscountValue(sale.discountValue != null ? String(sale.discountValue) : '');
+    setAmountPaid(sale.amountPaid != null ? String(sale.amountPaid) : '');
+  }
+
+  function clearNewSaleForm() {
+    cart.clear();
+    setSeller('');
+    setCustomerName('');
+    setCustomerPhone('');
+    setCustomerEmail('');
+    setCustomerCuit('');
+    setPaymentMode('single');
+    setSelectedPayments(['efectivo']);
+    setSplitAmounts({});
+    setWantsInvoice(false);
+    setDiscountType(null);
+    setDiscountValue('');
+    setAmountPaid('');
+    setSaleDate(new Date().toISOString().slice(0, 10));
+    setOriginalSaleDate(null);
+  }
 
   const searchTerm = search.toLowerCase().trim();
   const categories = useMemo(() => getUniqueProductCategories(products), [products]);
@@ -274,37 +344,7 @@ export function SalesPage() {
 
     setSaving(true);
     try {
-      const amounts =
-        paymentMode === 'dual'
-          ? selectedPayments.map((method) => Number(splitAmounts[method]) || 0)
-          : undefined;
-      const payment = buildSalePaymentData(selectedPayments, amounts, total);
-      const input = {
-        date: buildSaleDateFromPicker(saleDate, {
-          useCurrentTime: !editId,
-          preserveTimeFrom: editId ? (originalSaleDate ?? undefined) : undefined,
-        }),
-        items: cart.items,
-        paymentMethod: payment.paymentMethod,
-        paymentMethodLabel: payment.paymentMethodLabel,
-        paymentSplits: payment.paymentSplits,
-        customer: {
-          name: customerName,
-          email: customerEmail,
-          phone: customerPhone,
-          cuit: wantsInvoice ? normalizeCuitDigits(customerCuit) : customerCuit.trim() || '',
-        },
-        subtotal,
-        discountType: discountType ?? undefined,
-        discountValue: Number(discountValue) || 0,
-        discountAmount,
-        total,
-        amountPaid: hasEfectivo && cashDue > 0 ? paid || undefined : undefined,
-        change: hasEfectivo && cashDue > 0 ? change : undefined,
-        createdBy: user.uid,
-        createdByName: seller,
-        wantsInvoice: canAskInvoice && wantsInvoice,
-      };
+      const input = buildSaleInput(user.uid);
 
       const ticket: SaleTicketData = {
         date: input.date,
@@ -325,6 +365,13 @@ export function SalesPage() {
         await updateSale(editId, input, previousItems);
       } else {
         await createSale(input);
+        if (draftId) {
+          try {
+            await deleteSaleDraft(draftId);
+          } catch {
+            // La venta ya quedó registrada.
+          }
+        }
       }
       cart.clear();
       setTicketSale(ticket);
@@ -333,6 +380,81 @@ export function SalesPage() {
     } finally {
       setSaving(false);
     }
+  }
+
+  function buildSaleInput(uid: string) {
+    const amounts =
+      paymentMode === 'dual'
+        ? selectedPayments.map((method) => Number(splitAmounts[method]) || 0)
+        : undefined;
+    const payment =
+      selectedPayments.length > 0
+        ? buildSalePaymentData(selectedPayments, amounts, total)
+        : {
+            paymentMethod: 'efectivo' as PaymentMethod,
+            paymentMethodLabel: getPaymentMethodLabel('efectivo'),
+          };
+    return {
+      date: buildSaleDateFromPicker(saleDate, {
+        useCurrentTime: !editId,
+        preserveTimeFrom: editId ? (originalSaleDate ?? undefined) : undefined,
+      }),
+      items: cart.items,
+      paymentMethod: payment.paymentMethod,
+      paymentMethodLabel: payment.paymentMethodLabel,
+      paymentSplits: payment.paymentSplits,
+      customer: {
+        name: customerName,
+        email: customerEmail,
+        phone: customerPhone,
+        cuit: wantsInvoice ? normalizeCuitDigits(customerCuit) : customerCuit.trim() || '',
+      },
+      subtotal,
+      discountType: discountType ?? undefined,
+      discountValue: Number(discountValue) || 0,
+      discountAmount,
+      total,
+      amountPaid: hasEfectivo && cashDue > 0 ? paid || undefined : undefined,
+      change: hasEfectivo && cashDue > 0 ? change : undefined,
+      createdBy: uid,
+      createdByName: seller,
+      wantsInvoice: canAskInvoice && wantsInvoice,
+    };
+  }
+
+  async function handleSaveDraft() {
+    setError('');
+    setNotice('');
+    if (cart.items.length === 0) {
+      setError('Agregá al menos un producto');
+      return;
+    }
+    if (!user) {
+      setError('Sesión inválida');
+      return;
+    }
+    setSavingDraft(true);
+    try {
+      await saveSaleDraft(draftId, buildSaleInput(user.uid));
+      setDrafts(await listSaleDrafts());
+      if (draftId) {
+        setNotice('Borrador actualizado');
+      } else {
+        clearNewSaleForm();
+        setNotice('Borrador guardado. Queda en la lista para cerrarlo cuando el cliente pase.');
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'No se pudo guardar el borrador');
+    } finally {
+      setSavingDraft(false);
+    }
+  }
+
+  async function handleDiscardDraft(id: string) {
+    if (!window.confirm('¿Quitar este borrador?')) return;
+    await deleteSaleDraft(id);
+    setDrafts((current) => current.filter((draft) => draft.id !== id));
+    if (draftId === id) navigate('/sales');
   }
 
   if (loading) return <div className="loading-screen">Cargando…</div>;
@@ -350,6 +472,48 @@ export function SalesPage() {
   return (
     <form className="sale-form sale-form-app" onSubmit={handleSubmit}>
       {error && <p className="error-text">{error}</p>}
+      {notice && <p className="success-text">{notice}</p>}
+
+      {!editId && !draftId && drafts.length > 0 && (
+        <div className="sale-drafts">
+          <h4 className="sale-section-title">Borradores</h4>
+          {drafts.map((draft) => {
+            const names = draft.items.map((item) => item.productName);
+            const preview = names.slice(0, 2).join(', ');
+            const extra = names.length > 2 ? ` +${names.length - 2}` : '';
+            return (
+              <div className="sale-draft-card" key={draft.id}>
+                <div className="sale-draft-card-body">
+                  <strong>{draft.customer.name || draft.customer.phone || 'Sin cliente'}</strong>
+                  <span className="muted">
+                    {preview}
+                    {extra}
+                  </span>
+                </div>
+                <strong>{formatCurrency(draft.total)}</strong>
+                <button
+                  type="button"
+                  className="btn btn-primary btn-sm"
+                  onClick={() => navigate(`/sales?draft=${draft.id}`)}
+                >
+                  Continuar
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-sm"
+                  onClick={() => void handleDiscardDraft(draft.id)}
+                >
+                  Quitar
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {draftId ? (
+        <p className="caja-hint">Borrador listo. Cuando pase el cliente, registrá la venta.</p>
+      ) : null}
 
       <div className="field">
         <label>Fecha</label>
@@ -884,9 +1048,19 @@ export function SalesPage() {
         </div>
       )}
 
-      <button type="submit" className="btn btn-primary sale-register-btn" disabled={saving}>
+      <button type="submit" className="btn btn-primary sale-register-btn" disabled={saving || savingDraft}>
         {submitLabel}
       </button>
+      {!editId && (
+        <button
+          type="button"
+          className="btn btn-ghost sale-draft-btn"
+          disabled={saving || savingDraft}
+          onClick={() => void handleSaveDraft()}
+        >
+          {savingDraft ? 'Guardando…' : 'Guardar borrador'}
+        </button>
+      )}
 
       {ticketSale ? (
         <SaleTicketModal

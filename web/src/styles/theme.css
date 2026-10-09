@@ -2228,6 +2228,42 @@ table.data-table tr.caja-row-retiro:hover td {
   font-weight: 700;
 }
 
+.sale-draft-btn {
+  width: 100%;
+  margin-top: 10px;
+  min-height: 48px;
+}
+
+.sale-drafts {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+
+.sale-draft-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #fff;
+}
+
+.sale-draft-card-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.sale-draft-card-body strong,
+.sale-draft-card-body .muted {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 @media (min-width: 768px) {
   .sale-form-app {
     padding-bottom: 40px;
