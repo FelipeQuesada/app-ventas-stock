@@ -2234,6 +2234,11 @@ table.data-table tr.caja-row-retiro:hover td {
   min-height: 48px;
 }
 
+.sale-draft-toggle {
+  margin-top: 0;
+  margin-bottom: 12px;
+}
+
 .sale-drafts {
   display: flex;
   flex-direction: column;

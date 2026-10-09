@@ -132,6 +132,7 @@ export function SalesPage() {
   const [saving, setSaving] = useState(false);
   const [savingDraft, setSavingDraft] = useState(false);
   const [drafts, setDrafts] = useState<SaleDraft[]>([]);
+  const [showDrafts, setShowDrafts] = useState(false);
   const [ticketSale, setTicketSale] = useState<SaleTicketData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -441,6 +442,7 @@ export function SalesPage() {
         setNotice('Borrador actualizado');
       } else {
         clearNewSaleForm();
+        setShowDrafts(true);
         setNotice('Borrador guardado. Queda en la lista para cerrarlo cuando el cliente pase.');
       }
     } catch (err) {
@@ -474,10 +476,22 @@ export function SalesPage() {
       {error && <p className="error-text">{error}</p>}
       {notice && <p className="success-text">{notice}</p>}
 
-      {!editId && !draftId && drafts.length > 0 && (
+      {!editId && (
+        <button
+          type="button"
+          className="btn btn-ghost sale-draft-btn sale-draft-toggle"
+          onClick={() => setShowDrafts((open) => !open)}
+        >
+          {showDrafts ? 'Ocultar borradores' : `Ver borradores (${drafts.length})`}
+        </button>
+      )}
+
+      {!editId && showDrafts && (
         <div className="sale-drafts">
-          <h4 className="sale-section-title">Borradores</h4>
-          {drafts.map((draft) => {
+          {drafts.length === 0 ? (
+            <p className="muted sale-empty-hint">No hay borradores</p>
+          ) : (
+            drafts.map((draft) => {
             const names = draft.items.map((item) => item.productName);
             const preview = names.slice(0, 2).join(', ');
             const extra = names.length > 2 ? ` +${names.length - 2}` : '';
@@ -507,7 +521,8 @@ export function SalesPage() {
                 </button>
               </div>
             );
-          })}
+            })
+          )}
         </div>
       )}
 
