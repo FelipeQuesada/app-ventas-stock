@@ -28,6 +28,7 @@ import {
 import { Sale, PaymentMethod, Product } from '@/types';
 import { buildResinAccountingCatalogMap } from '@advance-coat/shared';
 import { formatCurrency, formatDate, getSaleDisplayDate } from '@/utils/format';
+import { getSaleCalendarDate } from '@advance-coat/shared';
 import {
   createDefaultPeriod,
   formatPeriodLabel,
@@ -76,7 +77,7 @@ export default function SalesListScreen() {
   );
 
   const periodSales = useMemo(
-    () => sales.filter((sale) => isDateInRange(sale.date, period.range)),
+    () => sales.filter((sale) => isDateInRange(getSaleCalendarDate(sale), period.range)),
     [sales, period]
   );
 

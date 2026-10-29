@@ -108,7 +108,11 @@ export function getCashTotalForDate(sales: Sale[], date: Date): number {
   const start = new Date(date.getFullYear(), date.getMonth(), date.getDate());
   const end = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 23, 59, 59, 999);
   return sales
-    .filter((sale) => getSaleCashAmount(sale) > 0 && sale.date >= start && sale.date <= end)
+    .filter((sale) => {
+      if (getSaleCashAmount(sale) <= 0) return false;
+      const day = new Date(sale.date.getFullYear(), sale.date.getMonth(), sale.date.getDate());
+      return day >= start && day <= end;
+    })
     .reduce((sum, sale) => sum + getSaleCashAmount(sale), 0);
 }
 

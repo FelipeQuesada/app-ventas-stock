@@ -63,12 +63,8 @@ export async function findCustomerByPhone(phone: string): Promise<Customer | nul
     limit(1)
   );
   const keyed = await getDocs(byKey);
-  if (!keyed.empty) {
-    return mapCustomer(keyed.docs[0].id, keyed.docs[0].data());
-  }
-
-  const all = await getCustomers();
-  return all.find((customer) => normalizePhoneKey(customer.phone) === phoneKey) ?? null;
+  if (keyed.empty) return null;
+  return mapCustomer(keyed.docs[0].id, keyed.docs[0].data());
 }
 
 export async function getCustomer(id: string): Promise<Customer | null> {

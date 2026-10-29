@@ -5,6 +5,7 @@ import type { Sale, Product } from '@advance-coat/shared';
 import {
   formatCurrency,
   formatShortDateTime,
+  getSaleCalendarDate,
   getSaleDisplayDate,
   getSalePaymentLabel,
   createDefaultPeriod,
@@ -51,7 +52,7 @@ export function SalesListPage() {
   }, []);
 
   const filtered = useMemo(
-    () => sales.filter((s) => isDateInRange(s.date, period.range)),
+    () => sales.filter((s) => isDateInRange(getSaleCalendarDate(s), period.range)),
     [sales, period]
   );
 

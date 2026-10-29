@@ -93,7 +93,11 @@ export async function saveSaleDraft(id: string | null, input: CreateSaleInput): 
     cuit: input.customer.cuit?.trim() || '',
   };
   if (customer.name || customer.email || customer.phone) {
-    await saveCustomer(customer);
+    try {
+      await saveCustomer(customer);
+    } catch (error) {
+      console.warn('No se pudo guardar el cliente del borrador', error);
+    }
   }
 
   const payload = {

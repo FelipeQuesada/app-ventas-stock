@@ -42,6 +42,14 @@ function saleDateNeedsCreatedAtTime(d: Date): boolean {
   );
 }
 
+/** YYYY-MM-DD en zona local. No usar toISOString(): en Argentina de noche salta al día siguiente. */
+export function toLocalDateInputValue(date = new Date()): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
 export function buildSaleDateFromPicker(
   saleDateStr: string,
   options?: { preserveTimeFrom?: Date; useCurrentTime?: boolean }
@@ -60,6 +68,12 @@ export function buildSaleDateFromPicker(
     timeSource.getMilliseconds()
   );
   return base;
+}
+
+/** Día calendario local de la venta (para historial y caja). */
+export function getSaleCalendarDate(sale: { date: Date; createdAt?: Date }): Date {
+  const display = getSaleDisplayDate(sale);
+  return new Date(display.getFullYear(), display.getMonth(), display.getDate());
 }
 
 export function getSaleDisplayDate(sale: { date: Date; createdAt?: Date }): Date {

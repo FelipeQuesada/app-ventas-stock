@@ -21,6 +21,7 @@ import {
   mergeWholesaleLines,
   wholesalePackCount,
   buildSaleDateFromPicker,
+  toLocalDateInputValue,
   isValidCuitCuil,
   limitCuitInput,
   normalizeCuitDigits,
@@ -110,7 +111,7 @@ export function SalesPage() {
   const [products, setProducts] = useState<Product[]>([]);
   const [search, setSearch] = useState('');
   const [category, setCategory] = useState<string | null>(null);
-  const [saleDate, setSaleDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [saleDate, setSaleDate] = useState(() => toLocalDateInputValue());
   const [originalSaleDate, setOriginalSaleDate] = useState<Date | null>(null);
   const [seller, setSeller] = useState('');
   const [customerName, setCustomerName] = useState('');
@@ -198,10 +199,7 @@ export function SalesPage() {
     setPreviousItems(trackPreviousItems ? sale.items : []);
     setSeller(sale.createdByName || '');
     if (sale.date) {
-      const y = sale.date.getFullYear();
-      const m = String(sale.date.getMonth() + 1).padStart(2, '0');
-      const d = String(sale.date.getDate()).padStart(2, '0');
-      setSaleDate(`${y}-${m}-${d}`);
+      setSaleDate(toLocalDateInputValue(sale.date));
       setOriginalSaleDate(sale.date);
     }
     setCustomerName(sale.customer?.name ?? '');
@@ -241,7 +239,7 @@ export function SalesPage() {
     setDiscountType(null);
     setDiscountValue('');
     setAmountPaid('');
-    setSaleDate(new Date().toISOString().slice(0, 10));
+    setSaleDate(toLocalDateInputValue());
     setOriginalSaleDate(null);
   }
 
@@ -1063,6 +1061,7 @@ export function SalesPage() {
         </div>
       )}
 
+      {error ? <p className="error-text">{error}</p> : null}
       <button type="submit" className="btn btn-primary sale-register-btn" disabled={saving || savingDraft}>
         {submitLabel}
       </button>

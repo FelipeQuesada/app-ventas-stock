@@ -15,6 +15,7 @@ import {
   matchWholesaleOffer,
   mergeWholesaleLines,
   repriceCartLines,
+  toLocalDateInputValue,
   wholesalePackCount,
 } from '@advance-coat/shared';
 import { DateField } from '../components/DateField';
@@ -100,7 +101,7 @@ export function PresupuestoPage() {
   const { user, profile } = useAuth();
   const [params] = useSearchParams();
   const editId = params.get('edit');
-  const todayIso = () => new Date().toISOString().slice(0, 10);
+  const todayIso = () => toLocalDateInputValue();
 
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);

@@ -11,16 +11,28 @@ import {
   doc,
 } from 'firebase/firestore';
 import type { Sale, SaleItem, PaymentMethod, SaleCustomer, DiscountType, SalePaymentSplit } from '@advance-coat/shared';
-import { aggregateProductQuantities, isExtraItem, normalizePhoneKey, calculateDiscount } from '@advance-coat/shared';
+import {
+  aggregateProductQuantities,
+  getSaleCalendarDate,
+  isExtraItem,
+  normalizePhoneKey,
+  calculateDiscount,
+} from '@advance-coat/shared';
 import { db } from '../lib/firebase';
 import { saveCustomer } from './customers';
 import { logAudit } from './audit';
 
 const COLLECTION = 'sales';
 
-/** Firestore rechaza `undefined` dentro del documento, también en los ítems. */
+/** Firestore rechaza `undefined`, `NaN` e `Infinity` dentro del documento. */
 function withoutUndefined<T extends object>(value: T): T {
-  return Object.fromEntries(Object.entries(value).filter(([, entry]) => entry !== undefined)) as T;
+  return Object.fromEntries(
+    Object.entries(value).filter(([, entry]) => {
+      if (entry === undefined) return false;
+      if (typeof entry === 'number' && !Number.isFinite(entry)) return false;
+      return true;
+    })
+  ) as T;
 }
 
 function mapSale(id: string, data: Record<string, unknown>): Sale {
@@ -56,9 +68,16 @@ function mapSale(id: string, data: Record<string, unknown>): Sale {
 export async function getSales(): Promise<Sale[]> {
   const q = query(collection(db, COLLECTION), orderBy('date', 'desc'));
   const snap = await getDocs(q);
-  return snap.docs
-    .filter((d) => d.data().recordType !== 'presupuesto')
-    .map((d) => mapSale(d.id, d.data()));
+  const sales: Sale[] = [];
+  for (const d of snap.docs) {
+    if (d.data().recordType === 'presupuesto') continue;
+    try {
+      sales.push(mapSale(d.id, d.data()));
+    } catch (error) {
+      console.warn('Venta ilegible omitida', d.id, error);
+    }
+  }
+  return sales;
 }
 
 /** Ventas donde el cliente pidió factura y aún no se marcó como emitida. */
@@ -98,16 +117,31 @@ export async function getSalesByDateRange(start: Date, end: Date): Promise<Sale[
     orderBy('date', 'desc')
   );
   const snap = await getDocs(q);
-  return snap.docs
-    .filter((d) => d.data().recordType !== 'presupuesto')
-    .map((d) => mapSale(d.id, d.data()));
+  const sales: Sale[] = [];
+  for (const d of snap.docs) {
+    if (d.data().recordType === 'presupuesto') continue;
+    try {
+      sales.push(mapSale(d.id, d.data()));
+    } catch (error) {
+      console.warn('Venta ilegible omitida', d.id, error);
+    }
+  }
+  return sales;
 }
 
-/** Ventas de un día calendario (local). */
+/** Ventas de un día calendario (local). Amplía ±1 día por desfaces UTC al guardar. */
 export async function getSalesForDay(date: Date): Promise<Sale[]> {
   const start = new Date(date.getFullYear(), date.getMonth(), date.getDate());
   const end = new Date(date.getFullYear(), date.getMonth(), date.getDate(), 23, 59, 59, 999);
-  return getSalesByDateRange(start, end);
+  const queryStart = new Date(start);
+  queryStart.setDate(queryStart.getDate() - 1);
+  const queryEnd = new Date(end);
+  queryEnd.setDate(queryEnd.getDate() + 1);
+  const sales = await getSalesByDateRange(queryStart, queryEnd);
+  return sales.filter((sale) => {
+    const day = getSaleCalendarDate(sale);
+    return day >= start && day <= end;
+  });
 }
 
 export interface CreateSaleInput {
@@ -152,7 +186,11 @@ async function commitSaleCreate(input: CreateSaleInput): Promise<string> {
   };
 
   if (normalizedCustomer.name || normalizedCustomer.email || normalizedCustomer.phone) {
-    await saveCustomer(normalizedCustomer);
+    try {
+      await saveCustomer(normalizedCustomer);
+    } catch (error) {
+      console.warn('No se pudo guardar el cliente; se registra la venta igual', error);
+    }
   }
 
   const batch = writeBatch(db);
@@ -214,7 +252,11 @@ export async function updateSale(
   };
 
   if (normalizedCustomer.name || normalizedCustomer.email || normalizedCustomer.phone) {
-    await saveCustomer(normalizedCustomer);
+    try {
+      await saveCustomer(normalizedCustomer);
+    } catch (error) {
+      console.warn('No se pudo guardar el cliente; se actualiza la venta igual', error);
+    }
   }
 
   const batch = writeBatch(db);
