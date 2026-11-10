@@ -47,11 +47,17 @@
   left: 0;
   right: 0;
   z-index: 50;
+  padding-top: env(safe-area-inset-top, 0px);
+  padding-left: env(safe-area-inset-left, 0px);
+  padding-right: env(safe-area-inset-right, 0px);
   transition:
     background 0.3s,
     backdrop-filter 0.3s,
     border-color 0.3s;
   border-bottom: 1px solid transparent;
+  /* Fondo en la zona de la isla para que no se mezcle con el hero */
+  background: rgba(11, 15, 26, 0.72);
+  backdrop-filter: blur(10px);
 }
 
 .lp-nav.is-scrolled {
@@ -171,7 +177,7 @@
   min-height: 100vh;
   display: flex;
   align-items: center;
-  padding: 120px 0 80px;
+  padding: calc(120px + env(safe-area-inset-top, 0px)) 0 calc(80px + env(safe-area-inset-bottom, 0px));
   overflow: hidden;
 }
 
