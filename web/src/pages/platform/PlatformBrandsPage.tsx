@@ -6,6 +6,19 @@ import { listBrands, updateBrand, ensureLegacyAdvanceBrand } from '../../service
 import { useAuth } from '../../context/AuthContext';
 import { useBrand } from '../../context/BrandContext';
 import { useNavigate } from 'react-router-dom';
+import { PlatformPillSelect } from '../../components/PlatformPillSelect';
+
+const PLAN_OPTIONS = Object.values(PLAN_DEFINITIONS).map((p) => ({
+  value: p.id,
+  label: p.name,
+  tone: `plan-${p.id}`,
+}));
+
+const STATUS_OPTIONS: { value: BrandStatus; label: string; tone: string }[] = [
+  { value: 'active', label: 'Activa', tone: 'status-active' },
+  { value: 'trial', label: 'Trial', tone: 'status-trial' },
+  { value: 'suspended', label: 'Suspendida', tone: 'status-suspended' },
+];
 
 export function PlatformBrandsPage() {
   const { user, profile } = useAuth();
@@ -113,7 +126,7 @@ export function PlatformBrandsPage() {
           <p>No hay marcas todavía. Corré la migración de Advance o esperá un registro nuevo.</p>
         </div>
       ) : (
-        <div className="table-wrap card">
+        <div className="table-wrap card platform-brands-table">
           <table className="data-table">
             <thead>
               <tr>
@@ -126,41 +139,44 @@ export function PlatformBrandsPage() {
             </thead>
             <tbody>
               {brands.map((b) => (
-                <tr key={b.id}>
+                <tr key={b.id} className={savingId === b.id ? 'is-saving' : undefined}>
                   <td>
-                    <strong>{b.name}</strong>
-                    <div className="muted" style={{ fontSize: 12 }}>
-                      {b.slug} · {b.id}
+                    <div className="platform-brand-cell">
+                      <span className="platform-brand-avatar" aria-hidden>
+                        {b.name.slice(0, 1).toUpperCase()}
+                      </span>
+                      <div>
+                        <strong>{b.name}</strong>
+                        <div className="muted platform-brand-meta">
+                          {b.slug}
+                        </div>
+                      </div>
                     </div>
                   </td>
                   <td>
-                    <select
+                    <PlatformPillSelect
                       value={b.planId}
+                      options={PLAN_OPTIONS}
                       disabled={savingId === b.id}
-                      onChange={(e) => void handlePlan(b.id, e.target.value as PlanId)}
-                    >
-                      {Object.values(PLAN_DEFINITIONS).map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.name}
-                        </option>
-                      ))}
-                    </select>
+                      ariaLabel={`Plan de ${b.name}`}
+                      toneClass={`plan-${b.planId}`}
+                      onChange={(planId) => void handlePlan(b.id, planId)}
+                    />
                   </td>
                   <td>
-                    <select
+                    <PlatformPillSelect
                       value={b.status}
+                      options={STATUS_OPTIONS}
                       disabled={savingId === b.id}
-                      onChange={(e) => void handleStatus(b.id, e.target.value as BrandStatus)}
-                    >
-                      <option value="active">Activa</option>
-                      <option value="trial">Trial</option>
-                      <option value="suspended">Suspendida</option>
-                    </select>
+                      ariaLabel={`Estado de ${b.name}`}
+                      toneClass={`status-${b.status}`}
+                      onChange={(status) => void handleStatus(b.id, status)}
+                    />
                   </td>
                   <td>
-                    <div>{b.email || '—'}</div>
-                    <div className="muted" style={{ fontSize: 12 }}>
-                      {b.phone || ''}
+                    <div className="platform-contact">
+                      <span>{b.email || '—'}</span>
+                      {b.phone ? <span className="muted">{b.phone}</span> : null}
                     </div>
                   </td>
                   <td>

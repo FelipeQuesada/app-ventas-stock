@@ -30,6 +30,7 @@ import { BrandSettingsPage } from './pages/BrandSettingsPage';
 import { PresupuestoPage } from './pages/PresupuestoPage';
 import { PresupuestoListPage } from './pages/PresupuestoListPage';
 import { FlexPage } from './pages/FlexPage';
+import { LegalPage } from './pages/LegalPage';
 
 export default function App() {
   return (
@@ -40,6 +41,7 @@ export default function App() {
             <Routes>
               <Route path="/" element={<LandingPage />} />
               <Route path="/landing" element={<Navigate to="/" replace />} />
+              <Route path="/legal/:slug" element={<LegalPage />} />
               <Route path="/login" element={<LoginPage />} />
               <Route path="/register" element={<RegisterPage />} />
               <Route path="/admin/setup" element={<Navigate to="/login" replace />} />

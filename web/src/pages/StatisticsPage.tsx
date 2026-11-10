@@ -30,6 +30,7 @@ import {
   type ResinUnitKey,
   type PeriodSelection,
   isBrandAdminRole,
+  isSuperAdminRole,
 } from '@advance-coat/shared';
 import { getSales } from '../services/sales';
 import { getProducts } from '../services/products';
@@ -185,7 +186,7 @@ export function StatisticsPage() {
   const sellerTotal = sellers.reduce((sum, item) => sum + item.value, 0) || 1;
   const dominantPayment = payments[0];
 
-  if (!isBrandAdminRole(profile?.role)) {
+  if (!isBrandAdminRole(profile?.role) && !isSuperAdminRole(profile?.role)) {
     return <Navigate to="/app" replace />;
   }
 

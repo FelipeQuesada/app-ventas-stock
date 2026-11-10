@@ -9,6 +9,7 @@ import {
   calculateCambioCierre,
   SALE_SELLERS,
   isBrandAdminRole,
+  isSuperAdminRole,
 } from '@advance-coat/shared';
 import { format, parseISO, isValid } from 'date-fns';
 import {
@@ -29,7 +30,7 @@ export function CajaRegisterMissingPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { user, profile } = useAuth();
-  const isAdmin = isBrandAdminRole(profile?.role);
+  const isAdmin = isBrandAdminRole(profile?.role) || isSuperAdminRole(profile?.role);
 
   const initialDate =
     searchParams.get('date') || format(new Date(Date.now() - 86400000), 'yyyy-MM-dd');

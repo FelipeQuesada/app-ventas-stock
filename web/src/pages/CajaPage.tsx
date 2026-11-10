@@ -13,6 +13,7 @@ import {
   CAJA_WHATSAPP_PHONE,
   SALE_SELLERS,
   isBrandAdminRole,
+  isSuperAdminRole,
 } from '@advance-coat/shared';
 import {
   getCajaByDate,
@@ -47,7 +48,7 @@ function CajaRow({
 
 export function CajaPage() {
   const { user, profile } = useAuth();
-  const isAdmin = isBrandAdminRole(profile?.role);
+  const isAdmin = isBrandAdminRole(profile?.role) || isSuperAdminRole(profile?.role);
   const today = new Date();
   const [cajaCambio, setCajaCambio] = useState('');
   const [cashSales, setCashSales] = useState(0);
@@ -85,7 +86,7 @@ export function CajaPage() {
         setSinMovimiento(existing?.sinMovimiento === true);
         if (existing?.closedByName) setClosedByName(existing.closedByName);
 
-        if (isBrandAdminRole(profile?.role) && user && profile) {
+        if ((isBrandAdminRole(profile?.role) || isSuperAdminRole(profile?.role)) && user && profile) {
           const central = await getOrCreateCajaCentral({
             userId: user.uid,
             userName: profile.name,

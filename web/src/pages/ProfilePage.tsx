@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   LogOut,
@@ -10,20 +11,43 @@ import {
   Building2,
   Settings,
 } from 'lucide-react';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { isBrandAdminRole, isSuperAdminRole } from '@advance-coat/shared';
 import { useAuth } from '../context/AuthContext';
 import { useBrand } from '../context/BrandContext';
-import { signOutUser } from '../services/auth';
+import { signOutUser, updateUser } from '../services/auth';
+import { storage } from '../lib/firebase';
 
 export function ProfilePage() {
-  const { profile, user } = useAuth();
+  const { profile, user, refreshProfile } = useAuth();
   const { brand, exitBrand } = useBrand();
   const isAdmin = isBrandAdminRole(profile?.role) || isSuperAdminRole(profile?.role);
+  const [uploading, setUploading] = useState(false);
+  const [photoError, setPhotoError] = useState('');
 
   async function handleLogout() {
     if (!window.confirm('¿Cerrar sesión?')) return;
     exitBrand();
     await signOutUser();
+  }
+
+  async function handlePhoto(file: File | null) {
+    if (!file || !user || !profile) return;
+    setUploading(true);
+    setPhotoError('');
+    try {
+      const brandPath = brand?.id ?? 'users';
+      const path = `brands/${brandPath}/users/${user.uid}-${Date.now()}.jpg`;
+      const storageRef = ref(storage, path);
+      await uploadBytes(storageRef, file);
+      const url = await getDownloadURL(storageRef);
+      await updateUser(user.uid, { photoUrl: url }, { userId: user.uid, userName: profile.name });
+      await refreshProfile();
+    } catch (err) {
+      setPhotoError((err as Error).message);
+    } finally {
+      setUploading(false);
+    }
   }
 
   const roleLabel =
@@ -63,6 +87,18 @@ export function ProfilePage() {
             Marca: <strong>{brand.name}</strong>
           </p>
         )}
+        <div className="field" style={{ marginTop: 16 }}>
+          <label htmlFor="profilePhoto">Tu foto de perfil</label>
+          <input
+            id="profilePhoto"
+            type="file"
+            accept="image/*"
+            disabled={uploading}
+            onChange={(e) => void handlePhoto(e.target.files?.[0] ?? null)}
+          />
+          {uploading ? <p className="muted">Subiendo…</p> : null}
+          {photoError ? <p className="error-text">{photoError}</p> : null}
+        </div>
       </div>
 
       {isSuperAdminRole(profile?.role) && (
@@ -93,7 +129,7 @@ export function ProfilePage() {
               <Settings size={18} color="var(--accent)" />
               <div>
                 <strong>Configurar marca</strong>
-                <div className="muted">Logo, nombre y foto de perfil</div>
+                <div className="muted">Logo, nombre y teléfono del negocio</div>
               </div>
             </div>
           </Link>

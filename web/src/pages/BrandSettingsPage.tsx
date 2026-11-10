@@ -1,32 +1,64 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { DEFAULT_BRAND_ID, PLAN_DEFINITIONS } from '@advance-coat/shared';
 import { useAuth } from '../context/AuthContext';
 import { useBrand } from '../context/BrandContext';
 import { updateBrand } from '../services/brands';
-import { updateUser } from '../services/auth';
 import { storage } from '../lib/firebase';
-import { PLAN_DEFINITIONS } from '@advance-coat/shared';
+import { ImageDropzone } from '../components/ImageDropzone';
+
+const ADVANCE_LOGO_PATH = '/logo-advance.png';
 
 export function BrandSettingsPage() {
-  const { user, profile, refreshProfile } = useAuth();
+  const { user } = useAuth();
   const { brand, isBrandAdmin, refreshBrand } = useBrand();
-  const [name, setName] = useState(brand?.name ?? '');
-  const [phone, setPhone] = useState(brand?.phone ?? '');
+  const [name, setName] = useState('');
+  const [phone, setPhone] = useState('');
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
 
+  useEffect(() => {
+    if (!brand) return;
+    setName(brand.name ?? '');
+    setPhone(brand.phone ?? '');
+  }, [brand?.id, brand?.name, brand?.phone]);
+
   if (!isBrandAdmin) return <Navigate to="/app" replace />;
   if (!brand) return <div className="muted">Cargando marca…</div>;
 
-  async function handleSaveBrand(e: React.FormEvent) {
-    e.preventDefault();
+  const isAdvance = brand.id === DEFAULT_BRAND_ID;
+  const logoPreview = brand.logoUrl || (isAdvance ? ADVANCE_LOGO_PATH : null);
+
+  async function uploadLogoBlob(blob: Blob, filename: string) {
+    if (!brand || !user) return;
     setSaving(true);
     setError('');
     setMessage('');
     try {
-      await updateBrand(brand!.id, {
+      const path = `brands/${brand.id}/logo-${Date.now()}-${filename}`;
+      const storageRef = ref(storage, path);
+      await uploadBytes(storageRef, blob);
+      const url = await getDownloadURL(storageRef);
+      await updateBrand(brand.id, { logoUrl: url });
+      await refreshBrand();
+      setMessage('Logo actualizado.');
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleSaveBrand(e: React.FormEvent) {
+    e.preventDefault();
+    if (!brand) return;
+    setSaving(true);
+    setError('');
+    setMessage('');
+    try {
+      await updateBrand(brand.id, {
         name: name.trim(),
         phone: phone.trim() || null,
       });
@@ -39,41 +71,18 @@ export function BrandSettingsPage() {
     }
   }
 
-  async function handleLogo(file: File | null) {
-    if (!file || !brand || !user) return;
-    setSaving(true);
-    setError('');
-    try {
-      const path = `brands/${brand.id}/logo-${Date.now()}.jpg`;
-      const storageRef = ref(storage, path);
-      await uploadBytes(storageRef, file);
-      const url = await getDownloadURL(storageRef);
-      await updateBrand(brand.id, { logoUrl: url });
-      await refreshBrand();
-      setMessage('Logo actualizado.');
-    } catch (err) {
-      setError((err as Error).message);
-    } finally {
-      setSaving(false);
-    }
+  async function handleLogoFile(file: File) {
+    await uploadLogoBlob(file, file.name.replace(/[^\w.-]+/g, '_') || 'logo.jpg');
   }
 
-  async function handlePhoto(file: File | null) {
-    if (!file || !user || !profile) return;
-    setSaving(true);
-    setError('');
+  async function handleUseAdvanceLogo() {
     try {
-      const path = `brands/${brand!.id}/users/${user.uid}-${Date.now()}.jpg`;
-      const storageRef = ref(storage, path);
-      await uploadBytes(storageRef, file);
-      const url = await getDownloadURL(storageRef);
-      await updateUser(user.uid, { photoUrl: url }, { userId: user.uid, userName: profile.name });
-      await refreshProfile();
-      setMessage('Foto de perfil actualizada.');
+      const res = await fetch(ADVANCE_LOGO_PATH);
+      if (!res.ok) throw new Error('No se pudo cargar el logo de Advance');
+      const blob = await res.blob();
+      await uploadLogoBlob(blob, 'logo-advance.png');
     } catch (err) {
       setError((err as Error).message);
-    } finally {
-      setSaving(false);
     }
   }
 
@@ -86,13 +95,7 @@ export function BrandSettingsPage() {
         <p className="muted">
           Plan: <strong>{plan.name}</strong> · Estado: {brand.status}
         </p>
-        {brand.logoUrl && (
-          <img
-            src={brand.logoUrl}
-            alt={brand.name}
-            style={{ width: 72, height: 72, objectFit: 'cover', borderRadius: 12, marginTop: 12 }}
-          />
-        )}
+
         <form onSubmit={handleSaveBrand} style={{ marginTop: 16 }}>
           <div className="field">
             <label htmlFor="brandName">Nombre</label>
@@ -102,35 +105,31 @@ export function BrandSettingsPage() {
             <label htmlFor="brandPhone">Teléfono</label>
             <input id="brandPhone" value={phone} onChange={(e) => setPhone(e.target.value)} />
           </div>
-          <div className="field">
-            <label htmlFor="logo">Logo de la marca</label>
-            <input
-              id="logo"
-              type="file"
-              accept="image/*"
-              onChange={(e) => void handleLogo(e.target.files?.[0] ?? null)}
-            />
-          </div>
-          <button className="btn btn-primary" type="submit" disabled={saving}>
+
+          <ImageDropzone
+            label="Logo de la marca"
+            previewUrl={logoPreview}
+            previewAlt={brand.name}
+            disabled={saving}
+            onFile={(file) => void handleLogoFile(file)}
+          />
+
+          {isAdvance && !brand.logoUrl ? (
+            <button
+              type="button"
+              className="btn btn-secondary"
+              style={{ marginTop: 12 }}
+              disabled={saving}
+              onClick={() => void handleUseAdvanceLogo()}
+            >
+              Usar logo Advance guardado
+            </button>
+          ) : null}
+
+          <button className="btn btn-primary" type="submit" disabled={saving} style={{ marginTop: 16 }}>
             {saving ? 'Guardando…' : 'Guardar marca'}
           </button>
         </form>
-      </div>
-
-      <div className="card" style={{ marginBottom: 20 }}>
-        <h3 className="card-title">Tu foto de perfil</h3>
-        {profile?.photoUrl && (
-          <img
-            src={profile.photoUrl}
-            alt={profile.name}
-            style={{ width: 64, height: 64, borderRadius: '50%', objectFit: 'cover', marginBottom: 12 }}
-          />
-        )}
-        <input
-          type="file"
-          accept="image/*"
-          onChange={(e) => void handlePhoto(e.target.files?.[0] ?? null)}
-        />
       </div>
 
       {message && <p className="success-text">{message}</p>}

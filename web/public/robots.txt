@@ -2,6 +2,7 @@
 Allow: /
 Allow: /login
 Allow: /register
+Allow: /legal/
 Disallow: /app
 Disallow: /admin
 Disallow: /platform

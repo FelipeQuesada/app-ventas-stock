@@ -11,7 +11,7 @@ import {
   EyeOff,
 } from 'lucide-react';
 import type { Product } from '@advance-coat/shared';
-import { formatCurrency, isBrandAdminRole } from '@advance-coat/shared';
+import { formatCurrency, isBrandAdminRole, isSuperAdminRole } from '@advance-coat/shared';
 import { getProducts } from '../services/products';
 import { useAuth } from '../context/AuthContext';
 import { isTiendanubeConfigured } from '../services/tiendanube';
@@ -34,7 +34,9 @@ export function SyncTiendanubePage() {
     skipped: number;
   } | null>(null);
 
-  if (!isBrandAdminRole(profile?.role)) return <Navigate to="/app" replace />;
+  if (!isBrandAdminRole(profile?.role) && !isSuperAdminRole(profile?.role)) {
+    return <Navigate to="/app" replace />;
+  }
 
   async function reloadLocal() {
     setLocalProducts(await getProducts());

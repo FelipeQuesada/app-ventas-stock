@@ -5,16 +5,14 @@ import {
   Bell,
   Building2,
   FileText,
-  LayoutDashboard,
-  MoreHorizontal,
-  Package,
-  ShoppingCart,
   Smartphone,
   Users,
-  Wallet,
   Warehouse,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { LandingLogo } from '../components/landing/LandingLogo';
+import { InteractivePhone } from '../components/landing/InteractivePhone';
+import { CajaDemo, SaleDemo, StockDemo } from '../components/landing/FeatureDemos';
 import '../styles/landing.css';
 
 const CONTACT_WHATSAPP = '5491157715316';
@@ -243,8 +241,8 @@ export function LandingPage() {
     <div className="lp">
       <nav className={`lp-nav ${scrolled ? 'is-scrolled' : ''}`}>
         <div className="lp-container lp-nav-inner">
-          <a href="#inicio" className="lp-logo">
-            Control<span>+</span>
+          <a href="#inicio" className="lp-logo-link">
+            <LandingLogo />
           </a>
           <div className="lp-nav-links">
             <a href="#funciones">Funciones</a>
@@ -291,7 +289,9 @@ export function LandingPage() {
             </div>
             <div className="lp-hero-stats">
               <div>
-                <strong>+40%</strong>
+                <strong>
+                  <span className="lp-stat-plus">+</span>40%
+                </strong>
                 <span>menos tiempo en cierres de caja</span>
               </div>
               <div>
@@ -305,97 +305,7 @@ export function LandingPage() {
             </div>
           </div>
 
-          <div className="lp-phone-wrap" aria-hidden="true">
-            <div className="lp-float-card lp-fc1">
-              <b>$ 440.600</b>
-              <span>Recaudación del mes</span>
-            </div>
-            <div className="lp-float-card lp-fc2">
-              <b>268 productos</b>
-              <span>con stock bajo</span>
-            </div>
-            <div className="lp-phone">
-              <div className="lp-screen lp-screen-app">
-                <div className="lp-app">
-                  <div className="lp-app-card">
-                    <span>RECAUDACIÓN DEL MES</span>
-                    <strong>$ 440.600</strong>
-                    <small>16 ventas este mes</small>
-                  </div>
-                  <div className="lp-app-card">
-                    <span>TICKET PROMEDIO</span>
-                    <strong>$ 27.538</strong>
-                    <small>Promedio del mes actual</small>
-                  </div>
-                  <div className="lp-app-card">
-                    <span>PRODUCTOS</span>
-                    <strong>490</strong>
-                    <small>268 con stock bajo</small>
-                  </div>
-                  <div className="lp-app-chart-card">
-                    <b>Ventas últimos 30 días</b>
-                    <small>Recaudación diaria</small>
-                    <svg className="lp-app-chart" viewBox="0 0 280 120" preserveAspectRatio="none">
-                      <g className="lp-app-grid">
-                        <line x1="36" y1="12" x2="270" y2="12" />
-                        <line x1="36" y1="40" x2="270" y2="40" />
-                        <line x1="36" y1="68" x2="270" y2="68" />
-                        <line x1="36" y1="96" x2="270" y2="96" />
-                      </g>
-                      <text x="4" y="16" className="lp-app-axis">
-                        1.200.000
-                      </text>
-                      <text x="4" y="44" className="lp-app-axis">
-                        900.000
-                      </text>
-                      <text x="4" y="72" className="lp-app-axis">
-                        600.000
-                      </text>
-                      <text x="4" y="100" className="lp-app-axis">
-                        300.000
-                      </text>
-                      <path
-                        className="lp-app-line"
-                        d="M40 88 C58 86, 70 84, 82 78 C96 70, 108 42, 122 38 C136 34, 148 58, 162 62 C176 66, 188 48, 202 28 C216 10, 228 18, 242 22 C252 24, 260 48, 268 72"
-                      />
-                    </svg>
-                    <div className="lp-app-x">
-                      <span>11/10</span>
-                      <span>15/10</span>
-                      <span>19/10</span>
-                      <span>23/10</span>
-                      <span>27/10</span>
-                      <span>31/10</span>
-                      <span>04/11</span>
-                      <span>09/11</span>
-                    </div>
-                  </div>
-                  <div className="lp-app-dock">
-                    <span className="is-active">
-                      <LayoutDashboard size={16} />
-                      Inicio
-                    </span>
-                    <span>
-                      <ShoppingCart size={16} />
-                      Ventas
-                    </span>
-                    <span>
-                      <Package size={16} />
-                      Productos
-                    </span>
-                    <span>
-                      <Wallet size={16} />
-                      Caja
-                    </span>
-                    <span>
-                      <MoreHorizontal size={16} />
-                      Más
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
+          <InteractivePhone />
         </div>
       </header>
 
@@ -425,45 +335,7 @@ export function LandingPage() {
               </ul>
             </div>
             <div className="lp-visual lp-visual-app">
-              <div className="lp-sale-mock">
-                <div className="lp-caja-head">
-                  <b>Nueva venta</b>
-                  <small>Productos seleccionados (2)</small>
-                </div>
-                <div className="lp-caja-card">
-                  <div className="lp-sale-line">
-                    <div>
-                      <strong>Bebida 500ml</strong>
-                      <small>2 un. · $ 1.800 c/u</small>
-                    </div>
-                    <b>$ 3.600</b>
-                  </div>
-                  <div className="lp-caja-divider" />
-                  <div className="lp-sale-line">
-                    <div>
-                      <strong>Snack pack</strong>
-                      <small>1 un. · $ 1.200 c/u</small>
-                    </div>
-                    <b>$ 1.200</b>
-                  </div>
-                </div>
-                <div className="lp-caja-card">
-                  <div className="lp-sale-line">
-                    <div>
-                      <strong>Borrador · Pedido 3</strong>
-                      <small className="is-warn">Pendiente de cobro</small>
-                    </div>
-                    <span className="lp-stock-badge is-warn">Borrador</span>
-                  </div>
-                </div>
-                <div className="lp-caja-card">
-                  <div className="lp-caja-row is-highlight">
-                    <span>Total a cobrar</span>
-                    <strong>$ 4.800</strong>
-                  </div>
-                </div>
-                <div className="lp-caja-btn">Registrar venta</div>
-              </div>
+              <SaleDemo />
             </div>
           </div>
 
@@ -482,48 +354,7 @@ export function LandingPage() {
               </ul>
             </div>
             <div className="lp-visual lp-visual-app">
-              <div className="lp-stock-mock">
-                <div className="lp-caja-head">
-                  <b>Stock</b>
-                  <small>Disponible y alertas de mínimo</small>
-                </div>
-                <div className="lp-caja-card">
-                  <div className="lp-stock-row">
-                    <div>
-                      <strong>Producto A · 1kg</strong>
-                      <small>Stock normal</small>
-                    </div>
-                    <span className="lp-stock-badge">18 u.</span>
-                  </div>
-                  <div className="lp-stock-meter">
-                    <i style={{ width: '72%' }} />
-                  </div>
-                </div>
-                <div className="lp-caja-card">
-                  <div className="lp-stock-row">
-                    <div>
-                      <strong>Producto B · 1.5L</strong>
-                      <small className="is-warn">Stock bajo</small>
-                    </div>
-                    <span className="lp-stock-badge is-warn">2 u.</span>
-                  </div>
-                  <div className="lp-stock-meter">
-                    <i className="is-warn" style={{ width: '14%' }} />
-                  </div>
-                </div>
-                <div className="lp-caja-card">
-                  <div className="lp-stock-row">
-                    <div>
-                      <strong>Producto C · pack</strong>
-                      <small>Stock normal</small>
-                    </div>
-                    <span className="lp-stock-badge is-ok">40 u.</span>
-                  </div>
-                  <div className="lp-stock-meter">
-                    <i className="is-ok" style={{ width: '88%' }} />
-                  </div>
-                </div>
-              </div>
+              <StockDemo />
             </div>
           </div>
 
@@ -542,39 +373,7 @@ export function LandingPage() {
               </ul>
             </div>
             <div className="lp-visual lp-visual-caja">
-              <div className="lp-caja-mock">
-                <div className="lp-caja-head">
-                  <b>Caja del día</b>
-                  <small>Resumen en efectivo</small>
-                </div>
-                <div className="lp-caja-card">
-                  <div className="lp-caja-row">
-                    <span>Caja cambio</span>
-                    <strong>$ 20.000</strong>
-                  </div>
-                  <div className="lp-caja-divider" />
-                  <div className="lp-caja-row">
-                    <span>Ventas efectivo</span>
-                    <strong>$ 44.200</strong>
-                  </div>
-                  <div className="lp-caja-divider" />
-                  <div className="lp-caja-row">
-                    <span>Caja total</span>
-                    <strong>$ 64.200</strong>
-                  </div>
-                  <div className="lp-caja-divider" />
-                  <div className="lp-caja-row is-highlight">
-                    <span>Ganancia</span>
-                    <strong className="is-ok">$ 44.200</strong>
-                  </div>
-                  <div className="lp-caja-divider" />
-                  <div className="lp-caja-row is-highlight">
-                    <span>Cambio para mañana</span>
-                    <strong>$ 24.200</strong>
-                  </div>
-                </div>
-                <div className="lp-caja-btn">Guardar cierre de caja</div>
-              </div>
+              <CajaDemo />
             </div>
           </div>
         </div>
@@ -586,50 +385,7 @@ export function LandingPage() {
             <div className="lp-eyebrow">Mejores funcionalidades</div>
             <h2 className="lp-section-title">Pensado para el día a día del comercio</h2>
           </div>
-          <div className="lp-grid">
-            <article className="lp-feat lp-reveal">
-              <div className="ic">
-                <BarChart3 size={22} />
-              </div>
-              <h5>Dashboard en tiempo real</h5>
-              <p>Ventas del día, tickets, caja y stock bajo en una sola pantalla.</p>
-            </article>
-            <article className="lp-feat lp-reveal">
-              <div className="ic">
-                <Users size={22} />
-              </div>
-              <h5>Roles de empleado y admin</h5>
-              <p>Cada uno ve lo que necesita. El admin controla precios, stock y reportes.</p>
-            </article>
-            <article className="lp-feat lp-reveal">
-              <div className="ic">
-                <Bell size={22} />
-              </div>
-              <h5>Avisos por Telegram</h5>
-              <p>Notificaciones de ventas, cierres de caja y retiros importantes.</p>
-            </article>
-            <article className="lp-feat lp-reveal">
-              <div className="ic">
-                <Warehouse size={22} />
-              </div>
-              <h5>Depósito y central</h5>
-              <p>Varias ubicaciones y pases de mercadería entre depósito y punto de venta.</p>
-            </article>
-            <article className="lp-feat lp-reveal">
-              <div className="ic">
-                <FileText size={22} />
-              </div>
-              <h5>Reportes en PDF</h5>
-              <p>Exportá ventas, movimientos y cierres para tu contador o archivo.</p>
-            </article>
-            <article className="lp-feat lp-reveal">
-              <div className="ic">
-                <Smartphone size={22} />
-              </div>
-              <h5>Web y celular</h5>
-              <p>Desde el navegador o la app móvil, con los mismos datos sincronizados.</p>
-            </article>
-          </div>
+          <FeatureCards />
         </div>
       </section>
 
@@ -802,11 +558,15 @@ export function LandingPage() {
       <footer className="lp-footer">
         <div className="lp-container lp-foot">
           <div>
-            <span className="lp-logo">
-              Control<span>+</span>
-            </span>
+            <LandingLogo />
             <br />
             Ventas y stock para comercios.
+          </div>
+          <div className="lp-foot-links">
+            <Link to="/legal/contacto">Contacto</Link>
+            <Link to="/legal/terminos">Términos y condiciones</Link>
+            <Link to="/legal/privacidad">Privacidad de los datos</Link>
+            <Link to="/legal/cookies">Cookies</Link>
           </div>
           <div className="lp-foot-meta">
             <Building2 size={14} style={{ display: 'inline', marginRight: 6, verticalAlign: -2 }} />
@@ -814,6 +574,73 @@ export function LandingPage() {
           </div>
         </div>
       </footer>
+    </div>
+  );
+}
+
+const FEATURE_CARDS = [
+  {
+    icon: BarChart3,
+    title: 'Dashboard en tiempo real',
+    text: 'Ventas del día, tickets, caja y stock bajo en una sola pantalla.',
+    tip: 'Métricas del día al instante',
+  },
+  {
+    icon: Users,
+    title: 'Roles de empleado y admin',
+    text: 'Cada uno ve lo que necesita. El admin controla precios, stock y reportes.',
+    tip: 'Permisos claros por rol',
+  },
+  {
+    icon: Bell,
+    title: 'Avisos por Telegram',
+    text: 'Notificaciones de ventas, cierres de caja y retiros importantes.',
+    tip: 'Alertas donde ya estás',
+  },
+  {
+    icon: Warehouse,
+    title: 'Depósito y central',
+    text: 'Varias ubicaciones y pases de mercadería entre depósito y punto de venta.',
+    tip: 'Stock en más de un lugar',
+  },
+  {
+    icon: FileText,
+    title: 'Reportes en PDF',
+    text: 'Exportá ventas, movimientos y cierres para tu contador o archivo.',
+    tip: 'Exportá en un toque',
+  },
+  {
+    icon: Smartphone,
+    title: 'Web y celular',
+    text: 'Desde el navegador o la app móvil, con los mismos datos sincronizados.',
+    tip: 'Misma info en todos lados',
+  },
+] as const;
+
+function FeatureCards() {
+  const [active, setActive] = useState<string | null>(null);
+
+  return (
+    <div className="lp-grid">
+      {FEATURE_CARDS.map((card) => {
+        const Icon = card.icon;
+        const isOn = active === card.title;
+        return (
+          <button
+            key={card.title}
+            type="button"
+            className={`lp-feat lp-reveal lp-feat-btn ${isOn ? 'is-on' : ''}`}
+            onClick={() => setActive(isOn ? null : card.title)}
+          >
+            <div className="ic">
+              <Icon size={22} />
+            </div>
+            <h5>{card.title}</h5>
+            <p>{card.text}</p>
+            <span className="lp-feat-tip">{isOn ? card.tip : 'Tocá para ver un tip'}</span>
+          </button>
+        );
+      })}
     </div>
   );
 }
