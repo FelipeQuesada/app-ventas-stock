@@ -68,19 +68,25 @@ export function InteractivePhone() {
   const [revenue, setRevenue] = useState(440600);
   const [saleFlash, setSaleFlash] = useState(false);
   const [cajaClosed, setCajaClosed] = useState(false);
+  const [cart, setCart] = useState([
+    { id: 'drink', name: 'Bebida 500ml', unit: 1800, qty: 2 },
+    { id: 'snack', name: 'Snack pack', unit: 1200, qty: 1 },
+  ]);
   const [stock, setStock] = useState([
     { id: 'a', name: 'Bebida 500ml', qty: 18 },
     { id: 'b', name: 'Snack pack', qty: 2 },
     { id: 'c', name: 'Agua 2L', qty: 40 },
   ]);
 
+  const cartTotal = cart.reduce((sum, item) => sum + item.qty * item.unit, 0);
+
   const chart = useMemo(() => {
     const width = 280;
-    const height = 120;
+    const height = 112;
     const padL = 34;
     const padR = 8;
-    const padT = 10;
-    const padB = 18;
+    const padT = 12;
+    const padB = 8;
     const innerW = width - padL - padR;
     const innerH = height - padT - padB;
     const coords = points.map((p, i) => {
@@ -93,11 +99,11 @@ export function InteractivePhone() {
       coords.length > 0
         ? `${line} L ${coords[coords.length - 1].x} ${padT + innerH} L ${coords[0].x} ${padT + innerH} Z`
         : '';
-    return { width, height, padL, padT, padB, innerH, coords, line, area };
+    return { width, height, padL, padT, innerH, coords, line, area };
   }, [points]);
 
   function registerSale() {
-    const amount = 2750;
+    const amount = cartTotal;
     setSalesCount((n) => n + 1);
     setRevenue((n) => n + amount);
     setPoints((prev) => {
@@ -112,6 +118,14 @@ export function InteractivePhone() {
     });
     setSaleFlash(true);
     window.setTimeout(() => setSaleFlash(false), 1400);
+  }
+
+  function bumpCart(id: string, delta: number) {
+    setCart((prev) =>
+      prev.map((item) =>
+        item.id === id ? { ...item, qty: Math.max(1, item.qty + delta) } : item
+      )
+    );
   }
 
   function bumpStock(id: string, delta: number) {
@@ -142,12 +156,12 @@ export function InteractivePhone() {
 
       <div className="lp-phone" role="region" aria-label="Demo interactiva de Control+">
         <div className="lp-screen lp-screen-app">
-          <div className={`lp-app ${saleFlash || cajaClosed ? 'has-flash' : ''}`}>
+          <div className="lp-app">
             {saleFlash ? (
               <div className="lp-app-flash is-sale" role="status">
                 <CheckCircle2 size={28} />
                 <strong>Venta registrada</strong>
-                <span>+ $ 2.750</span>
+                <span>{money(cartTotal)}</span>
               </div>
             ) : null}
 
@@ -160,29 +174,29 @@ export function InteractivePhone() {
             ) : null}
 
             {tab === 'inicio' ? (
-              <>
-                <div className="lp-app-card is-compact">
-                  <span>RECAUDACIÓN DEL MES</span>
-                  <strong>{money(revenue)}</strong>
-                  <small>{salesCount} ventas este mes</small>
-                </div>
-                <div className="lp-app-card is-compact">
-                  <span>TICKET PROMEDIO</span>
-                  <strong>
-                    {money(Math.round(revenue / Math.max(salesCount, 1)))}
-                  </strong>
-                  <small>Promedio del mes actual</small>
+              <div className="lp-app-scroll">
+                <div className="lp-app-metrics">
+                  <div className="lp-app-card">
+                    <span>RECAUDACIÓN</span>
+                    <strong>{money(revenue)}</strong>
+                    <small>{salesCount} ventas</small>
+                  </div>
+                  <div className="lp-app-card">
+                    <span>TICKET PROM.</span>
+                    <strong>{money(Math.round(revenue / Math.max(salesCount, 1)))}</strong>
+                    <small>este mes</small>
+                  </div>
                 </div>
 
                 <div className="lp-app-chart-card">
                   <b>Ventas últimos 30 días</b>
-                  <small>Pasá el dedo o el mouse sobre el gráfico</small>
+                  <small>Tocá un punto del gráfico</small>
                   <div className="lp-chart-wrap">
                     {active ? (
                       <div
                         className="lp-chart-tooltip"
                         style={{
-                          left: `${Math.min(Math.max((active.x / chart.width) * 100, 18), 82)}%`,
+                          left: `${Math.min(Math.max((active.x / chart.width) * 100, 20), 80)}%`,
                         }}
                       >
                         <strong>{active.label}</strong>
@@ -203,7 +217,7 @@ export function InteractivePhone() {
                         </linearGradient>
                       </defs>
                       <g className="lp-app-grid">
-                        {[0, 0.25, 0.5, 0.75, 1].map((t) => {
+                        {[0, 0.33, 0.66, 1].map((t) => {
                           const y = chart.padT + chart.innerH * (1 - t);
                           return (
                             <line
@@ -216,17 +230,14 @@ export function InteractivePhone() {
                           );
                         })}
                       </g>
-                      <text x="2" y="14" className="lp-app-axis">
-                        1.200.000
+                      <text x="2" y="16" className="lp-app-axis">
+                        1.2M
                       </text>
-                      <text x="2" y="42" className="lp-app-axis">
-                        900.000
+                      <text x="2" y="52" className="lp-app-axis">
+                        600k
                       </text>
-                      <text x="2" y="70" className="lp-app-axis">
-                        600.000
-                      </text>
-                      <text x="2" y="98" className="lp-app-axis">
-                        300.000
+                      <text x="2" y="88" className="lp-app-axis">
+                        0
                       </text>
                       <path className="lp-app-area" d={chart.area} fill="url(#lpChartFill)" />
                       <path className="lp-app-line is-live" d={chart.line} />
@@ -235,7 +246,7 @@ export function InteractivePhone() {
                           <circle
                             cx={p.x}
                             cy={p.y}
-                            r={activeIdx === i ? 5 : 3.2}
+                            r={activeIdx === i ? 5 : 3}
                             className={`lp-app-dot ${activeIdx === i ? 'is-on' : ''}`}
                           />
                           <circle
@@ -255,24 +266,54 @@ export function InteractivePhone() {
                       ))}
                     </svg>
                     <div className="lp-app-x">
-                      {points
-                        .filter((_, i) => i % 2 === 0 || i === points.length - 1)
-                        .map((p) => (
-                          <span key={p.label}>{p.label}</span>
-                        ))}
+                      <span>11/10</span>
+                      <span>19/10</span>
+                      <span>27/10</span>
+                      <span>04/11</span>
+                      <span>09/11</span>
                     </div>
                   </div>
                 </div>
-              </>
+              </div>
             ) : null}
 
             {tab === 'ventas' ? (
-              <div className="lp-app-panel is-center">
-                <b>Ventas</b>
-                <p>Registrá una venta de demo y mirá la animación.</p>
-                <div className="lp-app-mini-stat">
-                  <span>Hoy</span>
-                  <strong>{salesCount} tickets</strong>
+              <div className="lp-app-panel lp-app-sale">
+                <div className="lp-caja-head">
+                  <b>Nueva venta</b>
+                  <small>
+                    Productos seleccionados ({cart.reduce((n, i) => n + i.qty, 0)})
+                  </small>
+                </div>
+                <div className="lp-caja-card">
+                  {cart.map((item, index) => (
+                    <div key={item.id}>
+                      {index > 0 ? <div className="lp-caja-divider" /> : null}
+                      <div className="lp-sale-line">
+                        <div>
+                          <strong>{item.name}</strong>
+                          <small>
+                            {item.qty} un. · {money(item.unit)} c/u
+                          </small>
+                        </div>
+                        <div className="lp-demo-stepper">
+                          <button type="button" onClick={() => bumpCart(item.id, -1)} aria-label={`Menos ${item.name}`}>
+                            −
+                          </button>
+                          <b>{money(item.qty * item.unit)}</b>
+                          <button type="button" onClick={() => bumpCart(item.id, 1)} aria-label={`Más ${item.name}`}>
+                            +
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="lp-caja-card">
+                  <div className="lp-caja-row is-highlight">
+                    <span>Total a cobrar</span>
+                    <strong>{money(cartTotal)}</strong>
+                  </div>
                 </div>
                 <button type="button" className="lp-app-primary-btn" onClick={registerSale}>
                   Registrar venta
@@ -282,8 +323,10 @@ export function InteractivePhone() {
 
             {tab === 'productos' ? (
               <div className="lp-app-panel">
-                <b>Productos</b>
-                <p>Sumá o restá stock de la demo.</p>
+                <div className="lp-caja-head">
+                  <b>Productos</b>
+                  <small>Sumá o restá stock</small>
+                </div>
                 <div className="lp-app-stock-list">
                   {stock.map((item) => (
                     <div key={item.id} className="lp-app-stock-row">
@@ -294,13 +337,13 @@ export function InteractivePhone() {
                         </small>
                       </div>
                       <div className="lp-demo-stepper">
-                        <button type="button" onClick={() => bumpStock(item.id, -1)} aria-label={`Bajar ${item.name}`}>
+                        <button type="button" onClick={() => bumpStock(item.id, -1)}>
                           −
                         </button>
                         <span className={`lp-stock-badge ${item.qty <= 5 ? 'is-warn' : 'is-ok'}`}>
                           {item.qty} u.
                         </span>
-                        <button type="button" onClick={() => bumpStock(item.id, 1)} aria-label={`Subir ${item.name}`}>
+                        <button type="button" onClick={() => bumpStock(item.id, 1)}>
                           +
                         </button>
                       </div>
@@ -312,8 +355,10 @@ export function InteractivePhone() {
 
             {tab === 'caja' ? (
               <div className="lp-app-panel">
-                <b>Caja del día</b>
-                <p>Resumen en efectivo</p>
+                <div className="lp-caja-head">
+                  <b>Caja del día</b>
+                  <small>Resumen en efectivo</small>
+                </div>
                 <div className="lp-app-caja-card">
                   <div>
                     <span>Caja cambio</span>
