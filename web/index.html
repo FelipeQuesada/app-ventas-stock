@@ -7,7 +7,11 @@
       (function () {
         var host = location.hostname;
         if (host === 'localhost' || host === '127.0.0.1') return;
-        if (host === 'controlmas.com.ar') return;
+        // Solo sacar hosts de preview/Vercel u otros; no pelear con www ↔ apex.
+        var isProd =
+          host === 'controlmas.com.ar' ||
+          host === 'www.controlmas.com.ar';
+        if (isProd) return;
         location.replace(
           'https://controlmas.com.ar' + location.pathname + location.search + location.hash
         );

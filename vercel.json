@@ -6,12 +6,6 @@
   "redirects": [
     {
       "source": "/:path*",
-      "has": [{ "type": "host", "value": "www.controlmas.com.ar" }],
-      "destination": "https://controlmas.com.ar/:path*",
-      "permanent": true
-    },
-    {
-      "source": "/:path*",
       "has": [{ "type": "host", "value": "controlmas.app" }],
       "destination": "https://controlmas.com.ar/:path*",
       "permanent": true
