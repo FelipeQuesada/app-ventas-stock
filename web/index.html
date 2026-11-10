@@ -1,8 +1,18 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="es-AR">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <script>
+      (function () {
+        var host = location.hostname;
+        if (host === 'localhost' || host === '127.0.0.1') return;
+        if (host === 'controlmas.com.ar') return;
+        location.replace(
+          'https://controlmas.com.ar' + location.pathname + location.search + location.hash
+        );
+      })();
+    </script>
 
     <!-- SEO primario -->
     <title>Control+ | Sistema de ventas, stock y caja para comercios</title>
@@ -17,7 +27,7 @@
     <meta name="author" content="Control+" />
     <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1" />
     <meta name="googlebot" content="index, follow" />
-    <link rel="canonical" href="https://controlmas.app/" />
+    <link rel="canonical" href="https://controlmas.com.ar/" />
 
     <!-- Favicon / PWA -->
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
@@ -39,8 +49,8 @@
       property="og:description"
       content="Vendé, controlá tu stock y cerrá la caja sin planillas. Pensado para comercios con mostrador y varios empleados."
     />
-    <meta property="og:url" content="https://controlmas.app/" />
-    <meta property="og:image" content="https://controlmas.app/og-controlmas.png" />
+    <meta property="og:url" content="https://controlmas.com.ar/" />
+    <meta property="og:image" content="https://controlmas.com.ar/og-controlmas.png" />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
     <meta property="og:image:alt" content="Control+ — ventas, stock y caja" />
@@ -52,7 +62,7 @@
       name="twitter:description"
       content="Sistema de ventas e inventario para comercios. Empezá gratis."
     />
-    <meta name="twitter:image" content="https://controlmas.app/og-controlmas.png" />
+    <meta name="twitter:image" content="https://controlmas.com.ar/og-controlmas.png" />
 
     <!-- Datos estructurados (Google) -->
     <script type="application/ld+json">
@@ -61,19 +71,19 @@
         "@graph": [
           {
             "@type": "Organization",
-            "@id": "https://controlmas.app/#organization",
+            "@id": "https://controlmas.com.ar/#organization",
             "name": "Control+",
             "alternateName": ["Controlmas", "Control Mas"],
-            "url": "https://controlmas.app/",
-            "logo": "https://controlmas.app/favicon.png",
+            "url": "https://controlmas.com.ar/",
+            "logo": "https://controlmas.com.ar/favicon.png",
             "description": "Sistema de ventas, stock y caja para comercios."
           },
           {
             "@type": "WebSite",
-            "@id": "https://controlmas.app/#website",
-            "url": "https://controlmas.app/",
+            "@id": "https://controlmas.com.ar/#website",
+            "url": "https://controlmas.com.ar/",
             "name": "Control+",
-            "publisher": { "@id": "https://controlmas.app/#organization" },
+            "publisher": { "@id": "https://controlmas.com.ar/#organization" },
             "inLanguage": "es-AR"
           },
           {
@@ -81,7 +91,7 @@
             "name": "Control+",
             "applicationCategory": "BusinessApplication",
             "operatingSystem": "Web, Android, iOS",
-            "url": "https://controlmas.app/",
+            "url": "https://controlmas.com.ar/",
             "description": "Punto de venta con control de stock, caja diaria y usuarios por marca.",
             "offers": {
               "@type": "Offer",

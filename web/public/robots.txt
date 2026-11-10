@@ -1,4 +1,4 @@
-User-agent: *
+﻿User-agent: *
 Allow: /
 Allow: /login
 Allow: /register
@@ -16,4 +16,4 @@ Disallow: /brand
 Disallow: /flex
 Disallow: /presupuesto
 
-Sitemap: https://controlmas.app/sitemap.xml
+Sitemap: https://controlmas.com.ar/sitemap.xml
