@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Navigate } from 'react-router-dom';
 import { Plus, Pencil, X } from 'lucide-react';
-import type { UserProfile, UserRole } from '@advance-coat/shared';
+import type { BrandRole, UserProfile } from '@advance-coat/shared';
 import { useAuth } from '../context/AuthContext';
 import {
   listUsers,
@@ -21,7 +21,7 @@ export function UsersPage() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [role, setRole] = useState<UserRole>('employee');
+  const [role, setRole] = useState<BrandRole>('employee');
   const [active, setActive] = useState(true);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
@@ -60,7 +60,7 @@ export function UsersPage() {
     setName(u.name);
     setEmail(u.email);
     setPassword('');
-    setRole(u.role);
+    setRole(u.role === 'admin' || u.role === 'owner' ? u.role : 'employee');
     setActive(u.active !== false);
     setError('');
   }
@@ -164,7 +164,7 @@ export function UsersPage() {
             <select
               className="select-input"
               value={role}
-              onChange={(e) => setRole(e.target.value as UserRole)}
+              onChange={(e) => setRole(e.target.value as BrandRole)}
             >
               <option value="employee">Empleado</option>
               <option value="admin">Admin</option>

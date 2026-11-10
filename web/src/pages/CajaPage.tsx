@@ -85,7 +85,7 @@ export function CajaPage() {
         setSinMovimiento(existing?.sinMovimiento === true);
         if (existing?.closedByName) setClosedByName(existing.closedByName);
 
-        if (isBrandAdminRole(profile?.role) && user) {
+        if (isBrandAdminRole(profile?.role) && user && profile) {
           const central = await getOrCreateCajaCentral({
             userId: user.uid,
             userName: profile.name,

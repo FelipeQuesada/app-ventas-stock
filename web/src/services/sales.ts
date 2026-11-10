@@ -1,8 +1,6 @@
 import {
   collection,
-  getDocs,
   getDoc,
-  query,
   where,
   orderBy,
   serverTimestamp,
@@ -22,17 +20,8 @@ import { db } from '../lib/firebase';
 import { saveCustomer } from './customers';
 import { logAudit } from './audit';
 import { listByBrand, withBrandFields } from '../lib/brandQuery';
-import { requireBrandId } from '../lib/brandScope';
-import { DEFAULT_BRAND_ID } from '@advance-coat/shared';
 
 const COLLECTION = 'sales';
-
-function belongsToActiveBrand(data: Record<string, unknown>): boolean {
-  const brandId = requireBrandId();
-  if (data.brandId === brandId) return true;
-  if (!data.brandId && brandId === DEFAULT_BRAND_ID) return true;
-  return false;
-}
 
 /** Firestore rechaza `undefined`, `NaN` e `Infinity` dentro del documento. */
 function withoutUndefined<T extends object>(value: T): T {
