@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import {
+  ArrowUp,
   BarChart3,
   Bell,
   Building2,
@@ -202,6 +203,7 @@ export function LandingPage() {
   const { user, loading } = useAuth();
   const [yearly, setYearly] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const [showTop, setShowTop] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const showLanding = !loading && !user;
 
@@ -210,7 +212,11 @@ export function LandingPage() {
 
   useEffect(() => {
     if (!showLanding) return;
-    const onScroll = () => setScrolled(window.scrollY > 40);
+    const onScroll = () => {
+      const y = window.scrollY;
+      setScrolled(y > 40);
+      setShowTop(y > 700);
+    };
     onScroll();
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => window.removeEventListener('scroll', onScroll);
@@ -574,6 +580,15 @@ export function LandingPage() {
           </div>
         </div>
       </footer>
+
+      <button
+        type="button"
+        className={`lp-back-top${showTop ? ' is-visible' : ''}`}
+        aria-label="Volver arriba"
+        onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+      >
+        <ArrowUp size={20} strokeWidth={2.4} />
+      </button>
     </div>
   );
 }
