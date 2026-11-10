@@ -141,20 +141,23 @@ export function InteractivePhone() {
 
   return (
     <div className="lp-phone-wrap">
-      {tab === 'inicio' ? (
-        <>
-          <div className="lp-float-card lp-fc1">
-            <b>{money(revenue)}</b>
-            <span>Recaudación del mes</span>
-          </div>
-          <div className="lp-float-card lp-fc2">
-            <b>{lowStock || 268} productos</b>
-            <span>con stock bajo</span>
-          </div>
-        </>
-      ) : null}
+      <p className="lp-phone-hint">Tocá el gráfico y los botones del mockup</p>
 
-      <div className="lp-phone" role="region" aria-label="Demo interactiva de Control+">
+      <div className="lp-phone-stage">
+        {tab === 'inicio' ? (
+          <>
+            <div className="lp-float-card lp-fc1">
+              <b>{money(revenue)}</b>
+              <span>Recaudación del mes</span>
+            </div>
+            <div className="lp-float-card lp-fc2">
+              <b>{lowStock || 268} productos</b>
+              <span>con stock bajo</span>
+            </div>
+          </>
+        ) : null}
+
+        <div className="lp-phone" role="region" aria-label="Demo interactiva de Control+">
         <div className="lp-screen lp-screen-app">
           <div className="lp-app">
             {saleFlash ? (
@@ -414,8 +417,8 @@ export function InteractivePhone() {
             </div>
           </div>
         </div>
+        </div>
       </div>
-      <p className="lp-phone-hint">Tocá el gráfico y los botones del mockup</p>
     </div>
   );
 }
