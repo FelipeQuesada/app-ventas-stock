@@ -346,12 +346,231 @@
 }
 
 .lp-app {
+  position: relative;
   height: 100%;
-  padding: 42px 12px 12px;
+  padding: 48px 12px 12px;
   display: flex;
   flex-direction: column;
   gap: 8px;
   background: #e8ecf3;
+  overflow: hidden;
+}
+
+.lp-app-card.is-compact {
+  padding: 10px 12px;
+}
+
+.lp-app-card.is-compact strong {
+  font-size: 1.15rem;
+}
+
+.lp-chart-wrap {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  margin-top: 6px;
+}
+
+.lp-chart-tooltip {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  z-index: 3;
+  min-width: 96px;
+  padding: 6px 8px;
+  border-radius: 10px;
+  background: #0f172a;
+  color: #fff;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.25);
+  pointer-events: none;
+}
+
+.lp-chart-tooltip strong,
+.lp-chart-tooltip span {
+  display: block;
+  font-size: 0.62rem;
+  line-height: 1.25;
+}
+
+.lp-chart-tooltip strong {
+  font-size: 0.68rem;
+  margin-bottom: 2px;
+}
+
+.lp-app-area {
+  opacity: 1;
+}
+
+.lp-app-line.is-live {
+  stroke-dasharray: none;
+  stroke-dashoffset: 0;
+  animation: none;
+}
+
+.lp-app-dot {
+  fill: #2563eb;
+  stroke: #fff;
+  stroke-width: 1.5;
+}
+
+.lp-app-dot.is-on {
+  fill: #1d4ed8;
+}
+
+.lp-app-hit {
+  cursor: pointer;
+}
+
+.lp-app-flash {
+  position: absolute;
+  inset: 48px 12px 72px;
+  z-index: 8;
+  border-radius: 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.18);
+  animation: lp-flash-in 0.35s ease;
+}
+
+.lp-app-flash.is-sale {
+  color: #1d4ed8;
+}
+
+.lp-app-flash.is-caja {
+  color: #047857;
+}
+
+.lp-app-flash strong {
+  font-size: 1rem;
+  color: #0f172a;
+}
+
+.lp-app-flash span {
+  font-size: 0.82rem;
+  color: #64748b;
+}
+
+.lp-app-panel.is-center {
+  align-items: stretch;
+  justify-content: center;
+  text-align: center;
+}
+
+.lp-app-mini-stat {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+
+.lp-app-mini-stat span {
+  color: #64748b;
+  font-size: 0.8rem;
+}
+
+.lp-app-mini-stat strong {
+  color: #0f172a;
+  font-size: 0.95rem;
+}
+
+.lp-app-primary-btn {
+  margin-top: auto;
+  border: 0;
+  border-radius: 12px;
+  padding: 12px 14px;
+  background: #1e3a8a;
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.9rem;
+  cursor: pointer;
+  font-family: inherit;
+}
+
+.lp-app-primary-btn:disabled {
+  opacity: 0.7;
+  cursor: default;
+}
+
+.lp-app-stock-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  overflow: auto;
+}
+
+.lp-app-stock-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+
+.lp-app-stock-row strong {
+  display: block;
+  font-size: 0.82rem;
+  color: #0f172a;
+}
+
+.lp-app-stock-row small {
+  font-size: 0.7rem;
+  color: #64748b;
+}
+
+.lp-app-stock-row small.is-warn {
+  color: #c2410c;
+}
+
+.lp-app-caja-card {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 12px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+}
+
+.lp-app-caja-card > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 0.78rem;
+}
+
+.lp-app-caja-card span {
+  color: #64748b;
+}
+
+.lp-app-caja-card strong {
+  color: #0f172a;
+}
+
+.lp-app-caja-card .is-ok strong {
+  color: #047857;
+}
+
+@keyframes lp-flash-in {
+  from {
+    opacity: 0;
+    transform: scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 .lp-app-card {

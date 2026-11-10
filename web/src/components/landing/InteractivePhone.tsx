@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
+  CheckCircle2,
   LayoutDashboard,
   MoreHorizontal,
   Package,
@@ -7,9 +8,15 @@ import {
   Wallet,
 } from 'lucide-react';
 
-type Tab = 'inicio' | 'ventas' | 'productos' | 'caja' | 'mas';
+type Tab = 'inicio' | 'ventas' | 'productos' | 'caja';
 
-const TABS: { id: Tab; label: string; icon: typeof LayoutDashboard }[] = [
+type ChartPoint = {
+  label: string;
+  amount: number;
+  tickets: number;
+};
+
+const TABS: { id: Tab | 'mas'; label: string; icon: typeof LayoutDashboard }[] = [
   { id: 'inicio', label: 'Inicio', icon: LayoutDashboard },
   { id: 'ventas', label: 'Ventas', icon: ShoppingCart },
   { id: 'productos', label: 'Productos', icon: Package },
@@ -17,68 +24,258 @@ const TABS: { id: Tab; label: string; icon: typeof LayoutDashboard }[] = [
   { id: 'mas', label: 'Más', icon: MoreHorizontal },
 ];
 
+const BASE_POINTS: ChartPoint[] = [
+  { label: '11/10', amount: 180000, tickets: 7 },
+  { label: '13/10', amount: 420000, tickets: 12 },
+  { label: '15/10', amount: 260000, tickets: 9 },
+  { label: '17/10', amount: 1100000, tickets: 28 },
+  { label: '19/10', amount: 380000, tickets: 11 },
+  { label: '21/10', amount: 0, tickets: 0 },
+  { label: '23/10', amount: 520000, tickets: 15 },
+  { label: '25/10', amount: 210000, tickets: 8 },
+  { label: '27/10', amount: 640000, tickets: 18 },
+  { label: '29/10', amount: 90000, tickets: 3 },
+  { label: '31/10', amount: 470000, tickets: 14 },
+  { label: '02/11', amount: 330000, tickets: 10 },
+  { label: '04/11', amount: 710000, tickets: 19 },
+  { label: '06/11', amount: 150000, tickets: 5 },
+  { label: '09/11', amount: 580000, tickets: 16 },
+];
+
+const Y_MAX = 1200000;
+
+function money(n: number) {
+  return `$ ${n.toLocaleString('es-AR')}`;
+}
+
+function buildPath(points: { x: number; y: number }[]) {
+  if (points.length === 0) return '';
+  let d = `M ${points[0].x} ${points[0].y}`;
+  for (let i = 1; i < points.length; i++) {
+    const prev = points[i - 1];
+    const curr = points[i];
+    const cx = (prev.x + curr.x) / 2;
+    d += ` C ${cx} ${prev.y}, ${cx} ${curr.y}, ${curr.x} ${curr.y}`;
+  }
+  return d;
+}
+
 export function InteractivePhone() {
   const [tab, setTab] = useState<Tab>('inicio');
+  const [points, setPoints] = useState(BASE_POINTS);
+  const [activeIdx, setActiveIdx] = useState<number | null>(null);
   const [salesCount, setSalesCount] = useState(16);
   const [revenue, setRevenue] = useState(440600);
+  const [saleFlash, setSaleFlash] = useState(false);
+  const [cajaClosed, setCajaClosed] = useState(false);
+  const [stock, setStock] = useState([
+    { id: 'a', name: 'Bebida 500ml', qty: 18 },
+    { id: 'b', name: 'Snack pack', qty: 2 },
+    { id: 'c', name: 'Agua 2L', qty: 40 },
+  ]);
+
+  const chart = useMemo(() => {
+    const width = 280;
+    const height = 120;
+    const padL = 34;
+    const padR = 8;
+    const padT = 10;
+    const padB = 18;
+    const innerW = width - padL - padR;
+    const innerH = height - padT - padB;
+    const coords = points.map((p, i) => {
+      const x = padL + (i / Math.max(points.length - 1, 1)) * innerW;
+      const y = padT + innerH - (Math.min(p.amount, Y_MAX) / Y_MAX) * innerH;
+      return { x, y, ...p };
+    });
+    const line = buildPath(coords.map(({ x, y }) => ({ x, y })));
+    const area =
+      coords.length > 0
+        ? `${line} L ${coords[coords.length - 1].x} ${padT + innerH} L ${coords[0].x} ${padT + innerH} Z`
+        : '';
+    return { width, height, padL, padT, padB, innerH, coords, line, area };
+  }, [points]);
+
+  function registerSale() {
+    const amount = 2750;
+    setSalesCount((n) => n + 1);
+    setRevenue((n) => n + amount);
+    setPoints((prev) => {
+      const next = [...prev];
+      const last = next[next.length - 1];
+      next[next.length - 1] = {
+        ...last,
+        amount: last.amount + amount,
+        tickets: last.tickets + 1,
+      };
+      return next;
+    });
+    setSaleFlash(true);
+    window.setTimeout(() => setSaleFlash(false), 1400);
+  }
+
+  function bumpStock(id: string, delta: number) {
+    setStock((prev) =>
+      prev.map((item) =>
+        item.id === id ? { ...item, qty: Math.max(0, Math.min(99, item.qty + delta)) } : item
+      )
+    );
+  }
+
+  const lowStock = stock.filter((s) => s.qty <= 5).length;
+  const active = activeIdx != null ? chart.coords[activeIdx] : null;
 
   return (
     <div className="lp-phone-wrap">
-      <div className="lp-float-card lp-fc1">
-        <b>$ {revenue.toLocaleString('es-AR')}</b>
-        <span>Recaudación del mes</span>
-      </div>
-      <div className="lp-float-card lp-fc2">
-        <b>268 productos</b>
-        <span>con stock bajo</span>
-      </div>
+      {tab === 'inicio' ? (
+        <>
+          <div className="lp-float-card lp-fc1">
+            <b>{money(revenue)}</b>
+            <span>Recaudación del mes</span>
+          </div>
+          <div className="lp-float-card lp-fc2">
+            <b>{lowStock || 268} productos</b>
+            <span>con stock bajo</span>
+          </div>
+        </>
+      ) : null}
+
       <div className="lp-phone" role="region" aria-label="Demo interactiva de Control+">
         <div className="lp-screen lp-screen-app">
-          <div className="lp-app">
+          <div className={`lp-app ${saleFlash || cajaClosed ? 'has-flash' : ''}`}>
+            {saleFlash ? (
+              <div className="lp-app-flash is-sale" role="status">
+                <CheckCircle2 size={28} />
+                <strong>Venta registrada</strong>
+                <span>+ $ 2.750</span>
+              </div>
+            ) : null}
+
+            {cajaClosed ? (
+              <div className="lp-app-flash is-caja" role="status">
+                <CheckCircle2 size={28} />
+                <strong>Caja cerrada</strong>
+                <span>Cambio listo para mañana</span>
+              </div>
+            ) : null}
+
             {tab === 'inicio' ? (
               <>
-                <div className="lp-app-card">
+                <div className="lp-app-card is-compact">
                   <span>RECAUDACIÓN DEL MES</span>
-                  <strong>$ {revenue.toLocaleString('es-AR')}</strong>
+                  <strong>{money(revenue)}</strong>
                   <small>{salesCount} ventas este mes</small>
                 </div>
-                <div className="lp-app-card">
+                <div className="lp-app-card is-compact">
                   <span>TICKET PROMEDIO</span>
-                  <strong>$ {Math.round(revenue / Math.max(salesCount, 1)).toLocaleString('es-AR')}</strong>
+                  <strong>
+                    {money(Math.round(revenue / Math.max(salesCount, 1)))}
+                  </strong>
                   <small>Promedio del mes actual</small>
                 </div>
-                <div className="lp-app-card">
-                  <span>PRODUCTOS</span>
-                  <strong>490</strong>
-                  <small>268 con stock bajo</small>
-                </div>
+
                 <div className="lp-app-chart-card">
                   <b>Ventas últimos 30 días</b>
-                  <small>Tocá “Simular venta” abajo</small>
-                  <button
-                    type="button"
-                    className="lp-demo-chip"
-                    onClick={() => {
-                      setSalesCount((n) => n + 1);
-                      setRevenue((n) => n + 2750);
-                    }}
-                  >
-                    Simular venta +$2.750
-                  </button>
+                  <small>Pasá el dedo o el mouse sobre el gráfico</small>
+                  <div className="lp-chart-wrap">
+                    {active ? (
+                      <div
+                        className="lp-chart-tooltip"
+                        style={{
+                          left: `${Math.min(Math.max((active.x / chart.width) * 100, 18), 82)}%`,
+                        }}
+                      >
+                        <strong>{active.label}</strong>
+                        <span>{active.tickets} ventas</span>
+                        <span>{money(active.amount)}</span>
+                      </div>
+                    ) : null}
+                    <svg
+                      className="lp-app-chart"
+                      viewBox={`0 0 ${chart.width} ${chart.height}`}
+                      preserveAspectRatio="none"
+                      onMouseLeave={() => setActiveIdx(null)}
+                    >
+                      <defs>
+                        <linearGradient id="lpChartFill" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stopColor="#2563eb" stopOpacity="0.28" />
+                          <stop offset="100%" stopColor="#2563eb" stopOpacity="0.02" />
+                        </linearGradient>
+                      </defs>
+                      <g className="lp-app-grid">
+                        {[0, 0.25, 0.5, 0.75, 1].map((t) => {
+                          const y = chart.padT + chart.innerH * (1 - t);
+                          return (
+                            <line
+                              key={t}
+                              x1={chart.padL}
+                              y1={y}
+                              x2={chart.width - 8}
+                              y2={y}
+                            />
+                          );
+                        })}
+                      </g>
+                      <text x="2" y="14" className="lp-app-axis">
+                        1.200.000
+                      </text>
+                      <text x="2" y="42" className="lp-app-axis">
+                        900.000
+                      </text>
+                      <text x="2" y="70" className="lp-app-axis">
+                        600.000
+                      </text>
+                      <text x="2" y="98" className="lp-app-axis">
+                        300.000
+                      </text>
+                      <path className="lp-app-area" d={chart.area} fill="url(#lpChartFill)" />
+                      <path className="lp-app-line is-live" d={chart.line} />
+                      {chart.coords.map((p, i) => (
+                        <g key={p.label}>
+                          <circle
+                            cx={p.x}
+                            cy={p.y}
+                            r={activeIdx === i ? 5 : 3.2}
+                            className={`lp-app-dot ${activeIdx === i ? 'is-on' : ''}`}
+                          />
+                          <circle
+                            cx={p.x}
+                            cy={p.y}
+                            r={14}
+                            fill="transparent"
+                            className="lp-app-hit"
+                            onMouseEnter={() => setActiveIdx(i)}
+                            onFocus={() => setActiveIdx(i)}
+                            onTouchStart={(e) => {
+                              e.preventDefault();
+                              setActiveIdx(i);
+                            }}
+                          />
+                        </g>
+                      ))}
+                    </svg>
+                    <div className="lp-app-x">
+                      {points
+                        .filter((_, i) => i % 2 === 0 || i === points.length - 1)
+                        .map((p) => (
+                          <span key={p.label}>{p.label}</span>
+                        ))}
+                    </div>
+                  </div>
                 </div>
               </>
             ) : null}
 
             {tab === 'ventas' ? (
-              <div className="lp-app-panel">
+              <div className="lp-app-panel is-center">
                 <b>Ventas</b>
-                <p>Registrá y cobrá sin fricción.</p>
-                <ul>
-                  <li>Borradores pendientes: 3</li>
-                  <li>Hoy: {salesCount} tickets</li>
-                </ul>
-                <button type="button" className="lp-demo-chip" onClick={() => setTab('inicio')}>
-                  Ver dashboard
+                <p>Registrá una venta de demo y mirá la animación.</p>
+                <div className="lp-app-mini-stat">
+                  <span>Hoy</span>
+                  <strong>{salesCount} tickets</strong>
+                </div>
+                <button type="button" className="lp-app-primary-btn" onClick={registerSale}>
+                  Registrar venta
                 </button>
               </div>
             ) : null}
@@ -86,41 +283,69 @@ export function InteractivePhone() {
             {tab === 'productos' ? (
               <div className="lp-app-panel">
                 <b>Productos</b>
-                <p>Stock sincronizado con cada venta.</p>
-                <ul>
-                  <li>490 ítems activos</li>
-                  <li>268 con alerta de mínimo</li>
-                </ul>
-                <button type="button" className="lp-demo-chip" onClick={() => setTab('caja')}>
-                  Ir a caja
-                </button>
+                <p>Sumá o restá stock de la demo.</p>
+                <div className="lp-app-stock-list">
+                  {stock.map((item) => (
+                    <div key={item.id} className="lp-app-stock-row">
+                      <div>
+                        <strong>{item.name}</strong>
+                        <small className={item.qty <= 5 ? 'is-warn' : undefined}>
+                          {item.qty <= 5 ? 'Stock bajo' : 'Stock normal'}
+                        </small>
+                      </div>
+                      <div className="lp-demo-stepper">
+                        <button type="button" onClick={() => bumpStock(item.id, -1)} aria-label={`Bajar ${item.name}`}>
+                          −
+                        </button>
+                        <span className={`lp-stock-badge ${item.qty <= 5 ? 'is-warn' : 'is-ok'}`}>
+                          {item.qty} u.
+                        </span>
+                        <button type="button" onClick={() => bumpStock(item.id, 1)} aria-label={`Subir ${item.name}`}>
+                          +
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             ) : null}
 
             {tab === 'caja' ? (
               <div className="lp-app-panel">
                 <b>Caja del día</b>
-                <p>Cierre con cambio para mañana.</p>
-                <ul>
-                  <li>Efectivo: $ 44.200</li>
-                  <li>Cambio mañana: $ 24.200</li>
-                </ul>
-                <button type="button" className="lp-demo-chip is-ok" onClick={() => setTab('inicio')}>
-                  Cierre listo ✓
-                </button>
-              </div>
-            ) : null}
-
-            {tab === 'mas' ? (
-              <div className="lp-app-panel">
-                <b>Más</b>
-                <p>Estadísticas, usuarios y marca.</p>
-                <ul>
-                  <li>Roles admin / empleado</li>
-                  <li>Reportes PDF</li>
-                </ul>
-                <button type="button" className="lp-demo-chip" onClick={() => setTab('inicio')}>
-                  Volver al inicio
+                <p>Resumen en efectivo</p>
+                <div className="lp-app-caja-card">
+                  <div>
+                    <span>Caja cambio</span>
+                    <strong>$ 20.000</strong>
+                  </div>
+                  <div>
+                    <span>Ventas efectivo</span>
+                    <strong>$ 44.200</strong>
+                  </div>
+                  <div>
+                    <span>Caja total</span>
+                    <strong>$ 64.200</strong>
+                  </div>
+                  <div className="is-ok">
+                    <span>Ganancia</span>
+                    <strong>$ 44.200</strong>
+                  </div>
+                  <div>
+                    <span>Cambio mañana</span>
+                    <strong>$ 24.200</strong>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  className="lp-app-primary-btn"
+                  disabled={cajaClosed}
+                  onClick={() => {
+                    setCajaClosed(true);
+                    window.setTimeout(() => setCajaClosed(false), 1600);
+                  }}
+                >
+                  Cerrar caja
                 </button>
               </div>
             ) : null}
@@ -131,7 +356,11 @@ export function InteractivePhone() {
                   key={id}
                   type="button"
                   className={tab === id ? 'is-active' : undefined}
-                  onClick={() => setTab(id)}
+                  onClick={() => {
+                    if (id === 'mas') return;
+                    setTab(id);
+                    setActiveIdx(null);
+                  }}
                 >
                   <Icon size={16} />
                   {label}
@@ -141,7 +370,7 @@ export function InteractivePhone() {
           </div>
         </div>
       </div>
-      <p className="lp-phone-hint">Tocá los botones del mockup</p>
+      <p className="lp-phone-hint">Tocá el gráfico y los botones del mockup</p>
     </div>
   );
 }
