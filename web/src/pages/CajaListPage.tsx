@@ -8,6 +8,7 @@ import {
   createDefaultPeriod,
   isDateInRange,
   formatPeriodLabel,
+  isBrandAdminRole,
 } from '@advance-coat/shared';
 import { getCajaHistory, deleteCajaRecord } from '../services/caja';
 import { exportCajaRecordsToExcel, exportCajaRecordsToPdf } from '../services/export';
@@ -16,7 +17,7 @@ import { useAuth } from '../context/AuthContext';
 
 export function CajaListPage() {
   const { profile } = useAuth();
-  const isAdmin = profile?.role === 'admin';
+  const isAdmin = isBrandAdminRole(profile?.role);
   const [records, setRecords] = useState<DailyCaja[]>([]);
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState<PeriodSelection>(() => createDefaultPeriod());

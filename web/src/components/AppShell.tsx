@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   LayoutDashboard,
@@ -11,6 +11,7 @@ import {
   Wallet,
   BarChart3,
   Shield,
+  Settings,
   User,
   Menu,
   X,
@@ -19,16 +20,17 @@ import {
   Truck,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useBrand } from '../context/BrandContext';
 
 const BOTTOM_NAV = [
-  { to: '/', label: 'Inicio', icon: LayoutDashboard, end: true },
+  { to: '/app', label: 'Inicio', icon: LayoutDashboard, end: true },
   { to: '/sales', label: 'Ventas', icon: ShoppingCart },
   { to: '/products', label: 'Productos', icon: Package },
   { to: '/caja', label: 'Caja', icon: Wallet, end: true },
 ];
 
 const DRAWER_NAV = [
-  { to: '/', label: 'Inicio', icon: LayoutDashboard, end: true },
+  { to: '/app', label: 'Inicio', icon: LayoutDashboard, end: true },
   { to: '/products', label: 'Productos', icon: Package },
   { to: '/stock', label: 'Stock', icon: Warehouse },
   { to: '/sales', label: 'Nueva venta', icon: ShoppingCart },
@@ -41,11 +43,12 @@ const DRAWER_NAV = [
   { to: '/flex', label: 'Flex', icon: Truck },
   { to: '/statistics', label: 'Estadísticas', icon: BarChart3, adminOnly: true },
   { to: '/admin', label: 'Panel admin', icon: Shield, adminOnly: true },
+  { to: '/brand', label: 'Mi marca', icon: Settings, adminOnly: true },
   { to: '/profile', label: 'Perfil', icon: User },
 ];
 
 const TITLES: Record<string, string> = {
-  '/': 'Inicio',
+  '/app': 'Inicio',
   '/products': 'Productos',
   '/products/new': 'Nuevo producto',
   '/stock': 'Stock',
@@ -63,27 +66,40 @@ const TITLES: Record<string, string> = {
   '/profile': 'Perfil',
 };
 
-function resolveTitle(pathname: string): string {
+function resolveTitle(pathname: string, brandName?: string): string {
   if (TITLES[pathname]) return TITLES[pathname];
   if (pathname.startsWith('/products/')) return 'Editar producto';
   if (pathname.startsWith('/customers/')) return 'Detalle de cliente';
   if (pathname.startsWith('/caja/edit/')) return 'Editar caja';
   if (pathname.startsWith('/caja/register')) return 'Día faltante';
-  return 'Advance Coat';
+  return brandName || 'Control+';
+}
+
+function roleLabel(role: string | undefined): string {
+  if (role === 'super_admin') return 'Super admin';
+  if (role === 'owner') return 'Dueño';
+  if (role === 'admin') return 'Admin';
+  return 'Empleado';
 }
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { profile } = useAuth();
+  const { brand, isBrandAdmin, isSuperAdmin, limits, exitBrand } = useBrand();
   const location = useLocation();
+  const navigate = useNavigate();
   const [open, setOpen] = useState(false);
-  const isAdmin = profile?.role === 'admin';
 
-  const drawerItems = DRAWER_NAV.filter((item) => !item.adminOnly || isAdmin);
+  const drawerItems = DRAWER_NAV.filter((item) => {
+    if (item.to === '/flex' && !limits.flex) return false;
+    if (item.to === '/statistics' && !limits.statistics) return false;
+    if (item.adminOnly && !isBrandAdmin) return false;
+    return true;
+  });
   const moreActive = !BOTTOM_NAV.some((item) => {
     if (item.end) return location.pathname === item.to;
     return (
       item.to === location.pathname ||
-      (item.to !== '/' && location.pathname.startsWith(item.to))
+      (item.to !== '/app' && location.pathname.startsWith(item.to))
     );
   });
 
@@ -93,7 +109,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       if (item.end) return location.pathname === item.to;
       return (
         item.to === location.pathname ||
-        (item.to !== '/' && location.pathname.startsWith(item.to))
+        (item.to !== '/app' && location.pathname.startsWith(item.to))
       );
     });
     return idx >= 0 ? idx : 0;
@@ -116,10 +132,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <aside className={`sidebar ${open ? 'open' : ''}`}>
         <div className="sidebar-brand">
           <div className="sidebar-brand-mark">
-            <img src="/logo-advance.png" alt="Advance Coat" />
+            {brand?.logoUrl ? (
+              <img src={brand.logoUrl} alt={brand.name} />
+            ) : (
+              <span className="sidebar-brand-fallback">
+                {(brand?.name || 'C').slice(0, 1).toUpperCase()}
+              </span>
+            )}
           </div>
           <div>
-            <h1>Advance Coat</h1>
+            <h1>{brand?.name || 'Control+'}</h1>
             <span>Gestión de ventas</span>
           </div>
           <button
@@ -154,8 +176,21 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <div className="muted" style={{ color: 'rgba(255,255,255,0.55)' }}>
             {profile?.name ?? 'Usuario'}
             <br />
-            <span style={{ fontSize: 11 }}>{profile?.role === 'admin' ? 'Admin' : 'Empleado'}</span>
+            <span style={{ fontSize: 11 }}>{roleLabel(profile?.role)}</span>
           </div>
+          {isSuperAdmin && (
+            <button
+              type="button"
+              className="btn btn-ghost btn-sm"
+              style={{ marginTop: 8, color: '#fff', borderColor: 'rgba(255,255,255,0.2)' }}
+              onClick={() => {
+                exitBrand();
+                navigate('/platform');
+              }}
+            >
+              Panel plataforma
+            </button>
+          )}
         </div>
       </aside>
 
@@ -170,7 +205,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             >
               <Menu size={20} />
             </button>
-            <h2>{resolveTitle(location.pathname)}</h2>
+            <h2>{resolveTitle(location.pathname, brand?.name)}</h2>
           </div>
           <div className="topbar-email muted">{profile?.email}</div>
         </header>

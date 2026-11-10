@@ -1,4 +1,46 @@
-export type UserRole = 'admin' | 'employee';
+import type { PlanId } from '../constants/plans';
+
+/** Roles dentro de una marca (tenant) */
+export type BrandRole = 'owner' | 'admin' | 'employee';
+
+/** Rol de plataforma: gestiona todas las marcas */
+export type PlatformRole = 'super_admin';
+
+export type UserRole = BrandRole | PlatformRole;
+
+export type BrandStatus = 'active' | 'suspended' | 'trial';
+
+export type BusinessType =
+  | 'kiosco'
+  | 'almacen'
+  | 'tienda'
+  | 'mayorista'
+  | 'otro';
+
+export type SellingStatus = 'yes' | 'starting' | 'no';
+
+export type SalesChannel = 'local' | 'whatsapp' | 'instagram' | 'web' | 'otro';
+
+export interface Brand {
+  id: string;
+  name: string;
+  /** slug URL-friendly único */
+  slug: string;
+  logoUrl?: string;
+  ownerUid: string;
+  planId: PlanId;
+  status: BrandStatus;
+  /** Fin del trial / vigencia opcional */
+  planExpiresAt?: Date;
+  phone?: string;
+  email?: string;
+  cuit?: string;
+  businessType?: BusinessType;
+  sellingStatus?: SellingStatus;
+  salesChannels?: SalesChannel[];
+  createdAt?: Date;
+  updatedAt?: Date;
+}
 
 export type PaymentMethod =
   | 'transferencia_feli'
@@ -16,8 +58,19 @@ export interface UserProfile {
   email: string;
   name: string;
   role: UserRole;
+  /** Marca a la que pertenece. Null solo para super_admin. */
+  brandId?: string | null;
+  photoUrl?: string;
   active?: boolean;
   createdAt?: Date;
+}
+
+export function isBrandAdminRole(role: UserRole | undefined): boolean {
+  return role === 'owner' || role === 'admin';
+}
+
+export function isSuperAdminRole(role: UserRole | undefined): boolean {
+  return role === 'super_admin';
 }
 
 export interface Product {

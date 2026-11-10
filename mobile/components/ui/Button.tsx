@@ -77,10 +77,10 @@ const styles = StyleSheet.create({
     borderRadius: radius.md,
   },
   primary: {
-    backgroundColor: colors.primary,
+    backgroundColor: colors.accent,
   },
   secondary: {
-    backgroundColor: colors.accent,
+    backgroundColor: colors.primary,
   },
   outline: {
     backgroundColor: 'transparent',

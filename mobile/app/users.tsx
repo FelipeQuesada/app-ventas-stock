@@ -8,6 +8,7 @@ import {
 } from 'react-native';
 import { useFocusEffect, Redirect } from 'expo-router';
 import { useAuth } from '@/context/AuthContext';
+import { useBrand } from '@/context/BrandContext';
 import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
@@ -19,13 +20,14 @@ import {
   updateUserRole,
 } from '@/services/auth';
 import { getRecentAuditLogs, AuditLog } from '@/services/audit';
-import { UserProfile, UserRole } from '@/types';
+import { BrandRole, UserProfile, UserRole, isBrandAdminRole } from '@/types';
 import { formatDate } from '@/utils/format';
 import { showAlert } from '@/utils/alert';
 import { colors, radius, spacing, typography } from '@/constants/theme';
 
 export default function UsersScreen() {
   const { user, profile } = useAuth();
+  const { brand, isBrandAdmin } = useBrand();
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [loading, setLoading] = useState(true);
@@ -34,12 +36,12 @@ export default function UsersScreen() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [role, setRole] = useState<UserRole>('employee');
+  const [role, setRole] = useState<BrandRole>('employee');
 
   const load = useCallback(async () => {
     try {
       const [usersData, logsData] = await Promise.all([
-        listUsers(),
+        listUsers(brand?.id),
         getRecentAuditLogs(30),
       ]);
       setUsers(usersData);
@@ -49,7 +51,7 @@ export default function UsersScreen() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [brand?.id]);
 
   useFocusEffect(
     useCallback(() => {
@@ -57,7 +59,7 @@ export default function UsersScreen() {
     }, [load])
   );
 
-  if (profile && profile.role !== 'admin') {
+  if (profile && !isBrandAdminRole(profile.role) && !isBrandAdmin) {
     return <Redirect href="/(tabs)/profile" />;
   }
 
@@ -75,6 +77,7 @@ export default function UsersScreen() {
       await createUserAsAdmin(email, password, name, role, {
         userId: user.uid,
         userName: profile?.name,
+        brandId: brand?.id,
       });
       showAlert('Listo', 'Usuario creado');
       setName('');

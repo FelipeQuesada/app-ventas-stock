@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Plus, Pencil, X, Eye, EyeOff } from 'lucide-react';
-import type { UserProfile, UserRole } from '@advance-coat/shared';
+import type { BrandRole, UserProfile } from '@advance-coat/shared';
 import { useAuth } from '../../context/AuthContext';
+import { useBrand } from '../../context/BrandContext';
 import {
   listUsers,
   createUserAsAdmin,
@@ -11,8 +12,15 @@ import {
 
 type FormMode = 'create' | 'edit';
 
+function roleLabel(role: string): string {
+  if (role === 'owner') return 'Dueño';
+  if (role === 'admin') return 'Admin';
+  return 'Empleado';
+}
+
 export function AdminUsersPage() {
   const { user, profile } = useAuth();
+  const { brand } = useBrand();
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
   const [mode, setMode] = useState<FormMode | null>(null);
@@ -21,7 +29,7 @@ export function AdminUsersPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [role, setRole] = useState<UserRole>('employee');
+  const [role, setRole] = useState<BrandRole>('employee');
   const [active, setActive] = useState(true);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
@@ -29,15 +37,15 @@ export function AdminUsersPage() {
   async function load() {
     setLoading(true);
     try {
-      setUsers(await listUsers());
+      setUsers(await listUsers(brand?.id));
     } finally {
       setLoading(false);
     }
   }
 
   useEffect(() => {
-    void load();
-  }, []);
+    if (brand?.id) void load();
+  }, [brand?.id]);
 
   function openCreate() {
     setMode('create');
@@ -58,7 +66,7 @@ export function AdminUsersPage() {
     setEmail(u.email);
     setPassword('');
     setShowPassword(false);
-    setRole(u.role);
+    setRole((u.role === 'owner' || u.role === 'admin' ? u.role : 'employee') as BrandRole);
     setActive(u.active !== false);
     setError('');
   }
@@ -80,6 +88,7 @@ export function AdminUsersPage() {
         await createUserAsAdmin(email, password, name, role, {
           userId: user.uid,
           userName: profile?.name,
+          brandId: brand?.id,
         });
       } else if (editingUid) {
         await updateUser(
@@ -174,10 +183,13 @@ export function AdminUsersPage() {
             <select
               className="select-input"
               value={role}
-              onChange={(e) => setRole(e.target.value as UserRole)}
+              onChange={(e) => setRole(e.target.value as BrandRole)}
             >
               <option value="employee">Empleado</option>
               <option value="admin">Admin</option>
+              {(profile?.role === 'owner' || profile?.role === 'super_admin') && (
+                <option value="owner">Dueño</option>
+              )}
             </select>
           </div>
           {mode === 'edit' && editingUid !== user?.uid && (
@@ -220,7 +232,7 @@ export function AdminUsersPage() {
                     <strong>{u.name}</strong>
                   </td>
                   <td>{u.email}</td>
-                  <td>{u.role === 'admin' ? 'Admin' : 'Empleado'}</td>
+                  <td>{roleLabel(u.role)}</td>
                   <td>
                     <span className={`badge ${isActive ? 'badge-success' : 'badge-muted'}`}>
                       {isActive ? 'Activo' : 'Desactivado'}

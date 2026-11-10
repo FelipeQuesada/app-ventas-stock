@@ -21,6 +21,7 @@ import {
 import {
   formatCurrency,
   getLowStockProducts,
+  isBrandAdminRole,
 } from '@advance-coat/shared';
 import { getSalesByDateRange, getTodaySales, getMonthSales } from '../services/sales';
 import { getProducts } from '../services/products';
@@ -35,7 +36,7 @@ import { useAuth } from '../context/AuthContext';
 export function DashboardPage() {
   const navigate = useNavigate();
   const { profile } = useAuth();
-  const isAdmin = profile?.role === 'admin';
+  const isAdmin = isBrandAdminRole(profile?.role);
   const [sales, setSales] = useState<Sale[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);

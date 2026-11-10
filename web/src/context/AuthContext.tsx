@@ -2,7 +2,7 @@ import React, { createContext, useContext, useEffect, useState, useCallback } fr
 import { onAuthStateChanged, type User } from 'firebase/auth';
 import type { UserProfile } from '@advance-coat/shared';
 import { auth } from '../lib/firebase';
-import { getUserProfile, signOutUser } from '../services/auth';
+import { getUserProfile, repairOwnerProfileIfMissing, signOutUser } from '../services/auth';
 
 interface AuthContextType {
   user: User | null;
@@ -28,7 +28,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const loadProfile = useCallback(async (firebaseUser: User) => {
     try {
-      const p = await getUserProfile(firebaseUser.uid);
+      let p = await getUserProfile(firebaseUser.uid);
+      if (!p) {
+        // Registro a medias / carrera: reparar dueño si hay marca
+        p = await repairOwnerProfileIfMissing(firebaseUser);
+      }
       setProfileError(null);
       if (p && p.active === false) {
         await signOutUser();

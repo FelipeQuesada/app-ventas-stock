@@ -1,4 +1,6 @@
-export type UserRole = 'admin' | 'employee';
+export type BrandRole = 'owner' | 'admin' | 'employee';
+export type PlatformRole = 'super_admin';
+export type UserRole = BrandRole | PlatformRole;
 
 export type PaymentMethod =
   | 'transferencia_feli'
@@ -16,8 +18,18 @@ export interface UserProfile {
   email: string;
   name: string;
   role: UserRole;
+  brandId?: string | null;
+  photoUrl?: string;
   active?: boolean;
   createdAt?: Date;
+}
+
+export function isBrandAdminRole(role: UserRole | undefined): boolean {
+  return role === 'owner' || role === 'admin';
+}
+
+export function isSuperAdminRole(role: UserRole | undefined): boolean {
+  return role === 'super_admin';
 }
 
 export interface Product {

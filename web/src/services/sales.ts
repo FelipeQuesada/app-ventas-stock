@@ -21,8 +21,18 @@ import {
 import { db } from '../lib/firebase';
 import { saveCustomer } from './customers';
 import { logAudit } from './audit';
+import { listByBrand, withBrandFields } from '../lib/brandQuery';
+import { requireBrandId } from '../lib/brandScope';
+import { DEFAULT_BRAND_ID } from '@advance-coat/shared';
 
 const COLLECTION = 'sales';
+
+function belongsToActiveBrand(data: Record<string, unknown>): boolean {
+  const brandId = requireBrandId();
+  if (data.brandId === brandId) return true;
+  if (!data.brandId && brandId === DEFAULT_BRAND_ID) return true;
+  return false;
+}
 
 /** Firestore rechaza `undefined`, `NaN` e `Infinity` dentro del documento. */
 function withoutUndefined<T extends object>(value: T): T {
@@ -66,10 +76,9 @@ function mapSale(id: string, data: Record<string, unknown>): Sale {
 }
 
 export async function getSales(): Promise<Sale[]> {
-  const q = query(collection(db, COLLECTION), orderBy('date', 'desc'));
-  const snap = await getDocs(q);
+  const docs = await listByBrand(COLLECTION, [orderBy('date', 'desc')]);
   const sales: Sale[] = [];
-  for (const d of snap.docs) {
+  for (const d of docs) {
     if (d.data().recordType === 'presupuesto') continue;
     try {
       sales.push(mapSale(d.id, d.data()));
@@ -110,15 +119,13 @@ export async function markSaleInvoiceIssued(
 }
 
 export async function getSalesByDateRange(start: Date, end: Date): Promise<Sale[]> {
-  const q = query(
-    collection(db, COLLECTION),
+  const docs = await listByBrand(COLLECTION, [
     where('date', '>=', Timestamp.fromDate(start)),
     where('date', '<=', Timestamp.fromDate(end)),
-    orderBy('date', 'desc')
-  );
-  const snap = await getDocs(q);
+    orderBy('date', 'desc'),
+  ]);
   const sales: Sale[] = [];
-  for (const d of snap.docs) {
+  for (const d of docs) {
     if (d.data().recordType === 'presupuesto') continue;
     try {
       sales.push(mapSale(d.id, d.data()));
@@ -206,27 +213,30 @@ async function commitSaleCreate(input: CreateSaleInput): Promise<string> {
   }
 
   const saleRef = doc(collection(db, COLLECTION));
-  batch.set(saleRef, {
-    date: Timestamp.fromDate(input.date),
-    items: input.items.map((item) => withoutUndefined(item)),
-    paymentMethod: input.paymentMethod,
-    paymentMethodLabel: input.paymentMethodLabel,
-    paymentSplits: input.paymentSplits ?? null,
-    customer: normalizedCustomer,
-    subtotal: input.subtotal,
-    discountType: input.discountType ?? null,
-    discountValue: input.discountValue ?? 0,
-    discountAmount: input.discountAmount ?? 0,
-    total: input.total,
-    amountPaid: input.amountPaid ?? null,
-    change: input.change ?? null,
-    customerCount: 1,
-    wantsInvoice: input.wantsInvoice === true,
-    invoiceIssued: false,
-    createdBy: input.createdBy,
-    createdByName: input.createdByName ?? '',
-    createdAt: serverTimestamp(),
-  });
+  batch.set(
+    saleRef,
+    withBrandFields({
+      date: Timestamp.fromDate(input.date),
+      items: input.items.map((item) => withoutUndefined(item)),
+      paymentMethod: input.paymentMethod,
+      paymentMethodLabel: input.paymentMethodLabel,
+      paymentSplits: input.paymentSplits ?? null,
+      customer: normalizedCustomer,
+      subtotal: input.subtotal,
+      discountType: input.discountType ?? null,
+      discountValue: input.discountValue ?? 0,
+      discountAmount: input.discountAmount ?? 0,
+      total: input.total,
+      amountPaid: input.amountPaid ?? null,
+      change: input.change ?? null,
+      customerCount: 1,
+      wantsInvoice: input.wantsInvoice === true,
+      invoiceIssued: false,
+      createdBy: input.createdBy,
+      createdByName: input.createdByName ?? '',
+      createdAt: serverTimestamp(),
+    })
+  );
 
   await batch.commit();
   return saleRef.id;

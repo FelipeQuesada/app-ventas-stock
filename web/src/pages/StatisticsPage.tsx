@@ -29,6 +29,7 @@ import {
   RESIN_UNIT_LABELS,
   type ResinUnitKey,
   type PeriodSelection,
+  isBrandAdminRole,
 } from '@advance-coat/shared';
 import { getSales } from '../services/sales';
 import { getProducts } from '../services/products';
@@ -184,8 +185,8 @@ export function StatisticsPage() {
   const sellerTotal = sellers.reduce((sum, item) => sum + item.value, 0) || 1;
   const dominantPayment = payments[0];
 
-  if (profile?.role !== 'admin') {
-    return <Navigate to="/" replace />;
+  if (!isBrandAdminRole(profile?.role)) {
+    return <Navigate to="/app" replace />;
   }
 
   if (loading) return <div className="loading-screen">Cargando estadísticas…</div>;

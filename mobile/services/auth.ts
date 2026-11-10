@@ -4,7 +4,6 @@ import {
   signOut,
   sendPasswordResetEmail,
   updatePassword,
-  deleteUser,
   User,
   getAuth,
 } from 'firebase/auth';
@@ -16,13 +15,28 @@ import {
   setDoc,
   updateDoc,
   query,
+  where,
   orderBy,
   serverTimestamp,
 } from 'firebase/firestore';
 import { initializeApp, deleteApp } from 'firebase/app';
+import {
+  DEFAULT_BRAND_ID,
+  getPlanLimits,
+  isSuperAdminEmail,
+} from '@advance-coat/shared';
 import { auth, db } from '@/lib/firebase';
-import { UserProfile, UserRole } from '@/types';
+import { UserProfile, UserRole, BrandRole } from '@/types';
 import { logAudit } from '@/services/audit';
+import {
+  createBrand,
+  getBrand,
+  isSlugAvailable,
+  slugifyBrandName,
+  findBrandByOwnerUid,
+  ensureLegacyAdvanceBrand,
+} from '@/services/brands';
+import { requireBrandId, getActiveBrandId } from '@/lib/brandScope';
 
 const firebaseConfig = {
   apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
@@ -49,17 +63,15 @@ export function getAuthErrorMessage(error: unknown): string {
     case 'auth/user-not-found':
       return 'Email o contraseña incorrectos. Revisá el email o usá "¿Olvidaste tu contraseña?".';
     case 'permission-denied':
-      return 'Firestore bloqueó el acceso a tu perfil. Publicá las reglas de firestore.rules en Firebase Console.';
+      return 'Firestore bloqueó el acceso. Publicá las reglas actualizadas en Firebase Console.';
     case 'unavailable':
     case 'failed-precondition':
-      return 'Firestore no está disponible. Verificá que creaste la base de datos en Firebase Console.';
+      return 'Firestore no está disponible.';
     case 'auth/not-authorized':
     case 'auth/user-disabled-app':
-      return message || 'Tu usuario no tiene acceso. Contactá al administrador.';
+    case 'auth/brand-suspended':
+      return message || 'Tu usuario no tiene acceso.';
     default:
-      if (message.includes('Firestore')) {
-        return `Error de base de datos: ${message}`;
-      }
       return message || 'Ocurrió un error. Intentá de nuevo.';
   }
 }
@@ -70,29 +82,106 @@ function accessError(code: string, message: string) {
   return err;
 }
 
+function mapProfile(uid: string, data: Record<string, unknown>): UserProfile {
+  const email = (data.email as string) || '';
+  let role = data.role as UserRole;
+  if (isSuperAdminEmail(email)) role = 'super_admin';
+  return {
+    uid,
+    email,
+    name: data.name as string,
+    role,
+    brandId: (data.brandId as string | null | undefined) ?? null,
+    photoUrl: (data.photoUrl as string) || undefined,
+    active: data.active !== false,
+    createdAt: (data.createdAt as { toDate?: () => Date })?.toDate?.(),
+  };
+}
+
+export async function getUserProfile(uid: string): Promise<UserProfile | null> {
+  const snap = await getDoc(doc(db, 'users', uid));
+  if (!snap.exists()) return null;
+  return mapProfile(uid, snap.data());
+}
+
+export async function repairOwnerProfileIfMissing(user: User): Promise<UserProfile | null> {
+  const existing = await getUserProfile(user.uid);
+  if (existing) return existing;
+
+  const brand = await findBrandByOwnerUid(user.uid);
+  if (!brand) return null;
+
+  await setDoc(
+    doc(db, 'users', user.uid),
+    {
+      email: (user.email ?? brand.email ?? '').toLowerCase(),
+      name: user.displayName || brand.name || 'Dueño',
+      role: 'owner',
+      brandId: brand.id,
+      active: true,
+      createdAt: serverTimestamp(),
+    },
+    { merge: true }
+  );
+
+  return getUserProfile(user.uid);
+}
+
 export async function signIn(email: string, password: string) {
   const result = await signInWithEmailAndPassword(auth, email.trim(), password);
   let profile: UserProfile | null;
   try {
     profile = await getUserProfile(result.user.uid);
+    if (!profile) {
+      profile = await repairOwnerProfileIfMissing(result.user);
+    }
   } catch (err) {
     await signOut(auth);
     throw err;
   }
+
   if (!profile) {
+    if (isSuperAdminEmail(result.user.email)) {
+      await setDoc(doc(db, 'users', result.user.uid), {
+        email: result.user.email,
+        name: 'Super Admin',
+        role: 'super_admin',
+        brandId: null,
+        active: true,
+        createdAt: serverTimestamp(),
+      });
+      await ensureLegacyAdvanceBrand(result.user.uid).catch(() => undefined);
+      return result.user;
+    }
     await signOut(auth);
     throw accessError(
       'auth/not-authorized',
-      'Tu cuenta no tiene acceso. Pedile al administrador que te cree el usuario.'
+      'Tu cuenta no tiene acceso. Registrá tu marca o pedile acceso al dueño.'
     );
   }
+
   if (profile.active === false) {
     await signOut(auth);
-    throw accessError(
-      'auth/user-disabled-app',
-      'Tu usuario está desactivado. Contactá al administrador.'
-    );
+    throw accessError('auth/user-disabled-app', 'Tu usuario está desactivado.');
   }
+
+  if (isSuperAdminEmail(profile.email) && profile.role !== 'super_admin') {
+    await updateDoc(doc(db, 'users', profile.uid), { role: 'super_admin', brandId: null });
+  }
+
+  if (profile.role !== 'super_admin' && !profile.brandId) {
+    await updateDoc(doc(db, 'users', profile.uid), { brandId: DEFAULT_BRAND_ID });
+    await ensureLegacyAdvanceBrand(profile.uid).catch(() => undefined);
+  }
+
+  if (profile.role !== 'super_admin' && profile.brandId) {
+    const brand = await getBrand(profile.brandId);
+    if (brand?.status === 'suspended') {
+      await signOut(auth);
+      throw accessError('auth/brand-suspended', 'Esta marca está suspendida.');
+    }
+  }
+
   return result.user;
 }
 
@@ -110,112 +199,164 @@ export async function changeUserPassword(newPassword: string) {
   await updatePassword(user, newPassword);
 }
 
-export async function getUserProfile(uid: string): Promise<UserProfile | null> {
-  const snap = await getDoc(doc(db, 'users', uid));
-  if (!snap.exists()) return null;
-  const data = snap.data();
-  return {
-    uid,
-    email: data.email,
-    name: data.name,
-    role: data.role as UserRole,
-    active: data.active !== false,
-    createdAt: data.createdAt?.toDate?.(),
-  };
-}
-
-export async function listUsers(): Promise<UserProfile[]> {
-  const q = query(collection(db, 'users'), orderBy('name'));
-  const snap = await getDocs(q);
-  return snap.docs.map((d) => {
-    const data = d.data();
-    return {
-      uid: d.id,
-      email: data.email as string,
-      name: data.name as string,
-      role: data.role as UserRole,
-      active: data.active !== false,
-      createdAt: data.createdAt?.toDate?.(),
-    };
-  });
+export async function listUsers(brandId?: string): Promise<UserProfile[]> {
+  const bid = brandId ?? getActiveBrandId() ?? undefined;
+  if (bid) {
+    try {
+      const q = query(collection(db, 'users'), where('brandId', '==', bid), orderBy('name'));
+      const snap = await getDocs(q);
+      return snap.docs.map((d) => mapProfile(d.id, d.data())).filter((u) => u.role !== 'super_admin');
+    } catch {
+      const all = await getDocs(query(collection(db, 'users'), orderBy('name')));
+      return all.docs
+        .map((d) => mapProfile(d.id, d.data()))
+        .filter((u) => u.brandId === bid && u.role !== 'super_admin');
+    }
+  }
+  const snap = await getDocs(query(collection(db, 'users'), orderBy('name')));
+  return snap.docs.map((d) => mapProfile(d.id, d.data())).filter((u) => u.role !== 'super_admin');
 }
 
 export async function createUserProfile(
   user: User,
   name: string,
-  role: UserRole = 'employee'
+  role: UserRole = 'employee',
+  brandId?: string | null
 ) {
   await setDoc(doc(db, 'users', user.uid), {
     email: user.email ?? '',
     name,
     role,
+    brandId: brandId === undefined ? null : brandId,
     active: true,
     createdAt: serverTimestamp(),
   });
 }
 
-export async function ensureUserProfile(user: User, name?: string): Promise<UserProfile> {
-  const existing = await getUserProfile(user.uid);
-  if (existing) return existing;
+/** Registro de marca con plan gratis (starter). */
+export async function registerBrandOwner(input: {
+  email: string;
+  password: string;
+  ownerName: string;
+  brandName: string;
+  phone?: string;
+  cuit?: string;
+}): Promise<{ user: User; brandId: string }> {
+  const brandName = input.brandName.trim();
+  if (brandName.length < 2) {
+    throw accessError('auth/invalid-email', 'El nombre de la marca es demasiado corto.');
+  }
 
-  const fallbackName =
-    name?.trim() ||
-    user.displayName ||
-    user.email?.split('@')[0] ||
-    'Usuario';
+  const email = input.email.trim().toLowerCase();
+  let user = auth.currentUser;
 
-  await createUserProfile(user, fallbackName, 'employee');
+  if (!user) {
+    try {
+      const result = await createUserWithEmailAndPassword(auth, email, input.password);
+      user = result.user;
+    } catch (err) {
+      const code = (err as { code?: string })?.code;
+      if (code === 'auth/email-already-in-use') {
+        const signed = await signInWithEmailAndPassword(auth, email, input.password);
+        user = signed.user;
+        const existing = await getUserProfile(user.uid);
+        if (existing?.brandId) return { user, brandId: existing.brandId };
+        const owned = await findBrandByOwnerUid(user.uid);
+        if (owned) {
+          const repaired = await repairOwnerProfileIfMissing(user);
+          if (repaired?.brandId) return { user, brandId: repaired.brandId };
+        }
+      } else {
+        throw err;
+      }
+    }
+  }
+
+  if (!user) throw new Error('No se pudo crear la sesión');
+
+  const already = await getUserProfile(user.uid);
+  if (already?.brandId) return { user, brandId: already.brandId };
+
+  const owned = await findBrandByOwnerUid(user.uid);
+  if (owned) {
+    await setDoc(
+      doc(db, 'users', user.uid),
+      {
+        email: (user.email ?? email).toLowerCase(),
+        name: input.ownerName.trim(),
+        role: 'owner',
+        brandId: owned.id,
+        active: true,
+        createdAt: serverTimestamp(),
+      },
+      { merge: true }
+    );
+    return { user, brandId: owned.id };
+  }
+
+  let slug = slugifyBrandName(brandName);
+  try {
+    const available = await isSlugAvailable(slug);
+    if (!available) slug = `${slug}-${Date.now().toString(36).slice(-4)}`;
+  } catch {
+    slug = `${slug}-${Date.now().toString(36).slice(-4)}`;
+  }
+
+  const brand = await createBrand({
+    name: brandName,
+    slug,
+    ownerUid: user.uid,
+    planId: 'starter',
+    status: 'active',
+    phone: input.phone,
+    email,
+    cuit: input.cuit,
+  });
+
+  await setDoc(doc(db, 'users', user.uid), {
+    email: (user.email ?? email).toLowerCase(),
+    name: input.ownerName.trim(),
+    role: 'owner',
+    brandId: brand.id,
+    active: true,
+    createdAt: serverTimestamp(),
+  });
+
   const profile = await getUserProfile(user.uid);
   if (!profile) {
-    throw new Error('No se pudo crear el perfil en Firestore');
+    throw new Error('La marca se creó pero no pudimos leer tu perfil. Reintentá.');
   }
-  return profile;
+
+  return { user, brandId: brand.id };
 }
 
-export async function registerUser(
-  email: string,
-  password: string,
-  name: string,
-  role: UserRole = 'employee'
-) {
-  const result = await createUserWithEmailAndPassword(auth, email.trim(), password);
-
-  try {
-    await createUserProfile(result.user, name, role);
-    const profile = await getUserProfile(result.user.uid);
-    if (!profile) {
-      throw new Error('El perfil no se guardó en Firestore');
-    }
-    return result.user;
-  } catch (error) {
-    try {
-      await deleteUser(result.user);
-    } catch {
-      // Si no se puede borrar, el usuario quedó huérfano en Auth
-    }
-    throw error;
-  }
-}
-
-/** Crea un usuario sin reemplazar la sesión del admin (app Firebase secundaria). */
 export async function createUserAsAdmin(
   email: string,
   password: string,
   name: string,
-  role: UserRole,
-  actor: { userId: string; userName?: string }
+  role: BrandRole,
+  actor: { userId: string; userName?: string; brandId?: string }
 ): Promise<UserProfile> {
+  const brandId = actor.brandId ?? requireBrandId();
+  const brand = await getBrand(brandId);
+  if (brand) {
+    const limits = getPlanLimits(brand.planId);
+    const existing = await listUsers(brandId);
+    if (existing.length >= limits.maxUsers) {
+      throw accessError(
+        'auth/not-authorized',
+        `Tu plan permite hasta ${limits.maxUsers} usuarios.`
+      );
+    }
+  }
+
   const appName = `Secondary-${Date.now()}`;
   const secondaryApp = initializeApp(firebaseConfig, appName);
   const secondaryAuth = getAuth(secondaryApp);
 
   try {
-    const result = await createUserWithEmailAndPassword(
-      secondaryAuth,
-      email.trim(),
-      password
-    );
-    await createUserProfile(result.user, name.trim(), role);
+    const result = await createUserWithEmailAndPassword(secondaryAuth, email.trim(), password);
+    await createUserProfile(result.user, name.trim(), role, brandId);
     await logAudit({
       action: 'user_create',
       entityType: 'user',
@@ -241,31 +382,31 @@ export async function createUserAsAdmin(
   }
 }
 
+export async function updateUser(
+  uid: string,
+  data: { name?: string; role?: UserRole; active?: boolean; photoUrl?: string | null },
+  actor: { userId: string; userName?: string }
+): Promise<void> {
+  const payload: Record<string, unknown> = {};
+  if (data.name !== undefined) payload.name = data.name;
+  if (data.role !== undefined) payload.role = data.role;
+  if (data.active !== undefined) payload.active = data.active;
+  if (data.photoUrl !== undefined) payload.photoUrl = data.photoUrl;
+  await updateDoc(doc(db, 'users', uid), payload);
+  await logAudit({
+    action: 'user_update',
+    entityType: 'user',
+    entityId: uid,
+    summary: `Usuario actualizado`,
+    userId: actor.userId,
+    userName: actor.userName,
+  });
+}
+
 export async function updateUserRole(
   uid: string,
   role: UserRole,
   actor: { userId: string; userName?: string }
 ): Promise<void> {
   await updateUser(uid, { role }, actor);
-}
-
-export async function updateUser(
-  uid: string,
-  data: { name?: string; role?: UserRole; active?: boolean },
-  actor: { userId: string; userName?: string }
-): Promise<void> {
-  await updateDoc(doc(db, 'users', uid), data);
-  const parts = [
-    data.name ? `nombre: ${data.name}` : null,
-    data.role ? `rol: ${data.role}` : null,
-    data.active === false ? 'desactivado' : data.active === true ? 'activado' : null,
-  ].filter(Boolean);
-  await logAudit({
-    action: 'user_update',
-    entityType: 'user',
-    entityId: uid,
-    summary: `Usuario actualizado (${parts.join(', ')})`,
-    userId: actor.userId,
-    userName: actor.userName,
-  });
 }

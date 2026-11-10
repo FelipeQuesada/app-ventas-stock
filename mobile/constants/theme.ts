@@ -1,19 +1,22 @@
+/** Control+ — paleta alineada a web/brand.css */
 export const colors = {
-  primary: '#1A1A2E',
-  primaryLight: '#2D2D44',
-  accent: '#E94560',
-  accentMuted: '#FF6B6B',
-  background: '#F8F9FC',
+  primary: '#0F172A',
+  primaryLight: '#1E293B',
+  accent: '#2563EB',
+  accentHover: '#1D4ED8',
+  accentMuted: '#93C5FD',
+  background: '#F1F4F9',
   surface: '#FFFFFF',
-  border: '#E8ECF4',
-  text: '#1A1A2E',
-  textSecondary: '#6B7280',
-  textMuted: '#9CA3AF',
+  border: '#E2E8F0',
+  text: '#0F172A',
+  textSecondary: '#64748B',
+  textMuted: '#94A3B8',
   success: '#10B981',
   warning: '#F59E0B',
   danger: '#EF4444',
   white: '#FFFFFF',
-  overlay: 'rgba(26, 26, 46, 0.5)',
+  darkBg: '#0B0F1A',
+  overlay: 'rgba(15, 23, 42, 0.5)',
 };
 
 export const spacing = {
@@ -45,14 +48,14 @@ export const typography = {
 
 export const shadows = {
   sm: {
-    shadowColor: '#1A1A2E',
+    shadowColor: '#0F172A',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.06,
     shadowRadius: 8,
     elevation: 2,
   },
   md: {
-    shadowColor: '#1A1A2E',
+    shadowColor: '#0F172A',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.08,
     shadowRadius: 16,

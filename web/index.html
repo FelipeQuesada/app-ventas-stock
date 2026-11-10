@@ -1,14 +1,104 @@
 <!doctype html>
-<html lang="es">
+<html lang="es-AR">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/png" href="/favicon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <meta name="theme-color" content="#1A1A2E" />
+
+    <!-- SEO primario -->
+    <title>Control+ | Sistema de ventas, stock y caja para comercios</title>
+    <meta
+      name="description"
+      content="Control+ es el sistema de ventas e inventario para kioscos, almacenes y tiendas. Registrá ventas, controlá stock y cerrá la caja sin planillas. Empezá gratis."
+    />
+    <meta
+      name="keywords"
+      content="sistema de ventas, control de stock, caja diaria, punto de venta, inventario, kiosco, comercio, Control+, Controlmas"
+    />
+    <meta name="author" content="Control+" />
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1" />
+    <meta name="googlebot" content="index, follow" />
+    <link rel="canonical" href="https://controlmas.app/" />
+
+    <!-- Favicon / PWA -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/png" sizes="512x512" href="/favicon.png" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="theme-color" content="#0B0F1A" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
-    <title>Advance Coat — Ventas</title>
+    <meta name="apple-mobile-web-app-title" content="Control+" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="application-name" content="Control+" />
+
+    <!-- Open Graph -->
+    <meta property="og:type" content="website" />
+    <meta property="og:locale" content="es_AR" />
+    <meta property="og:site_name" content="Control+" />
+    <meta property="og:title" content="Control+ | Ventas, stock y caja para tu negocio" />
+    <meta
+      property="og:description"
+      content="Vendé, controlá tu stock y cerrá la caja sin planillas. Pensado para comercios con mostrador y varios empleados."
+    />
+    <meta property="og:url" content="https://controlmas.app/" />
+    <meta property="og:image" content="https://controlmas.app/og-controlmas.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="Control+ — ventas, stock y caja" />
+
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Control+ | Ventas, stock y caja" />
+    <meta
+      name="twitter:description"
+      content="Sistema de ventas e inventario para comercios. Empezá gratis."
+    />
+    <meta name="twitter:image" content="https://controlmas.app/og-controlmas.png" />
+
+    <!-- Datos estructurados (Google) -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "Organization",
+            "@id": "https://controlmas.app/#organization",
+            "name": "Control+",
+            "alternateName": ["Controlmas", "Control Mas"],
+            "url": "https://controlmas.app/",
+            "logo": "https://controlmas.app/favicon.png",
+            "description": "Sistema de ventas, stock y caja para comercios."
+          },
+          {
+            "@type": "WebSite",
+            "@id": "https://controlmas.app/#website",
+            "url": "https://controlmas.app/",
+            "name": "Control+",
+            "publisher": { "@id": "https://controlmas.app/#organization" },
+            "inLanguage": "es-AR"
+          },
+          {
+            "@type": "SoftwareApplication",
+            "name": "Control+",
+            "applicationCategory": "BusinessApplication",
+            "operatingSystem": "Web, Android, iOS",
+            "url": "https://controlmas.app/",
+            "description": "Punto de venta con control de stock, caja diaria y usuarios por marca.",
+            "offers": {
+              "@type": "Offer",
+              "price": "0",
+              "priceCurrency": "ARS",
+              "description": "Plan de prueba gratis"
+            }
+          }
+        ]
+      }
+    </script>
+
+    <link rel="preconnect" href="https://api.fontshare.com" crossorigin />
+    <link
+      href="https://api.fontshare.com/v2/css?f[]=cabinet-grotesk@500,700,800&f[]=general-sans@400,500,600&display=swap"
+      rel="stylesheet"
+    />
   </head>
   <body>
     <div id="root"></div>

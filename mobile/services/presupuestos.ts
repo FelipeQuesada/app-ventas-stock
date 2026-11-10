@@ -4,9 +4,7 @@ import {
   deleteDoc,
   doc,
   getDoc,
-  getDocs,
   orderBy,
-  query,
   serverTimestamp,
   Timestamp,
   updateDoc,
@@ -14,6 +12,7 @@ import {
 import type { DiscountType, Presupuesto, PresupuestoItem, SaleCustomer } from '@advance-coat/shared';
 import { calculateDiscount, calculateSaleTotal, normalizePhoneKey } from '@advance-coat/shared';
 import { db } from '@/lib/firebase';
+import { listByBrand, withBrandFields } from '@/lib/brandQuery';
 import { saveCustomer } from '@/services/customers';
 
 /**
@@ -148,12 +147,15 @@ export async function createPresupuesto(input: CreatePresupuestoInput): Promise<
   const customerId = await upsertCustomerId(customer);
   const payload = buildPayload(input, customerId);
 
-  const docRef = await addDoc(collection(db, COLLECTION), {
-    ...payload,
-    createdBy: input.createdBy,
-    createdByName: input.createdByName ?? '',
-    createdAt: serverTimestamp(),
-  });
+  const docRef = await addDoc(
+    collection(db, COLLECTION),
+    withBrandFields({
+      ...payload,
+      createdBy: input.createdBy,
+      createdByName: input.createdByName ?? '',
+      createdAt: serverTimestamp(),
+    })
+  );
 
   const snap = await getDoc(docRef);
   return mapPresupuesto(snap.id, snap.data() ?? {});
@@ -183,9 +185,8 @@ export async function getPresupuesto(id: string): Promise<Presupuesto | null> {
 }
 
 export async function getPresupuestos(): Promise<Presupuesto[]> {
-  const q = query(collection(db, COLLECTION), orderBy('date', 'desc'));
-  const snap = await getDocs(q);
-  return snap.docs
+  const docs = await listByBrand(COLLECTION, [orderBy('date', 'desc')]);
+  return docs
     .filter((d) => isPresupuestoDoc(d.data()))
     .map((d) => mapPresupuesto(d.id, d.data()))
     .sort((a, b) => {

@@ -9,7 +9,7 @@ import {
   serverTimestamp,
   Timestamp,
   where,
-} from 'firebase/firestore';
+} from "firebase/firestore";
 import {
   calcFlexLineTotal,
   dateToFlexId,
@@ -17,44 +17,58 @@ import {
   isFlexZoneId,
   type FlexShipment,
   type FlexZoneId,
-} from '@advance-coat/shared';
-import { db } from '../lib/firebase';
+} from "@advance-coat/shared";
+import { db } from "../lib/firebase";
+import { listByBrand, withBrandFields } from "../lib/brandQuery";
 
-const COLLECTION = 'flexShipments';
+const COLLECTION = "flexShipments";
 
-function mapShipment(id: string, data: Record<string, unknown>): FlexShipment | null {
-  const zoneRaw = String(data.zone ?? '');
+function mapShipment(
+  id: string,
+  data: Record<string, unknown>,
+): FlexShipment | null {
+  const zoneRaw = String(data.zone ?? "");
   if (!isFlexZoneId(zoneRaw)) return null;
   const quantity = Number(data.quantity) || 0;
   const unitPrice =
-    typeof data.unitPrice === 'number' ? data.unitPrice : FLEX_ZONE_PRICES[zoneRaw];
+    typeof data.unitPrice === "number"
+      ? data.unitPrice
+      : FLEX_ZONE_PRICES[zoneRaw];
   const date = (data.date as Timestamp)?.toDate?.() ?? new Date();
   return {
     id,
     date,
-    dateId: typeof data.dateId === 'string' ? data.dateId : dateToFlexId(date),
+    dateId: typeof data.dateId === "string" ? data.dateId : dateToFlexId(date),
     zone: zoneRaw,
-    locality: String(data.locality ?? ''),
+    locality: String(data.locality ?? ""),
     quantity,
     unitPrice,
-    total: typeof data.total === 'number' ? data.total : calcFlexLineTotal(zoneRaw, quantity),
-    createdBy: String(data.createdBy ?? ''),
-    createdByName: typeof data.createdByName === 'string' ? data.createdByName : undefined,
+    total:
+      typeof data.total === "number"
+        ? data.total
+        : calcFlexLineTotal(zoneRaw, quantity),
+    createdBy: String(data.createdBy ?? ""),
+    createdByName:
+      typeof data.createdByName === "string" ? data.createdByName : undefined,
     createdAt: (data.createdAt as Timestamp)?.toDate?.() ?? date,
   };
 }
 
-export async function getFlexShipmentsByMonth(month: Date): Promise<FlexShipment[]> {
-  const startId = dateToFlexId(new Date(month.getFullYear(), month.getMonth(), 1));
-  const endId = dateToFlexId(new Date(month.getFullYear(), month.getMonth() + 1, 0));
-  const q = query(
-    collection(db, COLLECTION),
-    where('dateId', '>=', startId),
-    where('dateId', '<=', endId),
-    orderBy('dateId', 'asc')
+export async function getFlexShipmentsByMonth(
+  month: Date,
+): Promise<FlexShipment[]> {
+  const startId = dateToFlexId(
+    new Date(month.getFullYear(), month.getMonth(), 1),
   );
-  const snap = await getDocs(q);
-  return snap.docs
+  const endId = dateToFlexId(
+    new Date(month.getFullYear(), month.getMonth() + 1, 0),
+  );
+  const docs = await listByBrand(COLLECTION, [
+    where("dateId", ">=", startId),
+    where("dateId", "<=", endId),
+    orderBy("dateId", "asc"),
+  ]);
+  return docs
     .map((d) => mapShipment(d.id, d.data()))
     .filter((s): s is FlexShipment => s !== null);
 }
@@ -71,20 +85,30 @@ export async function addFlexShipment(input: {
   const unitPrice = FLEX_ZONE_PRICES[input.zone];
   const total = calcFlexLineTotal(input.zone, quantity);
   const dateId = dateToFlexId(input.date);
-  const docRef = await addDoc(collection(db, COLLECTION), {
-    date: Timestamp.fromDate(
-      new Date(input.date.getFullYear(), input.date.getMonth(), input.date.getDate(), 12, 0, 0)
-    ),
-    dateId,
-    zone: input.zone,
-    locality: input.locality.trim(),
-    quantity,
-    unitPrice,
-    total,
-    createdBy: input.createdBy,
-    createdByName: input.createdByName ?? '',
-    createdAt: serverTimestamp(),
-  });
+  const docRef = await addDoc(
+    collection(db, COLLECTION),
+    withBrandFields({
+      date: Timestamp.fromDate(
+        new Date(
+          input.date.getFullYear(),
+          input.date.getMonth(),
+          input.date.getDate(),
+          12,
+          0,
+          0,
+        ),
+      ),
+      dateId,
+      zone: input.zone,
+      locality: input.locality.trim(),
+      quantity,
+      unitPrice,
+      total,
+      createdBy: input.createdBy,
+      createdByName: input.createdByName ?? "",
+      createdAt: serverTimestamp(),
+    }),
+  );
   return docRef.id;
 }
 
@@ -95,7 +119,7 @@ export async function addFlexShipmentsBatch(
     locality: string;
     quantity: number;
   }>,
-  meta: { createdBy: string; createdByName?: string }
+  meta: { createdBy: string; createdByName?: string },
 ): Promise<number> {
   let count = 0;
   for (const item of items) {

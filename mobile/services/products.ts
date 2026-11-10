@@ -8,6 +8,7 @@ import {
   deleteDoc,
   writeBatch,
   query,
+  where,
   orderBy,
   onSnapshot,
   serverTimestamp,
@@ -18,8 +19,14 @@ import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from '@/lib/firebase';
 import { Product } from '@/types';
 import { logAudit } from '@/services/audit';
+import { listByBrand, withBrandFields } from '@/lib/brandQuery';
+import { requireBrandId } from '@/lib/brandScope';
 
 const COLLECTION = 'products';
+
+export function invalidateProductsCache() {
+  // Las lecturas son por marca vía listByBrand; no hay cache local persistente.
+}
 
 function mapProduct(id: string, data: Record<string, unknown>): Product {
   return {
@@ -40,23 +47,38 @@ function mapProduct(id: string, data: Record<string, unknown>): Product {
 }
 
 export async function getProducts(): Promise<Product[]> {
-  const q = query(collection(db, COLLECTION), orderBy('name'));
-  const snap = await getDocs(q);
-  return snap.docs.map((d) => mapProduct(d.id, d.data()));
+  const docs = await listByBrand(COLLECTION, [orderBy('name')]);
+  return docs
+    .map((d) => mapProduct(d.id, d.data()))
+    .sort((a, b) => a.name.localeCompare(b.name));
 }
 
 export function subscribeProducts(
   onData: (products: Product[]) => void,
   onError?: (error: Error) => void
 ): Unsubscribe {
-  const q = query(collection(db, COLLECTION), orderBy('name'));
+  let brandId: string;
+  try {
+    brandId = requireBrandId();
+  } catch (error) {
+    onError?.(error as Error);
+    return () => {};
+  }
+
+  const q = query(collection(db, COLLECTION), where('brandId', '==', brandId), orderBy('name'));
   return onSnapshot(
     q,
     (snap) => {
       onData(snap.docs.map((d) => mapProduct(d.id, d.data())));
     },
-    (error) => {
-      onError?.(error);
+    async () => {
+      // Fallback si falta índice o docs legacy sin brandId
+      try {
+        const docs = await listByBrand(COLLECTION, [orderBy('name')]);
+        onData(docs.map((d) => mapProduct(d.id, d.data())));
+      } catch (error) {
+        onError?.(error as Error);
+      }
     }
   );
 }
@@ -75,12 +97,15 @@ export async function createProduct(
   if (imageUri && imageUri.startsWith('file://')) {
     imageUrl = await uploadProductImage(imageUri);
   }
-  const docRef = await addDoc(collection(db, COLLECTION), {
-    ...data,
-    imageUrl,
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp(),
-  });
+  const docRef = await addDoc(
+    collection(db, COLLECTION),
+    withBrandFields({
+      ...data,
+      imageUrl,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    })
+  );
   return docRef.id;
 }
 
@@ -131,17 +156,18 @@ export async function deleteAllProducts(): Promise<number> {
   let totalDeleted = 0;
 
   while (true) {
-    const snap = await getDocs(collection(db, COLLECTION));
-    if (snap.empty) break;
+    const docs = await listByBrand(COLLECTION);
+    if (docs.length === 0) break;
 
     const batch = writeBatch(db);
-    snap.docs.forEach((productDoc) => {
+    const chunk = docs.slice(0, 450);
+    chunk.forEach((productDoc) => {
       batch.delete(productDoc.ref);
     });
     await batch.commit();
-    totalDeleted += snap.docs.length;
+    totalDeleted += chunk.length;
 
-    if (snap.docs.length < 500) break;
+    if (docs.length < 450) break;
   }
 
   return totalDeleted;
@@ -150,7 +176,8 @@ export async function deleteAllProducts(): Promise<number> {
 async function uploadProductImage(uri: string, productId?: string): Promise<string> {
   const response = await fetch(uri);
   const blob = await response.blob();
-  const filename = `products/${productId ?? Date.now()}.jpg`;
+  const brandId = requireBrandId();
+  const filename = `products/${brandId}/${productId ?? Date.now()}.jpg`;
   const storageRef = ref(storage, filename);
   await uploadBytes(storageRef, blob);
   return getDownloadURL(storageRef);

@@ -2,13 +2,10 @@ import {
   collection,
   doc,
   getDoc,
-  getDocs,
   setDoc,
   deleteDoc,
   addDoc,
-  query,
   orderBy,
-  limit,
   where,
   serverTimestamp,
   Timestamp,
@@ -16,23 +13,47 @@ import {
 } from 'firebase/firestore';
 import { format, parseISO, startOfDay, isValid } from 'date-fns';
 import { db } from '@/lib/firebase';
+import { listByBrand, withBrandFields } from '@/lib/brandQuery';
+import { requireBrandId } from '@/lib/brandScope';
 import { CajaCentral, DailyCaja } from '@/types/caja';
 import { Sale } from '@/types';
-import { getSaleCashAmount } from '@advance-coat/shared';
+import { DEFAULT_BRAND_ID, getSaleCashAmount } from '@advance-coat/shared';
 import { calculateCajaGanancia, calculateCajaTotal, calculateCambioCierre } from '@/utils/caja';
 import { logAudit } from '@/services/audit';
 
 const COLLECTION = 'caja';
 /** Pozo central vive en la colección `caja` (reglas ya publicadas). */
-const CENTRAL_DOC_ID = '_central';
+const CENTRAL_DOC_PREFIX = '_central';
+
+/** advance-coat conserva `_central`; el resto de marcas usa `_central_${brandId}`. */
+function centralDocId(): string {
+  const brandId = requireBrandId();
+  return brandId === DEFAULT_BRAND_ID ? CENTRAL_DOC_PREFIX : `${CENTRAL_DOC_PREFIX}_${brandId}`;
+}
+
+function isCentralDocId(id: string): boolean {
+  return id.startsWith(CENTRAL_DOC_PREFIX);
+}
+
 const CENTRAL_MOVEMENTS = 'cajaCentralMovements';
 
 function dateToId(date: Date): string {
-  return format(date, 'yyyy-MM-dd');
+  const day = format(date, 'yyyy-MM-dd');
+  const brandId = requireBrandId();
+  // Advance legacy: ids planos yyyy-MM-dd
+  if (brandId === DEFAULT_BRAND_ID) return day;
+  return `${brandId}_${day}`;
 }
 
 export function parseCajaId(id: string): Date | null {
-  const parsed = parseISO(id);
+  const raw =
+    id.includes('_') && !id.startsWith('_central') ? id.slice(id.lastIndexOf('_') + 1) : id;
+  // brandId_yyyy-MM-dd → tomar últimos 10 chars si parecen fecha
+  const maybeDate = /^\d{4}-\d{2}-\d{2}$/.test(raw)
+    ? raw
+    : id.match(/(\d{4}-\d{2}-\d{2})$/)?.[1];
+  if (!maybeDate) return null;
+  const parsed = parseISO(maybeDate);
   return isValid(parsed) ? parsed : null;
 }
 
@@ -43,10 +64,9 @@ export function getMonthCaja(records: DailyCaja[], date = new Date()): DailyCaja
 }
 
 export async function getCajaHistory(): Promise<DailyCaja[]> {
-  const q = query(collection(db, COLLECTION), orderBy('date', 'desc'));
-  const snap = await getDocs(q);
-  return snap.docs
-    .filter((d) => d.id !== CENTRAL_DOC_ID)
+  const docs = await listByBrand(COLLECTION, [orderBy('date', 'desc')]);
+  return docs
+    .filter((d) => !isCentralDocId(d.id))
     .map((d) => mapCaja(d.id, d.data()));
 }
 
@@ -217,15 +237,12 @@ export async function getCajaCambioFromPreviousDay(date: Date): Promise<number> 
 }
 
 export async function getPreviousCaja(date: Date): Promise<DailyCaja | null> {
-  const q = query(
-    collection(db, COLLECTION),
+  const docs = await listByBrand(COLLECTION, [
     where('date', '<', Timestamp.fromDate(startOfDay(date))),
     orderBy('date', 'desc'),
-    limit(20)
-  );
-  const snap = await getDocs(q);
-  for (const d of snap.docs) {
-    if (d.id === CENTRAL_DOC_ID) continue;
+  ]);
+  for (const d of docs) {
+    if (isCentralDocId(d.id)) continue;
     const record = mapCaja(d.id, d.data());
     if (record.entryType === 'retiro') continue;
     return record;
@@ -242,7 +259,7 @@ function getCambioRemanente(record: DailyCaja): number {
 const CENTRAL_RESET_KEY = 'v2-zero-2026-08-27';
 
 function centralRef() {
-  return doc(db, COLLECTION, CENTRAL_DOC_ID);
+  return doc(db, COLLECTION, centralDocId());
 }
 
 /**
@@ -269,16 +286,16 @@ export async function getOrCreateCajaCentral(actor?: {
         // Solo admin puede bajar el saldo a 0 (reglas). Empleados siguen con el doc actual.
         await setDoc(
           ref,
-          {
+          withBrandFields({
             balance: 0,
             resetKey: CENTRAL_RESET_KEY,
             ...actorFields,
             updatedByName: actor?.userName ?? 'reset',
-          },
+          }),
           { merge: true }
         );
         return {
-          id: CENTRAL_DOC_ID,
+          id: centralDocId(),
           balance: 0,
           updatedAt: new Date(),
           updatedBy: actor?.userId,
@@ -291,14 +308,17 @@ export async function getOrCreateCajaCentral(actor?: {
     return mapCentral(snap.id, data);
   }
 
-  await setDoc(ref, {
-    balance: 0,
-    resetKey: CENTRAL_RESET_KEY,
-    ...actorFields,
-  });
+  await setDoc(
+    ref,
+    withBrandFields({
+      balance: 0,
+      resetKey: CENTRAL_RESET_KEY,
+      ...actorFields,
+    })
+  );
 
   return {
-    id: CENTRAL_DOC_ID,
+    id: centralDocId(),
     balance: 0,
     updatedAt: new Date(),
     updatedBy: actor?.userId,
@@ -326,28 +346,31 @@ export async function depositToCajaCentral(input: {
     const next = current + input.amount;
     tx.set(
       ref,
-      {
+      withBrandFields({
         balance: next,
         updatedAt: serverTimestamp(),
         updatedBy: input.userId,
         updatedByName: input.userName ?? '',
-      },
+      }),
       { merge: true }
     );
     return next;
   });
 
   try {
-    await addDoc(collection(db, CENTRAL_MOVEMENTS), {
-      type: 'deposito',
-      amount: input.amount,
-      date: Timestamp.now(),
-      actorName: input.actorName,
-      userId: input.userId,
-      userName: input.userName ?? '',
-      cajaDateId: input.cajaDateId ?? '',
-      createdAt: serverTimestamp(),
-    });
+    await addDoc(
+      collection(db, CENTRAL_MOVEMENTS),
+      withBrandFields({
+        type: 'deposito',
+        amount: input.amount,
+        date: Timestamp.now(),
+        actorName: input.actorName,
+        userId: input.userId,
+        userName: input.userName ?? '',
+        cajaDateId: input.cajaDateId ?? '',
+        createdAt: serverTimestamp(),
+      })
+    );
   } catch {
     // auditoría opcional si las reglas de movements no están publicadas
   }
@@ -355,14 +378,14 @@ export async function depositToCajaCentral(input: {
   await logAudit({
     action: 'caja_save',
     entityType: 'caja',
-    entityId: CENTRAL_DOC_ID,
+    entityId: centralDocId(),
     summary: `Depósito caja central $${input.amount} — ${input.actorName}`,
     userId: input.userId,
     userName: input.userName,
   });
 
   return {
-    id: CENTRAL_DOC_ID,
+    id: centralDocId(),
     balance: newBalance,
     updatedAt: new Date(),
     updatedBy: input.userId,
@@ -392,12 +415,12 @@ export async function withdrawFromCajaCentral(input: {
     const next = current - input.amount;
     tx.set(
       ref,
-      {
+      withBrandFields({
         balance: next,
         updatedAt: serverTimestamp(),
         updatedBy: input.userId,
         updatedByName: input.userName ?? '',
-      },
+      }),
       { merge: true }
     );
     return next;
@@ -407,36 +430,42 @@ export async function withdrawFromCajaCentral(input: {
   const historyId = `retiro-${format(eventDate, 'yyyy-MM-dd-HHmmss')}`;
 
   try {
-    await addDoc(collection(db, CENTRAL_MOVEMENTS), {
-      type: 'retiro',
-      amount: input.amount,
-      date: Timestamp.fromDate(eventDate),
-      actorName: input.actorName,
-      userId: input.userId,
-      userName: input.userName ?? '',
-      createdAt: serverTimestamp(),
-    });
+    await addDoc(
+      collection(db, CENTRAL_MOVEMENTS),
+      withBrandFields({
+        type: 'retiro',
+        amount: input.amount,
+        date: Timestamp.fromDate(eventDate),
+        actorName: input.actorName,
+        userId: input.userId,
+        userName: input.userName ?? '',
+        createdAt: serverTimestamp(),
+      })
+    );
   } catch {
     // auditoría opcional
   }
 
-  await setDoc(doc(db, COLLECTION, historyId), {
-    entryType: 'retiro',
-    date: Timestamp.fromDate(eventDate),
-    cajaCambio: 0,
-    cajaTotal: 0,
-    ganancia: 0,
-    totalGuardado: 0,
-    guardo: 0,
-    cambioCierre: 0,
-    retiroAmount: input.amount,
-    balanceAfter: newBalance,
-    closedByName: input.actorName,
-    telegramEventId: historyId,
-    updatedBy: input.userId,
-    updatedByName: input.userName ?? '',
-    updatedAt: serverTimestamp(),
-  });
+  await setDoc(
+    doc(db, COLLECTION, historyId),
+    withBrandFields({
+      entryType: 'retiro',
+      date: Timestamp.fromDate(eventDate),
+      cajaCambio: 0,
+      cajaTotal: 0,
+      ganancia: 0,
+      totalGuardado: 0,
+      guardo: 0,
+      cambioCierre: 0,
+      retiroAmount: input.amount,
+      balanceAfter: newBalance,
+      closedByName: input.actorName,
+      telegramEventId: historyId,
+      updatedBy: input.userId,
+      updatedByName: input.userName ?? '',
+      updatedAt: serverTimestamp(),
+    })
+  );
 
   await logAudit({
     action: 'caja_save',
@@ -448,7 +477,7 @@ export async function withdrawFromCajaCentral(input: {
   });
 
   return {
-    id: CENTRAL_DOC_ID,
+    id: centralDocId(),
     balance: newBalance,
     updatedAt: new Date(),
     updatedBy: input.userId,
@@ -482,22 +511,25 @@ export async function saveCaja(input: SaveCajaInput): Promise<void> {
       ? input.depositoCentral
       : Math.max(0, input.totalGuardado - previousGuardado);
 
-  await setDoc(doc(db, COLLECTION, id), {
-    entryType: 'cierre',
-    date: Timestamp.fromDate(input.date),
-    cajaCambio: input.cajaCambio,
-    cajaTotal: input.cajaTotal,
-    ganancia,
-    totalGuardado: input.totalGuardado,
-    guardo: input.totalGuardado,
-    cambioCierre,
-    sinMovimiento,
-    closedByName: input.closedByName,
-    telegramEventId: `cierre-${id}-${Date.now()}`,
-    updatedBy: input.updatedBy,
-    updatedByName: input.updatedByName ?? '',
-    updatedAt: serverTimestamp(),
-  });
+  await setDoc(
+    doc(db, COLLECTION, id),
+    withBrandFields({
+      entryType: 'cierre',
+      date: Timestamp.fromDate(input.date),
+      cajaCambio: input.cajaCambio,
+      cajaTotal: input.cajaTotal,
+      ganancia,
+      totalGuardado: input.totalGuardado,
+      guardo: input.totalGuardado,
+      cambioCierre,
+      sinMovimiento,
+      closedByName: input.closedByName,
+      telegramEventId: `cierre-${id}-${Date.now()}`,
+      updatedBy: input.updatedBy,
+      updatedByName: input.updatedByName ?? '',
+      updatedAt: serverTimestamp(),
+    })
+  );
 
   // El aviso de Telegram ya se dispara con el setDoc de arriba.
   // El depósito a central no debe hacer fallar el cierre (empleados / reglas / red).
@@ -543,7 +575,7 @@ export async function persistCajaCambio(input: {
 
   await setDoc(
     doc(db, COLLECTION, id),
-    {
+    withBrandFields({
       date: Timestamp.fromDate(input.date),
       cajaCambio: input.cajaCambio,
       cajaTotal,
@@ -558,7 +590,7 @@ export async function persistCajaCambio(input: {
       updatedBy: input.updatedBy,
       updatedByName: input.updatedByName ?? '',
       updatedAt: serverTimestamp(),
-    },
+    }),
     { merge: true }
   );
 
@@ -586,7 +618,7 @@ export async function updateTotalGuardado(
 
   await setDoc(
     doc(db, COLLECTION, id),
-    {
+    withBrandFields({
       date: Timestamp.fromDate(date),
       cajaCambio,
       cajaTotal,
@@ -597,7 +629,7 @@ export async function updateTotalGuardado(
       updatedBy,
       updatedByName: updatedByName ?? '',
       updatedAt: serverTimestamp(),
-    },
+    }),
     { merge: true }
   );
 

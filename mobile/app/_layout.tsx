@@ -5,6 +5,7 @@ import { Stack, useRouter, useSegments } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 import { AuthProvider, useAuth } from '@/context/AuthContext';
+import { BrandProvider } from '@/context/BrandContext';
 import { CartProvider } from '@/context/CartContext';
 import { HeaderTitle } from '@/components/HeaderTitle';
 import { colors } from '@/constants/theme';
@@ -22,7 +23,7 @@ const stackHeaderOptions = {
 };
 
 function AuthGate({ children }: { children: React.ReactNode }) {
-  const { user, loading } = useAuth();
+  const { user, profile, loading } = useAuth();
   const segments = useSegments();
   const router = useRouter();
 
@@ -30,13 +31,23 @@ function AuthGate({ children }: { children: React.ReactNode }) {
     if (loading) return;
 
     const inAuth = segments[0] === '(auth)';
+    const onRegister = inAuth && segments[1] === 'register';
 
     if (!user && !inAuth) {
       router.replace('/(auth)/login');
-    } else if (user && inAuth) {
+      return;
+    }
+
+    // Auth sin perfil/marca: puede completar registro
+    if (user && !profile?.brandId) {
+      if (!onRegister) router.replace('/(auth)/register');
+      return;
+    }
+
+    if (user && profile?.brandId && inAuth) {
       router.replace('/(tabs)');
     }
-  }, [user, loading, segments, router]);
+  }, [user, profile, loading, segments, router]);
 
   return <>{children}</>;
 }
@@ -71,109 +82,119 @@ export default function RootLayout() {
 
   return (
     <AuthProvider>
-      <CartProvider>
-        <StatusBar style="dark" />
-        <AuthGate>
-          <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
-            <Stack.Screen name="(auth)" />
-            <Stack.Screen name="(tabs)" />
-            <Stack.Screen
-              name="product/[id]"
-              options={{
-                ...stackHeaderOptions,
-                title: 'Producto',
-              }}
-            />
-            <Stack.Screen
-              name="stock"
-              options={{
-                ...stackHeaderOptions,
-                title: 'Control de Stock',
-              }}
-            />
-            <Stack.Screen
-              name="sales-list"
-              options={{
-                ...stackHeaderOptions,
-                title: 'Ventas',
-                headerBackTitle: 'Volver',
-              }}
-            />
-            <Stack.Screen
-              name="customers"
-              options={{
-                ...stackHeaderOptions,
-                title: 'Clientes',
-                headerBackTitle: 'Volver',
-              }}
-            />
-            <Stack.Screen
-              name="customer/[id]"
-              options={{
-                ...stackHeaderOptions,
-                title: 'Historial del cliente',
-                headerBackTitle: 'Volver',
-              }}
-            />
-            <Stack.Screen
-              name="presupuesto"
-              options={{
-                ...stackHeaderOptions,
-                title: 'Presupuesto',
-                headerBackTitle: 'Volver',
-              }}
-            />
-            <Stack.Screen
-              name="presupuesto-list"
-              options={{
-                ...stackHeaderOptions,
-                title: 'Historial presupuestos',
-                headerBackTitle: 'Volver',
-              }}
-            />
-            <Stack.Screen
-              name="caja-list"
-              options={{
-                ...stackHeaderOptions,
-                title: 'Historial de caja',
-                headerBackTitle: 'Volver',
-              }}
-            />
-            <Stack.Screen
-              name="caja-register"
-              options={{
-                ...stackHeaderOptions,
-                title: 'Día faltante',
-                headerBackTitle: 'Volver',
-              }}
-            />
-            <Stack.Screen
-              name="caja-edit/[date]"
-              options={{
-                ...stackHeaderOptions,
-                title: 'Editar caja',
-                headerBackTitle: 'Volver',
-              }}
-            />
-            <Stack.Screen
-              name="sale/[id]"
-              options={{
-                ...stackHeaderOptions,
-                title: 'Editar venta',
-                headerBackTitle: 'Volver',
-              }}
-            />
-            <Stack.Screen
-              name="users"
-              options={{
-                ...stackHeaderOptions,
-                title: 'Usuarios',
-                headerBackTitle: 'Volver',
-              }}
-            />
-          </Stack>
-        </AuthGate>
-      </CartProvider>
+      <BrandProvider>
+        <CartProvider>
+          <StatusBar style="dark" />
+          <AuthGate>
+            <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: colors.background } }}>
+              <Stack.Screen name="(auth)" />
+              <Stack.Screen name="(tabs)" />
+              <Stack.Screen
+                name="product/[id]"
+                options={{
+                  ...stackHeaderOptions,
+                  title: 'Producto',
+                }}
+              />
+              <Stack.Screen
+                name="stock"
+                options={{
+                  ...stackHeaderOptions,
+                  title: 'Control de Stock',
+                }}
+              />
+              <Stack.Screen
+                name="sales-list"
+                options={{
+                  ...stackHeaderOptions,
+                  title: 'Ventas',
+                  headerBackTitle: 'Volver',
+                }}
+              />
+              <Stack.Screen
+                name="customers"
+                options={{
+                  ...stackHeaderOptions,
+                  title: 'Clientes',
+                  headerBackTitle: 'Volver',
+                }}
+              />
+              <Stack.Screen
+                name="customer/[id]"
+                options={{
+                  ...stackHeaderOptions,
+                  title: 'Historial del cliente',
+                  headerBackTitle: 'Volver',
+                }}
+              />
+              <Stack.Screen
+                name="presupuesto"
+                options={{
+                  ...stackHeaderOptions,
+                  title: 'Presupuesto',
+                  headerBackTitle: 'Volver',
+                }}
+              />
+              <Stack.Screen
+                name="presupuesto-list"
+                options={{
+                  ...stackHeaderOptions,
+                  title: 'Historial presupuestos',
+                  headerBackTitle: 'Volver',
+                }}
+              />
+              <Stack.Screen
+                name="caja-list"
+                options={{
+                  ...stackHeaderOptions,
+                  title: 'Historial de caja',
+                  headerBackTitle: 'Volver',
+                }}
+              />
+              <Stack.Screen
+                name="caja-register"
+                options={{
+                  ...stackHeaderOptions,
+                  title: 'Día faltante',
+                  headerBackTitle: 'Volver',
+                }}
+              />
+              <Stack.Screen
+                name="caja-edit/[date]"
+                options={{
+                  ...stackHeaderOptions,
+                  title: 'Editar caja',
+                  headerBackTitle: 'Volver',
+                }}
+              />
+              <Stack.Screen
+                name="sale/[id]"
+                options={{
+                  ...stackHeaderOptions,
+                  title: 'Editar venta',
+                  headerBackTitle: 'Volver',
+                }}
+              />
+              <Stack.Screen
+                name="users"
+                options={{
+                  ...stackHeaderOptions,
+                  title: 'Usuarios',
+                  headerBackTitle: 'Volver',
+                }}
+              />
+              <Stack.Screen
+                name="flex"
+                options={{
+                  ...stackHeaderOptions,
+                  title: 'Flex',
+                  headerBackTitle: 'Volver',
+                }}
+              />
+            </Stack>
+          </AuthGate>
+        </CartProvider>
+      </BrandProvider>
     </AuthProvider>
   );
 }

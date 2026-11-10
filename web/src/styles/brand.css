@@ -1,0 +1,35 @@
+/**
+ * Controlmas — paleta oficial
+ * Usar estos tokens en app y landing. No inventar hex sueltos.
+ */
+:root {
+  /* Entorno de la aplicación (claro) */
+  --bg: #f1f4f9;
+  --surface: #ffffff;
+  --text: #0f172a;
+  --muted: #64748b;
+
+  /* Identidad y acciones */
+  --accent: #2563eb;
+  --accent-hover: #1d4ed8;
+
+  /* Estados de gestión */
+  --ok: #10b981;
+  --warn: #f59e0b;
+
+  /* Landing / especial */
+  --dark-bg: #0f172a;
+
+  /* Tipografía */
+  --font-display: 'Cabinet Grotesk', 'General Sans', system-ui, sans-serif;
+  --font-ui: 'General Sans', system-ui, sans-serif;
+
+  /* Alias de compatibilidad con la app existente */
+  --background: var(--bg);
+  --primary: var(--text);
+  --text-secondary: var(--muted);
+  --success: var(--ok);
+  --warning: var(--warn);
+  --border: #e2e8f0;
+  --danger: #ef4444;
+}

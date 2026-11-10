@@ -8,6 +8,7 @@ import {
   FileText,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useBrand } from '../context/BrandContext';
 import { signOutUser } from '../services/auth';
 
 const ADMIN_NAV = [
@@ -18,9 +19,11 @@ const ADMIN_NAV = [
 
 export function AdminShell({ children }: { children: React.ReactNode }) {
   const { profile } = useAuth();
+  const { brand, exitBrand } = useBrand();
   const navigate = useNavigate();
 
   async function handleLogout() {
+    exitBrand();
     await signOutUser();
     navigate('/login', { replace: true });
   }
@@ -34,7 +37,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
           </div>
           <div>
             <strong>Admin</strong>
-            <span>Advance Coat</span>
+            <span>{brand?.name || 'Control+'}</span>
           </div>
         </div>
 
@@ -58,7 +61,7 @@ export function AdminShell({ children }: { children: React.ReactNode }) {
         <div className="admin-sidebar-footer">
           <p className="admin-user-name">{profile?.name ?? 'Admin'}</p>
           <p className="admin-user-email">{profile?.email}</p>
-          <button type="button" className="admin-back-link" onClick={() => navigate('/')}>
+          <button type="button" className="admin-back-link" onClick={() => navigate('/app')}>
             <ArrowLeft size={16} /> Volver a la app
           </button>
           <button type="button" className="admin-logout" onClick={() => void handleLogout()}>

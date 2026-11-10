@@ -1,20 +1,9 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
-
 :root {
-  --primary: #1A1A2E;
-  --accent: #2563EB;
-  --background: #F8F9FC;
-  --surface: #FFFFFF;
-  --border: #E8ECF4;
-  --text: #1A1A2E;
-  --text-secondary: #6B7280;
-  --success: #10B981;
-  --warning: #F59E0B;
-  --danger: #EF4444;
+  /* Colores: ver brand.css (Controlmas) */
   --sidebar-width: 260px;
   --sidebar-collapsed: 72px;
   --radius: 12px;
-  --shadow: 0 1px 3px rgba(26, 26, 46, 0.06), 0 4px 16px rgba(26, 26, 46, 0.04);
+  --shadow: 0 1px 3px rgba(15, 23, 42, 0.06), 0 4px 16px rgba(15, 23, 42, 0.04);
 }
 
 *,
@@ -31,11 +20,21 @@ body,
 }
 
 body {
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-family: var(--font-ui);
   background: var(--background);
   color: var(--text);
   -webkit-font-smoothing: antialiased;
   overflow-x: hidden;
+}
+
+h1,
+h2,
+h3,
+h4,
+.sidebar-brand,
+.page-title,
+.brand-name {
+  font-family: var(--font-display);
 }
 
 a {
@@ -528,7 +527,7 @@ textarea {
 }
 
 .btn-primary:hover:not(:disabled) {
-  opacity: 0.92;
+  background: var(--accent-hover);
 }
 
 .btn-secondary {
@@ -1575,6 +1574,39 @@ table.data-table tr.caja-row-retiro:hover td {
   }
 }
 
+.login-brand {
+  margin-bottom: 20px;
+}
+
+.login-brand-name {
+  font-family: var(--font-display);
+  font-size: 1.6rem;
+  font-weight: 800;
+  letter-spacing: -0.5px;
+}
+
+.login-brand-name span {
+  background: linear-gradient(90deg, var(--accent), var(--accent-hover));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  font-size: 1.35em;
+}
+
+.sidebar-brand-fallback {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 1.2rem;
+  color: #fff;
+  background: linear-gradient(135deg, var(--accent), var(--accent-hover));
+  border-radius: inherit;
+}
+
 .login-page {
   min-height: 100%;
   min-height: 100dvh;
@@ -1607,6 +1639,254 @@ table.data-table tr.caja-row-retiro:hover td {
   color: var(--text-secondary);
   margin: 0 0 24px;
   font-size: 14px;
+}
+
+/* Registro por pasos (estilo Tiendanube) */
+.register-page {
+  min-height: 100%;
+  min-height: 100dvh;
+  display: grid;
+  grid-template-columns: 1fr;
+  background: var(--dark-bg, #0b0f1a);
+}
+
+.register-aside {
+  display: none;
+  padding: 32px 40px;
+  color: #e8ecf7;
+  background:
+    radial-gradient(ellipse at 20% 10%, rgba(37, 99, 235, 0.35), transparent 55%),
+    radial-gradient(ellipse at 80% 90%, rgba(29, 78, 216, 0.2), transparent 50%),
+    #0b0f1a;
+}
+
+.register-aside-logo {
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 1.5rem;
+  letter-spacing: -0.5px;
+  color: #fff;
+}
+
+.register-aside-logo span {
+  color: var(--accent);
+  font-size: 1.35em;
+}
+
+.register-aside-copy {
+  margin-top: 72px;
+  max-width: 420px;
+}
+
+.register-aside-copy h1 {
+  font-family: var(--font-display);
+  font-size: clamp(1.8rem, 3vw, 2.4rem);
+  font-weight: 800;
+  line-height: 1.15;
+  margin: 0 0 16px;
+  color: #fff;
+}
+
+.register-aside-copy p {
+  margin: 0;
+  color: #94a3b8;
+  font-size: 1.05rem;
+  line-height: 1.55;
+}
+
+.register-aside-points {
+  margin: 28px 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 10px;
+  color: #cbd5e1;
+  font-size: 0.95rem;
+}
+
+.register-aside-points li::before {
+  content: '+';
+  color: var(--accent);
+  font-weight: 800;
+  margin-right: 10px;
+}
+
+.register-main {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px;
+  padding-bottom: calc(24px + env(safe-area-inset-bottom, 0px));
+  /* Degradé bien visible en celu */
+  background:
+    radial-gradient(ellipse 120% 80% at 10% -10%, rgba(37, 99, 235, 0.42), transparent 55%),
+    radial-gradient(ellipse 100% 70% at 100% 100%, rgba(29, 78, 216, 0.28), transparent 50%),
+    radial-gradient(ellipse 80% 50% at 50% 40%, rgba(99, 102, 241, 0.12), transparent 60%),
+    #e8eef9;
+  min-height: 100dvh;
+}
+
+.register-mobile-logo {
+  display: inline-block;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 1.35rem;
+  letter-spacing: -0.5px;
+  color: var(--text);
+  margin-bottom: 18px;
+}
+
+.register-mobile-logo span {
+  color: var(--accent);
+  font-size: 1.35em;
+}
+
+.register-card {
+  width: 100%;
+  max-width: 440px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 28px 24px;
+  box-shadow: var(--shadow);
+}
+
+.register-card h2 {
+  font-family: var(--font-display);
+  font-size: 1.55rem;
+  font-weight: 800;
+  margin: 0 0 6px;
+}
+
+.register-card .subtitle {
+  color: var(--text-secondary);
+  margin: 0 0 22px;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.register-progress {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.register-progress span {
+  flex: 1;
+  height: 4px;
+  border-radius: 99px;
+  background: #e2e8f0;
+}
+
+.register-progress span.is-on {
+  background: var(--accent);
+}
+
+.register-step-meta {
+  margin: 0 0 18px;
+  font-size: 12px;
+  color: var(--muted);
+  font-weight: 500;
+}
+
+.register-check {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  font-size: 13px;
+  color: var(--muted);
+  margin: 4px 0 16px;
+  cursor: pointer;
+}
+
+.register-check input {
+  margin-top: 2px;
+}
+
+.register-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 13px;
+  padding: 0;
+  margin-bottom: 12px;
+  cursor: pointer;
+}
+
+.register-back:hover {
+  color: var(--text);
+}
+
+.register-fieldset {
+  border: 0;
+  margin: 0 0 18px;
+  padding: 0;
+}
+
+.register-fieldset legend {
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 10px;
+  color: var(--text);
+}
+
+.register-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.register-chip {
+  border: 1px solid var(--border);
+  background: #fff;
+  color: var(--text);
+  border-radius: 999px;
+  padding: 8px 14px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+
+.register-chip:hover {
+  border-color: var(--accent);
+}
+
+.register-chip.is-active {
+  background: rgba(37, 99, 235, 0.1);
+  border-color: var(--accent);
+  color: var(--accent-hover);
+  font-weight: 600;
+}
+
+.register-footer-link {
+  margin-top: 20px;
+  text-align: center;
+}
+
+@media (min-width: 960px) {
+  .register-page {
+    grid-template-columns: minmax(0, 1.05fr) minmax(0, 0.95fr);
+  }
+
+  .register-aside {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .register-main {
+    min-height: auto;
+    background: var(--bg, #f1f4f9);
+  }
+
+  .register-mobile-logo {
+    display: none;
+  }
 }
 
 .error-text {

@@ -10,18 +10,28 @@ import {
   serverTimestamp,
   Timestamp,
   updateDoc,
-} from 'firebase/firestore';
-import type { DiscountType, Presupuesto, PresupuestoItem, SaleCustomer } from '@advance-coat/shared';
-import { calculateDiscount, calculateSaleTotal, normalizePhoneKey } from '@advance-coat/shared';
-import { db } from '../lib/firebase';
-import { saveCustomer } from './customers';
+} from "firebase/firestore";
+import type {
+  DiscountType,
+  Presupuesto,
+  PresupuestoItem,
+  SaleCustomer,
+} from "@advance-coat/shared";
+import {
+  calculateDiscount,
+  calculateSaleTotal,
+  normalizePhoneKey,
+} from "@advance-coat/shared";
+import { db } from "../lib/firebase";
+import { listByBrand, withBrandFields } from "../lib/brandQuery";
+import { saveCustomer } from "./customers";
 
 /**
  * Guardamos en `sales` con recordType=presupuesto porque las reglas de Firestore
  * ya permiten esa colección. Así no hace falta desplegar reglas nuevas.
  */
-const COLLECTION = 'sales';
-const RECORD_TYPE = 'presupuesto';
+const COLLECTION = "sales";
+const RECORD_TYPE = "presupuesto";
 
 function isPresupuestoDoc(data: Record<string, unknown>): boolean {
   return data.recordType === RECORD_TYPE;
@@ -42,30 +52,34 @@ function sanitizeItems(items: PresupuestoItem[]): PresupuestoItem[] {
     if (item.packQuantity != null) clean.packQuantity = item.packQuantity;
     if (item.unitsPerPack != null) clean.unitsPerPack = item.unitsPerPack;
     if (item.listUnitPrice != null) clean.listUnitPrice = item.listUnitPrice;
-    if (item.lineDiscountPercent != null) clean.lineDiscountPercent = item.lineDiscountPercent;
+    if (item.lineDiscountPercent != null)
+      clean.lineDiscountPercent = item.lineDiscountPercent;
     return clean;
   });
 }
 
-function mapPresupuesto(id: string, data: Record<string, unknown>): Presupuesto {
+function mapPresupuesto(
+  id: string,
+  data: Record<string, unknown>,
+): Presupuesto {
   const customer = (data.customer as SaleCustomer) ?? {
-    name: '',
-    email: '',
-    phone: '',
-    cuit: '',
+    name: "",
+    email: "",
+    phone: "",
+    cuit: "",
   };
 
   return {
     id,
     date: (data.date as Timestamp)?.toDate?.() ?? new Date(),
     validUntil: (data.validUntil as Timestamp)?.toDate?.() ?? new Date(),
-    contactName: (data.contactName as string) ?? '',
-    contactPhone: (data.contactPhone as string) ?? '',
-    contactEmail: (data.contactEmail as string) ?? '',
+    contactName: (data.contactName as string) ?? "",
+    contactPhone: (data.contactPhone as string) ?? "",
+    contactEmail: (data.contactEmail as string) ?? "",
     customer: {
-      name: customer.name ?? '',
-      email: customer.email ?? '',
-      phone: customer.phone ?? '',
+      name: customer.name ?? "",
+      email: customer.email ?? "",
+      phone: customer.phone ?? "",
       cuit: customer.cuit || undefined,
     },
     customerId: (data.customerId as string) || undefined,
@@ -76,7 +90,7 @@ function mapPresupuesto(id: string, data: Record<string, unknown>): Presupuesto 
     discountValue: (data.discountValue as number) || undefined,
     discountAmount: (data.discountAmount as number) || undefined,
     total: (data.total as number) ?? 0,
-    createdBy: (data.createdBy as string) ?? '',
+    createdBy: (data.createdBy as string) ?? "",
     createdByName: (data.createdByName as string) || undefined,
     createdAt: (data.createdAt as Timestamp)?.toDate?.() ?? new Date(),
   };
@@ -87,7 +101,7 @@ function normalizeCustomer(input: SaleCustomer): SaleCustomer {
     name: input.name.trim(),
     email: input.email.trim().toLowerCase(),
     phone: input.phone.trim(),
-    cuit: input.cuit?.trim() || '',
+    cuit: input.cuit?.trim() || "",
   };
 }
 
@@ -108,7 +122,7 @@ export interface CreatePresupuestoInput {
 }
 
 async function upsertCustomerId(customer: SaleCustomer): Promise<string> {
-  if (!customer.name && !customer.email && !customer.phone) return '';
+  if (!customer.name && !customer.email && !customer.phone) return "";
   return saveCustomer(customer);
 }
 
@@ -118,7 +132,8 @@ function buildPayload(input: CreatePresupuestoInput, customerId: string) {
   const discountType = input.discountType ?? null;
   const discountValue = input.discountValue ?? 0;
   const discountAmount =
-    input.discountAmount ?? calculateDiscount(subtotal, discountType, discountValue);
+    input.discountAmount ??
+    calculateDiscount(subtotal, discountType, discountValue);
   const total = calculateSaleTotal(subtotal, discountAmount);
   return {
     recordType: RECORD_TYPE,
@@ -129,7 +144,7 @@ function buildPayload(input: CreatePresupuestoInput, customerId: string) {
     contactEmail: input.contactEmail.trim().toLowerCase(),
     customer,
     customerId: customerId || null,
-    phoneKey: normalizePhoneKey(customer.phone) ?? '',
+    phoneKey: normalizePhoneKey(customer.phone) ?? "",
     items: sanitizeItems(input.items),
     notes: input.notes?.trim() || null,
     subtotal,
@@ -137,23 +152,28 @@ function buildPayload(input: CreatePresupuestoInput, customerId: string) {
     discountValue: discountType ? discountValue : 0,
     discountAmount,
     total,
-    paymentMethod: 'efectivo',
-    paymentMethodLabel: 'Presupuesto',
+    paymentMethod: "efectivo",
+    paymentMethodLabel: "Presupuesto",
     customerCount: 1,
   };
 }
 
-export async function createPresupuesto(input: CreatePresupuestoInput): Promise<Presupuesto> {
+export async function createPresupuesto(
+  input: CreatePresupuestoInput,
+): Promise<Presupuesto> {
   const customer = normalizeCustomer(input.customer);
   const customerId = await upsertCustomerId(customer);
   const payload = buildPayload(input, customerId);
 
-  const docRef = await addDoc(collection(db, COLLECTION), {
-    ...payload,
-    createdBy: input.createdBy,
-    createdByName: input.createdByName ?? '',
-    createdAt: serverTimestamp(),
-  });
+  const docRef = await addDoc(
+    collection(db, COLLECTION),
+    withBrandFields({
+      ...payload,
+      createdBy: input.createdBy,
+      createdByName: input.createdByName ?? "",
+      createdAt: serverTimestamp(),
+    }),
+  );
 
   const snap = await getDoc(docRef);
   return mapPresupuesto(snap.id, snap.data() ?? {});
@@ -161,10 +181,10 @@ export async function createPresupuesto(input: CreatePresupuestoInput): Promise<
 
 export async function updatePresupuesto(
   id: string,
-  input: CreatePresupuestoInput
+  input: CreatePresupuestoInput,
 ): Promise<Presupuesto> {
   const existing = await getPresupuesto(id);
-  if (!existing) throw new Error('Presupuesto no encontrado');
+  if (!existing) throw new Error("Presupuesto no encontrado");
 
   const customer = normalizeCustomer(input.customer);
   const customerId = await upsertCustomerId(customer);
@@ -183,9 +203,8 @@ export async function getPresupuesto(id: string): Promise<Presupuesto | null> {
 }
 
 export async function getPresupuestos(): Promise<Presupuesto[]> {
-  const q = query(collection(db, COLLECTION), orderBy('date', 'desc'));
-  const snap = await getDocs(q);
-  return snap.docs
+  const docs = await listByBrand(COLLECTION, [orderBy("date", "desc")]);
+  return docs
     .filter((d) => isPresupuestoDoc(d.data()))
     .map((d) => mapPresupuesto(d.id, d.data()))
     .sort((a, b) => {
@@ -195,14 +214,18 @@ export async function getPresupuestos(): Promise<Presupuesto[]> {
     });
 }
 
-export async function getPresupuestosByCustomerPhone(phone: string): Promise<Presupuesto[]> {
+export async function getPresupuestosByCustomerPhone(
+  phone: string,
+): Promise<Presupuesto[]> {
   const phoneKey = normalizePhoneKey(phone);
   if (!phoneKey) return [];
   const all = await getPresupuestos();
   return all.filter((p) => normalizePhoneKey(p.customer.phone) === phoneKey);
 }
 
-export async function getPresupuestosByCustomerId(customerId: string): Promise<Presupuesto[]> {
+export async function getPresupuestosByCustomerId(
+  customerId: string,
+): Promise<Presupuesto[]> {
   if (!customerId) return [];
   const all = await getPresupuestos();
   return all.filter((p) => p.customerId === customerId);

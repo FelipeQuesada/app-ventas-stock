@@ -16,8 +16,18 @@ import {
 import { db } from '@/lib/firebase';
 import { Customer, SaleCustomer } from '@/types';
 import { normalizePhoneKey } from '@/utils/phone';
+import { DEFAULT_BRAND_ID } from '@advance-coat/shared';
+import { listByBrand, withBrandFields } from '@/lib/brandQuery';
+import { requireBrandId } from '@/lib/brandScope';
 
 const COLLECTION = 'customers';
+
+function sameBrand(data: Record<string, unknown>): boolean {
+  const brandId = requireBrandId();
+  if (data.brandId === brandId) return true;
+  if (!data.brandId && brandId === DEFAULT_BRAND_ID) return true;
+  return false;
+}
 
 function mapCustomer(id: string, data: Record<string, unknown>): Customer {
   return {
@@ -46,11 +56,12 @@ async function findCustomerByEmail(email: string): Promise<Customer | null> {
   const q = query(
     collection(db, COLLECTION),
     where('email', '==', email.trim().toLowerCase()),
-    limit(1)
+    limit(10)
   );
   const snap = await getDocs(q);
-  if (snap.empty) return null;
-  return mapCustomer(snap.docs[0].id, snap.docs[0].data());
+  const match = snap.docs.find((d) => sameBrand(d.data()));
+  if (!match) return null;
+  return mapCustomer(match.id, match.data());
 }
 
 /** Busca cliente por teléfono (clave normalizada). */
@@ -61,11 +72,12 @@ export async function findCustomerByPhone(phone: string): Promise<Customer | nul
   const byKey = query(
     collection(db, COLLECTION),
     where('phoneKey', '==', phoneKey),
-    limit(1)
+    limit(10)
   );
   const keyed = await getDocs(byKey);
-  if (keyed.empty) return null;
-  return mapCustomer(keyed.docs[0].id, keyed.docs[0].data());
+  const match = keyed.docs.find((d) => sameBrand(d.data()));
+  if (!match) return null;
+  return mapCustomer(match.id, match.data());
 }
 
 export async function getCustomer(id: string): Promise<Customer | null> {
@@ -75,9 +87,8 @@ export async function getCustomer(id: string): Promise<Customer | null> {
 }
 
 export async function getCustomers(): Promise<Customer[]> {
-  const q = query(collection(db, COLLECTION), orderBy('createdAt', 'desc'));
-  const snap = await getDocs(q);
-  return snap.docs.map((d) => mapCustomer(d.id, d.data()));
+  const docs = await listByBrand(COLLECTION, [orderBy('createdAt', 'desc')]);
+  return docs.map((d) => mapCustomer(d.id, d.data()));
 }
 
 export async function createCustomer(customer: SaleCustomer): Promise<string> {
@@ -98,11 +109,14 @@ export async function createCustomer(customer: SaleCustomer): Promise<string> {
     if (existing) throw new Error('Ya existe un cliente con ese email');
   }
 
-  const docRef = await addDoc(collection(db, COLLECTION), {
-    ...normalized,
-    phoneKey: phoneKey ?? '',
-    createdAt: serverTimestamp(),
-  });
+  const docRef = await addDoc(
+    collection(db, COLLECTION),
+    withBrandFields({
+      ...normalized,
+      phoneKey: phoneKey ?? '',
+      createdAt: serverTimestamp(),
+    })
+  );
   return docRef.id;
 }
 
@@ -141,11 +155,14 @@ export async function saveCustomer(customer: SaleCustomer): Promise<string> {
     }
   }
 
-  const docRef = await addDoc(collection(db, COLLECTION), {
-    ...normalized,
-    phoneKey: phoneKey ?? '',
-    createdAt: serverTimestamp(),
-  });
+  const docRef = await addDoc(
+    collection(db, COLLECTION),
+    withBrandFields({
+      ...normalized,
+      phoneKey: phoneKey ?? '',
+      createdAt: serverTimestamp(),
+    })
+  );
   return docRef.id;
 }
 
@@ -182,7 +199,6 @@ export async function deleteCustomer(id: string): Promise<void> {
 }
 
 export async function getRecentCustomers(max = 20): Promise<Customer[]> {
-  const q = query(collection(db, COLLECTION), orderBy('createdAt', 'desc'), limit(max));
-  const snap = await getDocs(q);
-  return snap.docs.map((d) => mapCustomer(d.id, d.data()));
+  const docs = await listByBrand(COLLECTION, [orderBy('createdAt', 'desc')]);
+  return docs.slice(0, max).map((d) => mapCustomer(d.id, d.data()));
 }

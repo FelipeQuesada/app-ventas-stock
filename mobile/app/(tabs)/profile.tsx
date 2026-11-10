@@ -9,15 +9,18 @@ import {
 import { useRouter } from 'expo-router';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useAuth } from '@/context/AuthContext';
+import { useBrand } from '@/context/BrandContext';
 import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { signOutUser, changeUserPassword } from '@/services/auth';
+import { isBrandAdminRole } from '@/types';
 import { showAlert, showConfirm } from '@/utils/alert';
 import { colors, spacing, typography, radius } from '@/constants/theme';
 
 export default function ProfileScreen() {
   const { user, profile } = useAuth();
+  const { brand, isBrandAdmin, limits } = useBrand();
   const router = useRouter();
   const [showPasswordForm, setShowPasswordForm] = useState(false);
   const [newPassword, setNewPassword] = useState('');
@@ -66,7 +69,14 @@ export default function ProfileScreen() {
     }
   };
 
-  const roleLabel = profile?.role === 'admin' ? 'Administrador' : 'Empleado';
+  const roleLabel =
+    profile?.role === 'owner'
+      ? 'Dueño'
+      : profile?.role === 'admin'
+        ? 'Administrador'
+        : profile?.role === 'super_admin'
+          ? 'Super admin'
+          : 'Empleado';
 
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
@@ -80,29 +90,50 @@ export default function ProfileScreen() {
       <View style={styles.roleBadge}>
         <Text style={styles.roleText}>{roleLabel}</Text>
       </View>
+      {brand ? (
+        <Text style={styles.brandLine}>
+          {brand.name} · Plan {brand.planId}
+        </Text>
+      ) : null}
 
       <Card style={styles.section}>
         <Text style={styles.sectionTitle}>Datos del usuario</Text>
         <InfoRow icon="person" label="Nombre" value={profile?.name ?? '-'} />
         <InfoRow icon="email" label="Email" value={user?.email ?? '-'} />
         <InfoRow icon="badge" label="Rol" value={roleLabel} />
+        <InfoRow icon="store" label="Marca" value={brand?.name ?? '-'} />
       </Card>
 
       <Card style={styles.section}>
-        <Text style={styles.sectionTitle}>Configuración</Text>
+        <Text style={styles.sectionTitle}>Accesos</Text>
         <MenuItem
           icon="lock"
           label="Cambiar contraseña"
           onPress={() => setShowPasswordForm(!showPasswordForm)}
         />
         <MenuItem icon="warehouse" label="Control de stock" onPress={() => router.push('/stock')} />
-        {profile?.role === 'admin' && (
+        <MenuItem icon="people" label="Clientes" onPress={() => router.push('/customers')} />
+        <MenuItem icon="receipt-long" label="Historial ventas" onPress={() => router.push('/sales-list')} />
+        <MenuItem icon="request-quote" label="Presupuesto" onPress={() => router.push('/presupuesto')} />
+        <MenuItem icon="list-alt" label="Historial presupuestos" onPress={() => router.push('/presupuesto-list')} />
+        <MenuItem icon="account-balance-wallet" label="Historial caja" onPress={() => router.push('/caja-list')} />
+        {limits.flex ? (
+          <MenuItem icon="local-shipping" label="Flex" onPress={() => router.push('/flex')} />
+        ) : null}
+        {limits.statistics && isBrandAdmin ? (
+          <MenuItem
+            icon="bar-chart"
+            label="Estadísticas"
+            onPress={() => router.push('/(tabs)/statistics')}
+          />
+        ) : null}
+        {isBrandAdmin ? (
           <MenuItem
             icon="admin-panel-settings"
             label="Usuarios y auditoría"
             onPress={() => router.push('/users')}
           />
-        )}
+        ) : null}
       </Card>
 
       {showPasswordForm && (
@@ -208,6 +239,13 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter_400Regular',
     color: colors.textSecondary,
     marginTop: spacing.xs,
+  },
+  brandLine: {
+    ...typography.caption,
+    fontFamily: 'Inter_500Medium',
+    color: colors.accent,
+    textAlign: 'center',
+    marginTop: spacing.sm,
   },
   roleBadge: {
     backgroundColor: colors.primary + '15',

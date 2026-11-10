@@ -3,6 +3,8 @@ export * from './types/caja';
 export * from './constants/sellers';
 export * from './constants/categories';
 export * from './constants/payments';
+export * from './constants/plans';
+export * from './constants/platform';
 export * from './utils/format';
 export * from './utils/phone';
 export * from './utils/stock';

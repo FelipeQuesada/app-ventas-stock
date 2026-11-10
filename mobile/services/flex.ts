@@ -3,9 +3,7 @@ import {
   collection,
   deleteDoc,
   doc,
-  getDocs,
   orderBy,
-  query,
   serverTimestamp,
   Timestamp,
   where,
@@ -19,6 +17,7 @@ import {
   type FlexZoneId,
 } from '@advance-coat/shared';
 import { db } from '@/lib/firebase';
+import { listByBrand, withBrandFields } from '@/lib/brandQuery';
 
 const COLLECTION = 'flexShipments';
 
@@ -47,14 +46,12 @@ function mapShipment(id: string, data: Record<string, unknown>): FlexShipment | 
 export async function getFlexShipmentsByMonth(month: Date): Promise<FlexShipment[]> {
   const startId = dateToFlexId(new Date(month.getFullYear(), month.getMonth(), 1));
   const endId = dateToFlexId(new Date(month.getFullYear(), month.getMonth() + 1, 0));
-  const q = query(
-    collection(db, COLLECTION),
+  const docs = await listByBrand(COLLECTION, [
     where('dateId', '>=', startId),
     where('dateId', '<=', endId),
-    orderBy('dateId', 'asc')
-  );
-  const snap = await getDocs(q);
-  return snap.docs
+    orderBy('dateId', 'asc'),
+  ]);
+  return docs
     .map((d) => mapShipment(d.id, d.data()))
     .filter((s): s is FlexShipment => s !== null);
 }
@@ -71,20 +68,23 @@ export async function addFlexShipment(input: {
   const unitPrice = FLEX_ZONE_PRICES[input.zone];
   const total = calcFlexLineTotal(input.zone, quantity);
   const dateId = dateToFlexId(input.date);
-  const docRef = await addDoc(collection(db, COLLECTION), {
-    date: Timestamp.fromDate(
-      new Date(input.date.getFullYear(), input.date.getMonth(), input.date.getDate(), 12, 0, 0)
-    ),
-    dateId,
-    zone: input.zone,
-    locality: input.locality.trim(),
-    quantity,
-    unitPrice,
-    total,
-    createdBy: input.createdBy,
-    createdByName: input.createdByName ?? '',
-    createdAt: serverTimestamp(),
-  });
+  const docRef = await addDoc(
+    collection(db, COLLECTION),
+    withBrandFields({
+      date: Timestamp.fromDate(
+        new Date(input.date.getFullYear(), input.date.getMonth(), input.date.getDate(), 12, 0, 0)
+      ),
+      dateId,
+      zone: input.zone,
+      locality: input.locality.trim(),
+      quantity,
+      unitPrice,
+      total,
+      createdBy: input.createdBy,
+      createdByName: input.createdByName ?? '',
+      createdAt: serverTimestamp(),
+    })
+  );
   return docRef.id;
 }
 

@@ -10,22 +10,25 @@ import {
   setDoc,
   Timestamp,
   updateDoc,
-} from 'firebase/firestore';
+} from "firebase/firestore";
 import type {
   DiscountType,
   PaymentMethod,
   SaleCustomer,
   SaleItem,
   SalePaymentSplit,
-} from '@advance-coat/shared';
-import { db } from '../lib/firebase';
-import { saveCustomer } from './customers';
-import type { CreateSaleInput } from './sales';
+} from "@advance-coat/shared";
+import { db } from "../lib/firebase";
+import { listByBrand, withBrandFields } from "../lib/brandQuery";
+import { saveCustomer } from "./customers";
+import type { CreateSaleInput } from "./sales";
 
-const COLLECTION = 'saleDrafts';
+const COLLECTION = "saleDrafts";
 
 function withoutUndefined<T extends object>(value: T): T {
-  return Object.fromEntries(Object.entries(value).filter(([, entry]) => entry !== undefined)) as T;
+  return Object.fromEntries(
+    Object.entries(value).filter(([, entry]) => entry !== undefined),
+  ) as T;
 }
 
 export interface SaleDraft {
@@ -55,10 +58,11 @@ function mapDraft(id: string, data: Record<string, unknown>): SaleDraft {
     id,
     date: (data.date as Timestamp)?.toDate?.() ?? new Date(),
     items: (data.items as SaleItem[]) ?? [],
-    paymentMethod: (data.paymentMethod as PaymentMethod) ?? 'efectivo',
+    paymentMethod: (data.paymentMethod as PaymentMethod) ?? "efectivo",
     paymentMethodLabel: data.paymentMethodLabel as string | undefined,
-    paymentSplits: (data.paymentSplits as SalePaymentSplit[] | null) ?? undefined,
-    customer: customer ?? { name: '', email: '', phone: '' },
+    paymentSplits:
+      (data.paymentSplits as SalePaymentSplit[] | null) ?? undefined,
+    customer: customer ?? { name: "", email: "", phone: "" },
     subtotal: (data.subtotal as number) ?? 0,
     discountType: (data.discountType as DiscountType | null) ?? null,
     discountValue: data.discountValue as number | undefined,
@@ -66,7 +70,7 @@ function mapDraft(id: string, data: Record<string, unknown>): SaleDraft {
     total: (data.total as number) ?? 0,
     amountPaid: (data.amountPaid as number | null) ?? undefined,
     change: (data.change as number | null) ?? undefined,
-    createdBy: (data.createdBy as string) ?? '',
+    createdBy: (data.createdBy as string) ?? "",
     createdByName: data.createdByName as string | undefined,
     wantsInvoice: data.wantsInvoice === true,
     updatedAt: (data.updatedAt as Timestamp)?.toDate?.() ?? new Date(),
@@ -74,9 +78,8 @@ function mapDraft(id: string, data: Record<string, unknown>): SaleDraft {
 }
 
 export async function listSaleDrafts(): Promise<SaleDraft[]> {
-  const q = query(collection(db, COLLECTION), orderBy('updatedAt', 'desc'));
-  const snap = await getDocs(q);
-  return snap.docs.map((entry) => mapDraft(entry.id, entry.data()));
+  const docs = await listByBrand(COLLECTION, [orderBy("updatedAt", "desc")]);
+  return docs.map((entry) => mapDraft(entry.id, entry.data()));
 }
 
 export async function getSaleDraft(id: string): Promise<SaleDraft | null> {
@@ -85,18 +88,21 @@ export async function getSaleDraft(id: string): Promise<SaleDraft | null> {
   return mapDraft(snap.id, snap.data());
 }
 
-export async function saveSaleDraft(id: string | null, input: CreateSaleInput): Promise<string> {
+export async function saveSaleDraft(
+  id: string | null,
+  input: CreateSaleInput,
+): Promise<string> {
   const customer = {
     name: input.customer.name.trim(),
     email: input.customer.email.trim().toLowerCase(),
     phone: input.customer.phone.trim(),
-    cuit: input.customer.cuit?.trim() || '',
+    cuit: input.customer.cuit?.trim() || "",
   };
   if (customer.name || customer.email || customer.phone) {
     try {
       await saveCustomer(customer);
     } catch (error) {
-      console.warn('No se pudo guardar el cliente del borrador', error);
+      console.warn("No se pudo guardar el cliente del borrador", error);
     }
   }
 
@@ -116,7 +122,7 @@ export async function saveSaleDraft(id: string | null, input: CreateSaleInput): 
     change: input.change ?? null,
     wantsInvoice: input.wantsInvoice === true,
     createdBy: input.createdBy,
-    createdByName: input.createdByName ?? '',
+    createdByName: input.createdByName ?? "",
     updatedAt: serverTimestamp(),
   };
 
@@ -126,7 +132,10 @@ export async function saveSaleDraft(id: string | null, input: CreateSaleInput): 
   }
 
   const ref = doc(collection(db, COLLECTION));
-  await setDoc(ref, { ...payload, createdAt: serverTimestamp() });
+  await setDoc(
+    ref,
+    withBrandFields({ ...payload, createdAt: serverTimestamp() }),
+  );
   return ref.id;
 }
 

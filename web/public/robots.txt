@@ -1,0 +1,19 @@
+User-agent: *
+Allow: /
+Allow: /login
+Allow: /register
+Disallow: /app
+Disallow: /admin
+Disallow: /platform
+Disallow: /products
+Disallow: /sales
+Disallow: /caja
+Disallow: /stock
+Disallow: /customers
+Disallow: /statistics
+Disallow: /profile
+Disallow: /brand
+Disallow: /flex
+Disallow: /presupuesto
+
+Sitemap: https://controlmas.app/sitemap.xml

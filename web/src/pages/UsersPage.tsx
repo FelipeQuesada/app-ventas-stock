@@ -40,7 +40,7 @@ export function UsersPage() {
   }, [profile?.role]);
 
   if (profile && profile.role !== 'admin') {
-    return <Navigate to="/" replace />;
+    return <Navigate to="/app" replace />;
   }
 
   function openCreate() {

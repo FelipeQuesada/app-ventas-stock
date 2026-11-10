@@ -9,12 +9,13 @@ import {
   Alert,
   TouchableOpacity,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Link, useRouter } from 'expo-router';
 import { Logo } from '@/components/Logo';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { signIn, resetPassword, getAuthErrorMessage } from '@/services/auth';
-import { colors, spacing, typography } from '@/constants/theme';
+import { colors, spacing, typography, radius, shadows } from '@/constants/theme';
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -39,7 +40,6 @@ export default function LoginScreen() {
       router.replace('/(tabs)');
     } catch (error: unknown) {
       Alert.alert('Error', getAuthErrorMessage(error));
-      console.error('Login error:', error);
     } finally {
       setLoading(false);
     }
@@ -59,72 +59,90 @@ export default function LoginScreen() {
   };
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    <LinearGradient
+      colors={['#DBEAFE', '#F1F4F9', '#E0E7FF']}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 1, y: 1 }}
+      style={styles.gradient}
     >
-      <ScrollView
-        contentContainerStyle={styles.scroll}
-        keyboardShouldPersistTaps="handled"
+      <KeyboardAvoidingView
+        style={styles.flex}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-        <View style={styles.content}>
-          <Logo size="lg" />
-          <Text style={styles.welcome}>Bienvenido</Text>
-          <Text style={styles.subtitle}>Iniciá sesión para continuar</Text>
+        <ScrollView
+          contentContainerStyle={styles.scroll}
+          keyboardShouldPersistTaps="handled"
+        >
+          <View style={styles.card}>
+            <Logo size="lg" />
+            <Text style={styles.welcome}>Iniciar sesión</Text>
+            <Text style={styles.subtitle}>
+              Entrá con el email de tu marca o el que te asignó tu administrador.
+            </Text>
 
-          <Input
-            label="Email"
-            value={email}
-            onChangeText={setEmail}
-            placeholder="tu@email.com"
-            keyboardType="email-address"
-            autoCapitalize="none"
-            autoComplete="email"
-            error={errors.email}
-          />
-          <Input
-            label="Contraseña"
-            value={password}
-            onChangeText={setPassword}
-            placeholder="••••••••"
-            secureTextEntry
-            autoComplete="password"
-            error={errors.password}
-          />
+            <Input
+              label="E-mail"
+              value={email}
+              onChangeText={setEmail}
+              placeholder="nombre@ejemplo.com"
+              keyboardType="email-address"
+              autoCapitalize="none"
+              autoComplete="email"
+              error={errors.email}
+            />
+            <Input
+              label="Contraseña"
+              value={password}
+              onChangeText={setPassword}
+              placeholder="Tu contraseña"
+              secureTextEntry
+              autoComplete="password"
+              error={errors.password}
+            />
 
-          <Button
-            title="Iniciar sesión"
-            onPress={handleLogin}
-            loading={loading}
-            size="lg"
-            style={styles.mainButton}
-          />
+            <Button
+              title="Ingresar"
+              onPress={handleLogin}
+              loading={loading}
+              size="lg"
+              style={styles.mainButton}
+            />
 
-          <TouchableOpacity onPress={handleForgotPassword}>
-            <Text style={styles.link}>Olvidé mi contraseña</Text>
-          </TouchableOpacity>
+            <TouchableOpacity onPress={handleForgotPassword}>
+              <Text style={styles.link}>¿Olvidaste tu contraseña?</Text>
+            </TouchableOpacity>
 
-          <Text style={styles.hint}>¿Necesitás una cuenta? Pedile al administrador.</Text>
-        </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+            <Text style={styles.hint}>
+              ¿Sos dueño de un negocio?{' '}
+              <Link href="/(auth)/register" style={styles.linkInline}>
+                Registrá tu marca
+              </Link>
+            </Text>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </LinearGradient>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: colors.background,
-  },
+  gradient: { flex: 1 },
+  flex: { flex: 1 },
   scroll: {
     flexGrow: 1,
     justifyContent: 'center',
     padding: spacing.lg,
   },
-  content: {
-    maxWidth: 400,
+  card: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.lg,
+    padding: spacing.lg,
+    borderWidth: 1,
+    borderColor: colors.border,
+    maxWidth: 440,
     width: '100%',
     alignSelf: 'center',
+    ...shadows.md,
   },
   welcome: {
     ...typography.h2,
@@ -133,10 +151,10 @@ const styles = StyleSheet.create({
     marginBottom: spacing.xs,
   },
   subtitle: {
-    ...typography.body,
+    ...typography.bodySmall,
     fontFamily: 'Inter_400Regular',
     color: colors.textSecondary,
-    marginBottom: spacing.xl,
+    marginBottom: spacing.lg,
   },
   mainButton: {
     marginTop: spacing.sm,
@@ -155,5 +173,9 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     textAlign: 'center',
     marginTop: spacing.md,
+  },
+  linkInline: {
+    color: colors.accent,
+    fontFamily: 'Inter_600SemiBold',
   },
 });
