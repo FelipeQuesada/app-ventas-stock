@@ -184,23 +184,42 @@ export async function getUserProfile(uid: string): Promise<UserProfile | null> {
   return mapProfile(uid, snap.data());
 }
 
+function belongsToBrand(user: UserProfile, brandId: string): boolean {
+  if (user.role === 'super_admin') return false;
+  if (user.brandId === brandId) return true;
+  // Legacy Advance: sin brandId se considera de Advance
+  if (!user.brandId && brandId === DEFAULT_BRAND_ID) return true;
+  return false;
+}
+
 export async function listUsers(brandId?: string): Promise<UserProfile[]> {
   const bid = brandId ?? getActiveBrandId() ?? undefined;
-  let snap;
   if (bid) {
-    const q = query(collection(db, 'users'), where('brandId', '==', bid), orderBy('name'));
     try {
-      snap = await getDocs(q);
+      const q = query(collection(db, 'users'), where('brandId', '==', bid), orderBy('name'));
+      const snap = await getDocs(q);
+      const listed = snap.docs
+        .map((d) => mapProfile(d.id, d.data()))
+        .filter((u) => u.role !== 'super_admin');
+
+      // Incluir legacy sin brandId cuando se pide Advance
+      if (bid === DEFAULT_BRAND_ID) {
+        const all = await getDocs(collection(db, 'users'));
+        const legacy = all.docs
+          .map((d) => mapProfile(d.id, d.data()))
+          .filter((u) => belongsToBrand(u, bid) && !listed.some((x) => x.uid === u.uid));
+        return [...listed, ...legacy].sort((a, b) => a.name.localeCompare(b.name, 'es'));
+      }
+      return listed;
     } catch {
-      // índice faltante: fallback
       const all = await getDocs(query(collection(db, 'users'), orderBy('name')));
       return all.docs
         .map((d) => mapProfile(d.id, d.data()))
-        .filter((u) => u.brandId === bid && u.role !== 'super_admin');
+        .filter((u) => belongsToBrand(u, bid));
     }
-  } else {
-    snap = await getDocs(query(collection(db, 'users'), orderBy('name')));
   }
+
+  const snap = await getDocs(query(collection(db, 'users'), orderBy('name')));
   return snap.docs
     .map((d) => mapProfile(d.id, d.data()))
     .filter((u) => u.role !== 'super_admin');

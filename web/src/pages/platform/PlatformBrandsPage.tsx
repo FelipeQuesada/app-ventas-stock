@@ -28,6 +28,7 @@ export function PlatformBrandsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [migrating, setMigrating] = useState(false);
+  const [migrateMsg, setMigrateMsg] = useState('');
   const [savingId, setSavingId] = useState<string | null>(null);
 
   async function load() {
@@ -42,16 +43,16 @@ export function PlatformBrandsPage() {
     }
   }
 
-  useEffect(() => {
-    void load();
-  }, []);
-
   async function handleMigrate() {
     if (!user) return;
     setMigrating(true);
     setError('');
+    setMigrateMsg('');
     try {
-      await ensureLegacyAdvanceBrand(user.uid);
+      const result = await ensureLegacyAdvanceBrand(user.uid);
+      setMigrateMsg(
+        `Advance listo. Usuarios pasados a Advance: ${result.usersUpdated}. Documentos sellados: ${result.docsUpdated}.`
+      );
       await load();
     } catch (err) {
       setError((err as Error).message);
@@ -59,6 +60,17 @@ export function PlatformBrandsPage() {
       setMigrating(false);
     }
   }
+
+  useEffect(() => {
+    void load();
+  }, []);
+
+  // Al abrir el panel, migrá usuarios/docs legacy a Advance automáticamente
+  useEffect(() => {
+    if (!user) return;
+    void handleMigrate();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.uid]);
 
   async function handlePlan(brandId: string, planId: PlanId) {
     setSavingId(brandId);
@@ -119,6 +131,7 @@ export function PlatformBrandsPage() {
       </div>
 
       {error && <p className="error-text">{error}</p>}
+      {migrateMsg && <p className="success-text">{migrateMsg}</p>}
       {loading ? (
         <p className="muted">Cargando marcas…</p>
       ) : brands.length === 0 ? (

@@ -175,8 +175,20 @@ const LEGACY_COLLECTIONS = [
   'auditLogs',
 ] as const;
 
-/** Crea la marca Advance y sella brandId en docs legacy sin marca. */
-export async function ensureLegacyAdvanceBrand(ownerUid: string): Promise<Brand> {
+export type LegacyMigrationResult = {
+  brand: Brand;
+  usersUpdated: number;
+  docsUpdated: number;
+};
+
+function needsLegacyBrandId(value: unknown): boolean {
+  return value === undefined || value === null || value === '';
+}
+
+/** Crea la marca Advance y sella brandId en docs/usuarios legacy sin marca. */
+export async function ensureLegacyAdvanceBrand(
+  ownerUid: string
+): Promise<LegacyMigrationResult> {
   const existing = await getBrand(DEFAULT_BRAND_ID);
   if (!existing) {
     await createBrand({
@@ -190,15 +202,17 @@ export async function ensureLegacyAdvanceBrand(ownerUid: string): Promise<Brand>
     });
   }
 
+  let docsUpdated = 0;
   for (const col of LEGACY_COLLECTIONS) {
     const snap = await getDocs(collection(db, col));
     let batch = writeBatch(db);
     let ops = 0;
     for (const d of snap.docs) {
       const data = d.data();
-      if (data.brandId) continue;
+      if (!needsLegacyBrandId(data.brandId)) continue;
       batch.update(d.ref, { brandId: DEFAULT_BRAND_ID });
       ops += 1;
+      docsUpdated += 1;
       if (ops >= 400) {
         await batch.commit();
         batch = writeBatch(db);
@@ -208,16 +222,32 @@ export async function ensureLegacyAdvanceBrand(ownerUid: string): Promise<Brand>
     if (ops > 0) await batch.commit();
   }
 
-  // Usuarios sin brandId (excepto super_admin)
+  // Usuarios legacy sin marca → Advance (no toca dueños de otras marcas ni super_admin)
   const usersSnap = await getDocs(collection(db, 'users'));
+  const brandIds = new Set(
+    (await getDocs(collection(db, COLLECTION))).docs.map((d) => d.id)
+  );
   let batch = writeBatch(db);
   let ops = 0;
+  let usersUpdated = 0;
   for (const d of usersSnap.docs) {
     const data = d.data();
     if (data.role === 'super_admin') continue;
-    if (data.brandId) continue;
+
+    const currentBrandId = data.brandId as string | null | undefined;
+    const missing = needsLegacyBrandId(currentBrandId);
+    const orphanBrand =
+      typeof currentBrandId === 'string' &&
+      currentBrandId.length > 0 &&
+      currentBrandId !== DEFAULT_BRAND_ID &&
+      !brandIds.has(currentBrandId);
+
+    // Solo legacy: sin brandId, o brandId huérfano que no existe como marca
+    if (!missing && !orphanBrand) continue;
+
     batch.update(d.ref, { brandId: DEFAULT_BRAND_ID });
     ops += 1;
+    usersUpdated += 1;
     if (ops >= 400) {
       await batch.commit();
       batch = writeBatch(db);
@@ -228,5 +258,5 @@ export async function ensureLegacyAdvanceBrand(ownerUid: string): Promise<Brand>
 
   const brand = await getBrand(DEFAULT_BRAND_ID);
   if (!brand) throw new Error('No se pudo asegurar la marca Advance');
-  return brand;
+  return { brand, usersUpdated, docsUpdated };
 }
