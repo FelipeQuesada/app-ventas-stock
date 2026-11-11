@@ -204,22 +204,26 @@ export async function ensureLegacyAdvanceBrand(
 
   let docsUpdated = 0;
   for (const col of LEGACY_COLLECTIONS) {
-    const snap = await getDocs(collection(db, col));
-    let batch = writeBatch(db);
-    let ops = 0;
-    for (const d of snap.docs) {
-      const data = d.data();
-      if (!needsLegacyBrandId(data.brandId)) continue;
-      batch.update(d.ref, { brandId: DEFAULT_BRAND_ID });
-      ops += 1;
-      docsUpdated += 1;
-      if (ops >= 400) {
-        await batch.commit();
-        batch = writeBatch(db);
-        ops = 0;
+    try {
+      const snap = await getDocs(collection(db, col));
+      let batch = writeBatch(db);
+      let ops = 0;
+      for (const d of snap.docs) {
+        const data = d.data();
+        if (!needsLegacyBrandId(data.brandId)) continue;
+        batch.update(d.ref, { brandId: DEFAULT_BRAND_ID });
+        ops += 1;
+        docsUpdated += 1;
+        if (ops >= 400) {
+          await batch.commit();
+          batch = writeBatch(db);
+          ops = 0;
+        }
       }
+      if (ops > 0) await batch.commit();
+    } catch (err) {
+      console.warn(`Migración Advance: no se pudo sellar ${col}`, err);
     }
-    if (ops > 0) await batch.commit();
   }
 
   // Usuarios legacy sin marca → Advance (no toca dueños de otras marcas ni super_admin)
