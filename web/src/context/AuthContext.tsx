@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { onAuthStateChanged, type User } from 'firebase/auth';
 import { DEFAULT_BRAND_ID, type UserProfile } from '@advance-coat/shared';
-import { doc, updateDoc } from 'firebase/firestore';
+import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
 import { getUserProfile, repairOwnerProfileIfMissing, signOutUser } from '../services/auth';
 
@@ -41,14 +41,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setProfile(null);
         return;
       }
-      // Legacy Advance: sellar brandId en perfil si falta (evita race del login)
-      if (p && p.role !== 'super_admin' && !p.brandId) {
-        try {
-          await updateDoc(doc(db, 'users', p.uid), { brandId: DEFAULT_BRAND_ID });
-          p = { ...p, brandId: DEFAULT_BRAND_ID };
-        } catch (err) {
-          console.warn('No se pudo sellar brandId legacy:', err);
-          p = { ...p, brandId: DEFAULT_BRAND_ID };
+      // Legacy / marca huérfana → Advance
+      if (p && p.role !== 'super_admin') {
+        let nextBrandId = p.brandId ?? null;
+        if (!nextBrandId) {
+          nextBrandId = DEFAULT_BRAND_ID;
+        } else if (nextBrandId !== DEFAULT_BRAND_ID) {
+          try {
+            const brandSnap = await getDoc(doc(db, 'brands', nextBrandId));
+            if (!brandSnap.exists()) nextBrandId = DEFAULT_BRAND_ID;
+          } catch {
+            // si no se puede leer, no forzar cambio acá
+          }
+        }
+        if (nextBrandId !== p.brandId) {
+          try {
+            await updateDoc(doc(db, 'users', p.uid), { brandId: nextBrandId });
+          } catch (err) {
+            console.warn('No se pudo sellar/reparar brandId:', err);
+          }
+          p = { ...p, brandId: nextBrandId };
         }
       }
       setProfile(p);

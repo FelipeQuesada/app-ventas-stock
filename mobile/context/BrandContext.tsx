@@ -62,11 +62,19 @@ export function BrandProvider({ children }: { children: React.ReactNode }) {
     setLoading(true);
     try {
       const b = await getBrand(brandId);
-      setBrand(b);
-      setActiveBrandId(b?.id ?? brandId);
+      if (b) {
+        setBrand(b);
+        setActiveBrandId(b.id);
+      } else if (!isSuperAdminRole(profile.role)) {
+        setBrand(null);
+        setActiveBrandId(DEFAULT_BRAND_ID);
+      } else {
+        setBrand(null);
+        setActiveBrandId(brandId);
+      }
       invalidateProductsCache();
     } catch {
-      setActiveBrandId(brandId);
+      setActiveBrandId(isSuperAdminRole(profile.role) ? brandId : DEFAULT_BRAND_ID);
       setBrand(null);
     } finally {
       setLoading(false);

@@ -50,13 +50,22 @@ service cloud.firestore {
             : 'advance-coat');
     }
 
+    function isAdvanceUser() {
+      return hasOwnProfile()
+        && ownData().pendingApproval != true
+        && ownData().active != false
+        && (missingBrandId(ownData()) || ownData().brandId == 'advance-coat');
+    }
+
+    function isAdvanceDoc(data) {
+      return missingBrandId(data) || data.brandId == 'advance-coat';
+    }
+
     function sameBrand(data) {
       return isSuperAdmin()
         || (hasOwnProfile() && data.brandId == userBrandId())
-        // legacy Advance sin brandId
-        || (hasOwnProfile()
-            && userBrandId() == 'advance-coat'
-            && missingBrandId(data));
+        // Advance: docs legacy o marcados advance-coat
+        || (isAdvanceUser() && isAdvanceDoc(data));
     }
 
     function brandWriteOk() {
@@ -64,10 +73,10 @@ service cloud.firestore {
         || (hasOwnProfile()
             && !missingBrandId(request.resource.data)
             && request.resource.data.brandId == userBrandId())
-        // Docs legacy Advance sin brandId (updates de stock, etc.)
-        || (hasOwnProfile()
-            && userBrandId() == 'advance-coat'
-            && missingBrandId(request.resource.data));
+        || (isAdvanceUser()
+            && !missingBrandId(request.resource.data)
+            && request.resource.data.brandId == 'advance-coat')
+        || (isAdvanceUser() && missingBrandId(request.resource.data));
     }
 
     /** Update de stock (y sellado opcional de brandId legacy) */
@@ -81,9 +90,12 @@ service cloud.firestore {
     function canSelfSealAdvanceBrand(uid) {
       return request.auth.uid == uid
         && !isSuperAdmin()
-        && missingBrandId(resource.data)
         && request.resource.data.brandId == 'advance-coat'
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['brandId']);
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['brandId'])
+        && (
+          missingBrandId(resource.data)
+          || !exists(/databases/$(database)/documents/brands/$(resource.data.brandId))
+        );
     }
 
     function isActiveMember() {
@@ -155,7 +167,10 @@ service cloud.firestore {
     match /sales/{saleId} {
       allow read, update: if isSuperAdmin();
       allow read: if isAuthenticated() && isActiveMember() && sameBrand(resource.data);
-      allow create: if isAuthenticated() && isActiveMember() && brandWriteOk();
+      allow create: if isAuthenticated() && isActiveMember() && (
+        brandWriteOk()
+        || (isAdvanceUser() && request.resource.data.brandId == 'advance-coat')
+      );
       allow update: if isAuthenticated() && isActiveMember() && sameBrand(resource.data)
         && (brandWriteOk() || stockOnlyUpdate());
       allow delete: if isBrandAdmin() && sameBrand(resource.data);

@@ -80,13 +80,24 @@ export function BrandProvider({ children }: { children: React.ReactNode }) {
     setLoading(true);
     try {
       const b = await getBrand(brandId);
-      setBrand(b);
-      setActiveBrandId(b?.id ?? brandId);
+      if (b) {
+        setBrand(b);
+        setActiveBrandId(b.id);
+        setError(null);
+      } else if (!isSuperAdminRole(profile.role)) {
+        // Marca huérfana / inexistente → operar como Advance
+        setBrand(null);
+        setActiveBrandId(DEFAULT_BRAND_ID);
+        setError(null);
+      } else {
+        setBrand(null);
+        setActiveBrandId(brandId);
+        setError('No se encontró la marca');
+      }
       invalidateProductsCache();
-      setError(b ? null : 'No se encontró la marca');
     } catch (err) {
       setBrand(null);
-      setActiveBrandId(brandId);
+      setActiveBrandId(isSuperAdminRole(profile.role) ? brandId : DEFAULT_BRAND_ID);
       setError((err as Error).message);
     } finally {
       setLoading(false);
