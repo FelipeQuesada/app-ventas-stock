@@ -29,7 +29,7 @@ import {
   getOrCreateCajaCentral,
   withdrawFromCajaCentral,
 } from '@/services/caja';
-import { SALE_SELLERS } from '@/constants/sellers';
+import { useBrandSellers } from '@/hooks/useBrandSellers';
 import { formatCurrency, formatDate } from '@/utils/format';
 import {
   buildSinMovimientoCaja,
@@ -64,6 +64,7 @@ function CajaRow({
 }
 
 export default function CajaScreen() {
+  const { sellers } = useBrandSellers();
   const router = useRouter();
   const { user, profile } = useAuth();
   const isAdmin = profile?.role === 'admin';
@@ -471,7 +472,7 @@ export default function CajaScreen() {
         <SelectField
           label="Quién cierra la caja"
           value={closedByName}
-          options={[...SALE_SELLERS]}
+          options={sellers}
           onChange={setClosedByName}
           placeholder="Seleccioná…"
         />
@@ -568,7 +569,7 @@ export default function CajaScreen() {
             <SelectField
               label="Quién retira"
               value={retiroByName}
-              options={[...SALE_SELLERS]}
+              options={sellers}
               onChange={setRetiroByName}
               placeholder="Seleccioná…"
             />

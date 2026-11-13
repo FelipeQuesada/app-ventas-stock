@@ -420,6 +420,8 @@ export function RegisterPage() {
 
           {step === 1 && (
             <p className="muted register-footer-link">
+              ¿Sos empleado? <Link to="/join">Unite con el código de tu marca</Link>
+              <br />
               ¿Ya tenés cuenta? <Link to="/login">Iniciar sesión</Link>
             </p>
           )}

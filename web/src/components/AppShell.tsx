@@ -92,6 +92,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const drawerItems = DRAWER_NAV.filter((item) => {
     if (item.to === '/flex' && !limits.flex) return false;
     if (item.to === '/statistics' && !limits.statistics) return false;
+    if (
+      (item.to === '/presupuesto' || item.to === '/presupuesto/list') &&
+      !limits.presupuestos
+    ) {
+      return false;
+    }
     if (item.adminOnly && !isBrandAdmin) return false;
     return true;
   });

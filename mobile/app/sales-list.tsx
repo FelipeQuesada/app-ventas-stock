@@ -35,8 +35,13 @@ import {
   isDateInRange,
   PeriodSelection,
 } from '@/utils/datePeriod';
-import { PAYMENT_METHODS, getSalePaymentLabel, saleUsesPaymentMethod } from '@/constants/payments';
+import {
+  getPaymentMethodsForBrand,
+  getSalePaymentLabel,
+  saleUsesPaymentMethod,
+} from '@/constants/payments';
 import { useAuth } from '@/context/AuthContext';
+import { useBrand } from '@/context/BrandContext';
 import { showAlert, showConfirm } from '@/utils/alert';
 import { SaleTicketModal } from '@/components/SaleTicketModal';
 import { PdfPreviewModal, PdfPreviewState } from '@/components/ui/PdfPreviewModal';
@@ -45,6 +50,16 @@ import { colors, radius, spacing, typography } from '@/constants/theme';
 export default function SalesListScreen() {
   const router = useRouter();
   const { user, profile } = useAuth();
+  const { brand } = useBrand();
+  const paymentMethods = useMemo(
+    () =>
+      getPaymentMethodsForBrand({
+        brandId: brand?.id,
+        planId: brand?.planId,
+        enabledMethodIds: brand?.paymentMethodIds,
+      }),
+    [brand?.id, brand?.planId, brand?.paymentMethodIds]
+  );
   const [sales, setSales] = useState<Sale[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [search, setSearch] = useState('');
@@ -220,7 +235,7 @@ export default function SalesListScreen() {
           >
             <Text style={[styles.chipText, filterPayment === 'all' && styles.chipTextActive]}>Todos</Text>
           </Pressable>
-          {PAYMENT_METHODS.map((pm) => (
+          {paymentMethods.map((pm) => (
             <Pressable
               key={pm.value}
               style={[styles.chip, filterPayment === pm.value && styles.chipActive]}

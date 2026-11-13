@@ -114,8 +114,12 @@ export default function ProfileScreen() {
         <MenuItem icon="warehouse" label="Control de stock" onPress={() => router.push('/stock')} />
         <MenuItem icon="people" label="Clientes" onPress={() => router.push('/customers')} />
         <MenuItem icon="receipt-long" label="Historial ventas" onPress={() => router.push('/sales-list')} />
-        <MenuItem icon="request-quote" label="Presupuesto" onPress={() => router.push('/presupuesto')} />
-        <MenuItem icon="list-alt" label="Historial presupuestos" onPress={() => router.push('/presupuesto-list')} />
+        {limits.presupuestos ? (
+          <>
+            <MenuItem icon="request-quote" label="Presupuesto" onPress={() => router.push('/presupuesto')} />
+            <MenuItem icon="list-alt" label="Historial presupuestos" onPress={() => router.push('/presupuesto-list')} />
+          </>
+        ) : null}
         <MenuItem icon="account-balance-wallet" label="Historial caja" onPress={() => router.push('/caja-list')} />
         {limits.flex ? (
           <MenuItem icon="local-shipping" label="Flex" onPress={() => router.push('/flex')} />

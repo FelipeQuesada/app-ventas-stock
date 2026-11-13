@@ -7,7 +7,6 @@ import {
   calculateCajaTotal,
   calculateCajaGanancia,
   calculateCambioCierre,
-  SALE_SELLERS,
 } from '@advance-coat/shared';
 import {
   getCajaByDate,
@@ -17,11 +16,13 @@ import {
 } from '../services/caja';
 import { getSalesForDay } from '../services/sales';
 import { useAuth } from '../context/AuthContext';
+import { useBrandSellers } from '../hooks/useBrandSellers';
 
 export function CajaEditPage() {
   const { date: dateParam } = useParams();
   const navigate = useNavigate();
   const { user, profile } = useAuth();
+  const { sellers } = useBrandSellers();
   const date = dateParam ? parseCajaId(dateParam) : null;
 
   const [cajaCambio, setCajaCambio] = useState('');
@@ -73,7 +74,7 @@ export function CajaEditPage() {
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
     if (!date || !user) return;
-    const closer = closedByName || SALE_SELLERS[0];
+    const closer = closedByName || profile?.name || sellers[0] || 'Sin nombre';
     setSaving(true);
     try {
       await saveCaja({
@@ -158,7 +159,7 @@ export function CajaEditPage() {
             required
           >
             <option value="">Seleccioná…</option>
-            {SALE_SELLERS.map((name) => (
+            {sellers.map((name) => (
               <option key={name} value={name}>
                 {name}
               </option>

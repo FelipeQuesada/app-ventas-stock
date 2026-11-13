@@ -1,69 +1,45 @@
-﻿import React, { useCallback, useState, useRef } from 'react';
+﻿import React, { useCallback, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, RefreshControl } from 'react-native';
-import { useFocusEffect, useRouter } from 'expo-router';
+import { useFocusEffect } from 'expo-router';
 import { useAuth } from '@/context/AuthContext';
+import { useBrand } from '@/context/BrandContext';
 import { StatCard } from '@/components/ui/StatCard';
 import { QuickAction } from '@/components/QuickAction';
 import { ChartCard, StatsLineChart } from '@/components/ui/ChartCard';
 import { LoadingScreen } from '@/components/ui/EmptyState';
-import { getProducts } from '@/services/products';
 import { getSales, getTodaySales, getMonthSales } from '@/services/sales';
-import {
-  getDailySalesChart,
-  getAverageTicket,
-} from '@/services/stats';
+import { getDailySalesChart, getAverageTicket } from '@/services/stats';
 import { syncPendingSales, getPendingSalesCount } from '@/services/offlineQueue';
 import { formatCurrency, capitalize } from '@/utils/format';
 import { showAlert } from '@/utils/alert';
-import { getLowStockProducts, LOW_STOCK_THRESHOLD } from '@/utils/stock';
 import { colors, spacing, typography } from '@/constants/theme';
 
 export default function DashboardScreen() {
   const { profile } = useAuth();
-  const isAdmin = profile?.role === 'admin';
-  const router = useRouter();
+  const { limits } = useBrand();
+  const isAdmin =
+    profile?.role === 'admin' || profile?.role === 'owner' || profile?.role === 'super_admin';
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [todaySales, setTodaySales] = useState(0);
   const [todayRevenue, setTodayRevenue] = useState(0);
   const [monthRevenue, setMonthRevenue] = useState(0);
   const [avgTicket, setAvgTicket] = useState(0);
-  const [lowStockCount, setLowStockCount] = useState(0);
   const [totalSales, setTotalSales] = useState(0);
   const [chartData, setChartData] = useState<{ label: string; value: number }[]>([]);
   const [pendingCount, setPendingCount] = useState(0);
-  const lowStockAlerted = useRef(false);
 
   const loadData = useCallback(async () => {
     try {
-      const [products, sales] = await Promise.all([getProducts(), getSales()]);
+      const sales = await getSales();
       const today = getTodaySales(sales);
       const month = getMonthSales(sales);
-      const lowStock = getLowStockProducts(products);
       setTodaySales(today.length);
       setTodayRevenue(today.reduce((sum, s) => sum + s.total, 0));
       setMonthRevenue(month.reduce((sum, s) => sum + s.total, 0));
       setAvgTicket(getAverageTicket(month));
-      setLowStockCount(lowStock.length);
       setTotalSales(sales.length);
       setChartData(getDailySalesChart(sales, 30).map((d) => ({ label: d.label, value: d.value })));
-
-      if (lowStock.length > 0 && !lowStockAlerted.current) {
-        lowStockAlerted.current = true;
-        const names = lowStock
-          .slice(0, 5)
-          .map((p) => `• ${p.name} (${p.stock})`)
-          .join('\n');
-        const extra = lowStock.length > 5 ? `\n… y ${lowStock.length - 5} más` : '';
-        showAlert(
-          'Alerta de stock bajo',
-          `${lowStock.length} producto(s) con stock ≤ ${LOW_STOCK_THRESHOLD}:\n${names}${extra}`,
-          [
-            { text: 'Ver stock', onPress: () => router.push('/stock') },
-            { text: 'OK', style: 'cancel' },
-          ]
-        );
-      }
     } catch (error) {
       console.error('Error loading dashboard:', error);
       showAlert('Error', 'No se pudieron cargar los datos del dashboard');
@@ -71,7 +47,7 @@ export default function DashboardScreen() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [router]);
+  }, []);
 
   useFocusEffect(
     useCallback(() => {
@@ -91,14 +67,17 @@ export default function DashboardScreen() {
 
   const onRefresh = () => {
     setRefreshing(true);
-    lowStockAlerted.current = false;
     loadData();
   };
 
   if (loading) return <LoadingScreen />;
 
   const greeting = capitalize(
-    new Date().getHours() < 12 ? 'buenos días' : new Date().getHours() < 19 ? 'buenas tardes' : 'buenas noches'
+    new Date().getHours() < 12
+      ? 'buenos días'
+      : new Date().getHours() < 19
+        ? 'buenas tardes'
+        : 'buenas noches'
   );
 
   return (
@@ -111,14 +90,18 @@ export default function DashboardScreen() {
         {greeting}, {profile?.name?.split(' ')[0] ?? 'Usuario'}
       </Text>
       <Text style={styles.date}>
-        {new Date().toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' })}
+        {new Date().toLocaleDateString('es-AR', {
+          weekday: 'long',
+          day: 'numeric',
+          month: 'long',
+        })}
       </Text>
 
-      {pendingCount > 0 && (
+      {pendingCount > 0 ? (
         <Text style={styles.pendingHint}>
           {pendingCount} venta(s) pendiente(s) de sincronizar
         </Text>
-      )}
+      ) : null}
 
       <View style={styles.statsGrid}>
         <View style={styles.statsTopRow}>
@@ -135,56 +118,46 @@ export default function DashboardScreen() {
             icon="attach-money"
             iconColor={colors.success}
           />
-          <StatCard
-            title="Bajo stock"
-            value={lowStockCount}
-            icon="warning"
-            iconColor={colors.warning}
-            subtitle="productos"
-          />
         </View>
-        {isAdmin && (
-          <>
+        {isAdmin ? (
+          <View style={styles.statsTopRow}>
             <StatCard
               title="Ticket promedio"
               value={formatCurrency(avgTicket)}
               icon="receipt"
               iconColor={colors.primary}
               subtitle="Mes actual"
-              style={styles.statFullWidth}
             />
             <StatCard
               title="Total ventas"
               value={totalSales}
               icon="receipt-long"
               iconColor={colors.primary}
-              style={styles.statFullWidth}
             />
-          </>
-        )}
+          </View>
+        ) : null}
       </View>
 
-      {isAdmin && (
+      {isAdmin && limits.statistics ? (
         <ChartCard title="Ventas últimos 30 días">
           <StatsLineChart data={chartData} color={colors.accent} />
         </ChartCard>
-      )}
+      ) : null}
 
       <Text style={styles.sectionTitle}>Accesos rápidos</Text>
       <View style={styles.quickActions}>
-        <QuickAction title="Presupuesto" icon="description" href="/presupuesto" color={colors.primary} />
-        <QuickAction title="Hist. presupuestos" icon="folder-open" href="/presupuesto-list" color={colors.primary} />
-        <QuickAction title="Caja" icon="point-of-sale" href="/caja" color={colors.primary} />
-        <QuickAction title="Flex" icon="local-shipping" href="/flex" color={colors.accent} />
-        <QuickAction title="Historial caja" icon="history" href="/caja-list" color={colors.primary} />
-        <QuickAction title="Nueva venta" icon="add-shopping-cart" href="/(tabs)/sales" color={colors.accent} />
-        <QuickAction title="Historial ventas" icon="receipt-long" href="/sales-list" color={colors.primary} />
-        <QuickAction title="Clientes" icon="people" href="/customers" />
+        <QuickAction title="Nueva venta" icon="add-shopping-cart" href="/(tabs)/sales" />
+        <QuickAction title="Caja" icon="point-of-sale" href="/(tabs)/caja" />
         <QuickAction title="Productos" icon="inventory-2" href="/(tabs)/products" />
-        <QuickAction title="Stock" icon="warehouse" href="/stock" color={colors.warning} />
-        {isAdmin && (
-          <QuickAction title="Estadísticas" icon="bar-chart" href="/(tabs)/statistics" color={colors.success} />
-        )}
+        <QuickAction title="Stock" icon="warehouse" href="/stock" />
+        <QuickAction title="Clientes" icon="people" href="/customers" />
+        <QuickAction title="Hist. ventas" icon="receipt-long" href="/sales-list" />
+        {limits.presupuestos ? (
+          <QuickAction title="Presupuesto" icon="description" href="/presupuesto" />
+        ) : null}
+        {isAdmin && limits.statistics ? (
+          <QuickAction title="Estadísticas" icon="bar-chart" href="/(tabs)/statistics" />
+        ) : null}
       </View>
     </ScrollView>
   );
@@ -197,7 +170,7 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: spacing.md,
-    paddingBottom: spacing.xxl,
+    paddingBottom: 120,
   },
   greeting: {
     ...typography.h2,
@@ -208,7 +181,7 @@ const styles = StyleSheet.create({
     ...typography.bodySmall,
     fontFamily: 'Inter_400Regular',
     color: colors.textSecondary,
-    marginBottom: spacing.sm,
+    marginBottom: spacing.md,
     textTransform: 'capitalize',
   },
   pendingHint: {
@@ -224,11 +197,6 @@ const styles = StyleSheet.create({
   statsTopRow: {
     flexDirection: 'row',
     gap: spacing.sm,
-  },
-  statFullWidth: {
-    flex: undefined,
-    width: '100%',
-    minWidth: '100%',
   },
   sectionTitle: {
     ...typography.h3,

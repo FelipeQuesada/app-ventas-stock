@@ -15,7 +15,7 @@ import {
   registerMissingCajaDay,
 } from '@/services/caja';
 import { getSales } from '@/services/sales';
-import { SALE_SELLERS } from '@/constants/sellers';
+import { useBrandSellers } from '@/hooks/useBrandSellers';
 import { calculateCajaTotal, calculateCajaGanancia, calculateCambioCierre } from '@/utils/caja';
 import { formatCurrency, formatDate } from '@/utils/format';
 import { showAlert, showConfirm } from '@/utils/alert';
@@ -25,6 +25,7 @@ export default function CajaRegisterScreen() {
   const router = useRouter();
   const { date: dateParam } = useLocalSearchParams<{ date?: string }>();
   const { user, profile } = useAuth();
+  const { sellers } = useBrandSellers();
   const isAdmin = profile?.role === 'admin';
 
   const initialDate = useMemo(() => {
@@ -225,7 +226,7 @@ export default function CajaRegisterScreen() {
           <SelectField
             label="Quién cerró"
             value={closedByName}
-            options={[...SALE_SELLERS]}
+            options={sellers}
             onChange={setClosedByName}
             placeholder="Seleccioná…"
           />
@@ -243,7 +244,7 @@ export default function CajaRegisterScreen() {
             <SelectField
               label="Quién retiró"
               value={retiroByName}
-              options={[...SALE_SELLERS]}
+              options={sellers}
               onChange={setRetiroByName}
               placeholder="Seleccioná…"
             />

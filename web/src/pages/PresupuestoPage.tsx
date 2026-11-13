@@ -4,7 +4,6 @@ import { FileText, Plus, Search, Trash2 } from 'lucide-react';
 import { format } from 'date-fns';
 import type { DiscountType, Product, SaleItem } from '@advance-coat/shared';
 import {
-  SALE_SELLERS,
   MAYORISTA_CATEGORY,
   WHOLESALE_OFFERS,
   calculateDiscount,
@@ -12,6 +11,7 @@ import {
   createExtraItem,
   formatCurrency,
   getUniqueProductCategories,
+  isAdvanceBrand,
   matchWholesaleOffer,
   mergeWholesaleLines,
   repriceCartLines,
@@ -21,6 +21,8 @@ import {
 import { DateField } from '../components/DateField';
 import { WholesaleSection } from '../components/WholesaleSection';
 import { useAuth } from '../context/AuthContext';
+import { useBrand } from '../context/BrandContext';
+import { useBrandSellers } from '../hooks/useBrandSellers';
 import { getProducts } from '../services/products';
 import { printHtml } from '../services/export';
 import {
@@ -99,9 +101,12 @@ function DraftNumberInput({
 
 export function PresupuestoPage() {
   const { user, profile } = useAuth();
+  const { brand } = useBrand();
+  const { sellers } = useBrandSellers();
   const [params] = useSearchParams();
   const editId = params.get('edit');
   const todayIso = () => toLocalDateInputValue();
+  const advanceContacts = isAdvanceBrand(brand?.id);
 
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
@@ -112,9 +117,9 @@ export function PresupuestoPage() {
   const [date, setDate] = useState(todayIso);
   const [validUntil, setValidUntil] = useState(() => defaultValidUntil(todayIso()));
   const [lockValidUntil, setLockValidUntil] = useState(false);
-  const [contactName, setContactName] = useState('Mateo');
-  const [contactPhone, setContactPhone] = useState(CONTACT_DEFAULTS.Mateo.phone);
-  const [contactEmail, setContactEmail] = useState(CONTACT_DEFAULTS.Mateo.email);
+  const [contactName, setContactName] = useState('');
+  const [contactPhone, setContactPhone] = useState('');
+  const [contactEmail, setContactEmail] = useState('');
   const [clientName, setClientName] = useState('');
   const [clientPhone, setClientPhone] = useState('');
   const [clientEmail, setClientEmail] = useState('');
@@ -141,7 +146,7 @@ export function PresupuestoPage() {
             setLockValidUntil(true);
             setDate(format(existing.date, 'yyyy-MM-dd'));
             setValidUntil(format(existing.validUntil, 'yyyy-MM-dd'));
-            setContactName(existing.contactName || 'Mateo');
+            setContactName(existing.contactName || profile?.name || '');
             setContactPhone(existing.contactPhone || '');
             setContactEmail(existing.contactEmail || '');
             setClientName(existing.customer.name || '');
@@ -174,6 +179,19 @@ export function PresupuestoPage() {
     setValidUntil(defaultValidUntil(date));
   }, [date, lockValidUntil]);
 
+  useEffect(() => {
+    if (editId || contactName) return;
+    if (advanceContacts) {
+      applyContact('Mateo');
+      return;
+    }
+    const fallback = profile?.name || sellers[0] || '';
+    if (!fallback) return;
+    setContactName(fallback);
+    setContactPhone(brand?.phone ?? '');
+    setContactEmail(brand?.email ?? '');
+  }, [editId, contactName, advanceContacts, profile?.name, sellers, brand?.phone, brand?.email]);
+
   const searchTerm = search.toLowerCase().trim();
   const categories = useMemo(() => getUniqueProductCategories(products), [products]);
   const showBrowseResults = searchTerm.length > 0 || category !== null;
@@ -203,11 +221,16 @@ export function PresupuestoPage() {
 
   function applyContact(name: string) {
     setContactName(name);
-    const defaults = CONTACT_DEFAULTS[name];
-    if (defaults) {
-      setContactPhone(defaults.phone);
-      setContactEmail(defaults.email);
+    if (advanceContacts) {
+      const defaults = CONTACT_DEFAULTS[name];
+      if (defaults) {
+        setContactPhone(defaults.phone);
+        setContactEmail(defaults.email);
+      }
+      return;
     }
+    setContactPhone(brand?.phone ?? '');
+    setContactEmail(brand?.email ?? '');
   }
 
   function toSaleItem(item: PresupuestoItem): SaleItem {
@@ -490,7 +513,8 @@ export function PresupuestoPage() {
         <div className="field">
           <label>Contacto</label>
           <select value={contactName} onChange={(e) => applyContact(e.target.value)}>
-            {SALE_SELLERS.map((s) => (
+            <option value="">Elegí contacto</option>
+            {sellers.map((s) => (
               <option key={s} value={s}>
                 {s}
               </option>

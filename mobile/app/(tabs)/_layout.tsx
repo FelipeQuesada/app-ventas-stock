@@ -29,6 +29,7 @@ export default function TabLayout() {
         name="index"
         options={{
           title: 'Inicio',
+          tabBarLabel: 'Inicio',
           tabBarIcon: ({ color, size }) => (
             <MaterialIcons name="dashboard" size={size} color={color} />
           ),
@@ -48,6 +49,7 @@ export default function TabLayout() {
         name="products"
         options={{
           title: 'Productos',
+          tabBarLabel: 'Productos',
           tabBarIcon: ({ color, size }) => (
             <MaterialIcons name="inventory-2" size={size} color={color} />
           ),
@@ -57,6 +59,7 @@ export default function TabLayout() {
         name="caja"
         options={{
           title: 'Caja',
+          tabBarLabel: 'Caja',
           tabBarIcon: ({ color, size }) => (
             <MaterialIcons name="account-balance-wallet" size={size} color={color} />
           ),
@@ -67,18 +70,13 @@ export default function TabLayout() {
         options={{
           href: null,
           title: 'Estadísticas',
-          tabBarIcon: ({ color, size }) => (
-            <MaterialIcons name="bar-chart" size={size} color={color} />
-          ),
         }}
       />
       <Tabs.Screen
         name="profile"
         options={{
+          href: null,
           title: 'Perfil',
-          tabBarIcon: ({ color, size }) => (
-            <MaterialIcons name="person" size={size} color={color} />
-          ),
         }}
       />
     </Tabs>

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import {
   ArrowUp,
@@ -18,62 +18,257 @@ import '../styles/landing.css';
 
 const CONTACT_WHATSAPP = '5491157715316';
 
-const PLANS = [
+type LandingPlan = {
+  id: string;
+  name: string;
+  /** null = precio a medida / a consultar */
+  monthly: number | null;
+  desc: string;
+  features: { text: string; included: boolean }[];
+  cta: string;
+  popular: boolean;
+  per?: string;
+  href?: string;
+};
+
+type CompareCell = boolean | string;
+
+type CompareRow = {
+  group: string;
+  feature: string;
+  inicio: CompareCell;
+  pro: CompareCell;
+  empresa: CompareCell;
+  medida: CompareCell;
+};
+
+const PLANS: LandingPlan[] = [
   {
     id: 'inicio',
     name: 'Inicio',
     monthly: 0,
-    desc: 'Para kioscos y emprendedores que recién arrancan.',
+    desc: 'Para operar solo: vendé, controlá stock y cerrá caja.',
     features: [
+      { text: 'Ventas, stock y caja del día', included: true },
+      { text: 'App mobile + ventas offline', included: true },
       { text: 'Hasta 300 productos', included: true },
-      { text: 'Ventas y stock básico', included: true },
-      { text: 'Caja con apertura y cierre', included: true },
-      { text: 'Historial de 30 días', included: true },
-      { text: '1 usuario administrador', included: true },
-      { text: 'Avisos por Telegram', included: false },
-      { text: 'Múltiples empleados', included: false },
-      { text: 'Reportes PDF avanzados', included: false },
+      { text: '1 usuario (dueño)', included: true },
+      { text: 'Historial básico (30 días)', included: true },
+      { text: 'Sin empleados ni roles', included: false },
+      { text: 'Sin estadísticas avanzadas', included: false },
+      { text: 'Sin Telegram ni exports', included: false },
     ],
     cta: 'Empezar gratis',
     popular: false,
+    per: 'Para siempre · alcance básico',
+    href: '/register',
   },
   {
     id: 'pro',
     name: 'Pro',
     monthly: 15000,
-    desc: 'Para almacenes y tiendas con empleados y depósito.',
+    desc: 'Para crecer con equipo: más control, más alcance, más datos.',
     features: [
-      { text: 'Productos ilimitados', included: true },
-      { text: 'Hasta 5 usuarios', included: true },
-      { text: 'Roles y permisos', included: true },
+      { text: 'Todo lo de Inicio, sin tope de productos', included: true },
+      { text: 'Hasta 5 usuarios con roles', included: true },
+      { text: 'Código para sumar empleados', included: true },
+      { text: 'Estadísticas y comparativas', included: true },
       { text: 'Avisos por Telegram', included: true },
-      { text: 'Depósito y central', included: true },
-      { text: 'Borradores de venta', included: true },
-      { text: 'Reportes PDF', included: true },
+      { text: 'Caja central, borradores y presupuestos', included: true },
+      { text: 'Export Excel / PDF', included: true },
       { text: 'Historial ilimitado', included: true },
     ],
-    cta: 'Probar Pro 14 días',
+    cta: 'Quiero Pro',
     popular: true,
   },
   {
     id: 'empresa',
     name: 'Empresa',
     monthly: 35000,
-    desc: 'Para cadenas y comercios con varias sucursales.',
+    desc: 'Para operaciones grandes: más usuarios, Flex y soporte cercano.',
     features: [
       { text: 'Todo lo del plan Pro', included: true },
-      { text: 'Usuarios ilimitados', included: true },
-      { text: 'Múltiples sucursales', included: true },
+      { text: 'Hasta 25 usuarios', included: true },
+      { text: 'Módulo Flex (envíos)', included: true },
       { text: 'Reportes avanzados y Excel', included: true },
-      { text: 'Comparativa entre sucursales', included: true },
       { text: 'Soporte prioritario por WhatsApp', included: true },
-      { text: 'Capacitación inicial', included: true },
-      { text: 'Integración con API propia', included: true },
+      { text: 'Capacitación inicial del equipo', included: true },
+      { text: 'Onboarding asistido', included: true },
     ],
     cta: 'Hablar con ventas',
     popular: false,
   },
-] as const;
+  {
+    id: 'medida',
+    name: 'A medida',
+    monthly: null,
+    desc: 'Si tu operación necesita pantallas, flujos o integraciones propias.',
+    features: [
+      { text: 'Charla por WhatsApp y relevamiento', included: true },
+      { text: 'Desarrollo personalizado', included: true },
+      { text: 'Integraciones con tus sistemas', included: true },
+      { text: 'Capacitación a medida', included: true },
+      { text: 'Soporte del proyecto', included: true },
+      { text: 'Presupuesto según alcance', included: true },
+    ],
+    cta: 'Escribinos por WhatsApp',
+    popular: false,
+    per: 'Presupuesto personalizado',
+  },
+];
+
+const COMPARE_ROWS: CompareRow[] = [
+  {
+    group: 'Operación diaria',
+    feature: 'Ventas, stock y caja',
+    inicio: true,
+    pro: true,
+    empresa: true,
+    medida: 'Según proyecto',
+  },
+  {
+    group: 'Operación diaria',
+    feature: 'App mobile + ventas offline',
+    inicio: true,
+    pro: true,
+    empresa: true,
+    medida: true,
+  },
+  {
+    group: 'Operación diaria',
+    feature: 'Productos en catálogo',
+    inicio: 'Hasta 300',
+    pro: 'Ilimitados',
+    empresa: 'Ilimitados',
+    medida: 'A definir',
+  },
+  {
+    group: 'Operación diaria',
+    feature: 'Historial de movimientos',
+    inicio: '30 días',
+    pro: 'Ilimitado',
+    empresa: 'Ilimitado',
+    medida: 'A definir',
+  },
+  {
+    group: 'Equipo y alcance',
+    feature: 'Usuarios',
+    inicio: '1 dueño',
+    pro: 'Hasta 5',
+    empresa: 'Hasta 25',
+    medida: 'A definir',
+  },
+  {
+    group: 'Equipo y alcance',
+    feature: 'Roles (dueño / admin / empleado)',
+    inicio: false,
+    pro: true,
+    empresa: true,
+    medida: true,
+  },
+  {
+    group: 'Equipo y alcance',
+    feature: 'Código para sumar empleados',
+    inicio: false,
+    pro: true,
+    empresa: true,
+    medida: true,
+  },
+  {
+    group: 'Control y datos',
+    feature: 'Estadísticas avanzadas',
+    inicio: false,
+    pro: true,
+    empresa: true,
+    medida: true,
+  },
+  {
+    group: 'Control y datos',
+    feature: 'Avisos por Telegram',
+    inicio: false,
+    pro: true,
+    empresa: true,
+    medida: 'Opcional',
+  },
+  {
+    group: 'Control y datos',
+    feature: 'Export Excel / PDF',
+    inicio: false,
+    pro: true,
+    empresa: true,
+    medida: true,
+  },
+  {
+    group: 'Control y datos',
+    feature: 'Dashboard del día',
+    inicio: 'Básico',
+    pro: 'Completo',
+    empresa: 'Completo',
+    medida: true,
+  },
+  {
+    group: 'Módulos pagos',
+    feature: 'Caja central (depósitos/retiros)',
+    inicio: false,
+    pro: true,
+    empresa: true,
+    medida: true,
+  },
+  {
+    group: 'Módulos pagos',
+    feature: 'Borradores de venta',
+    inicio: false,
+    pro: true,
+    empresa: true,
+    medida: true,
+  },
+  {
+    group: 'Módulos pagos',
+    feature: 'Presupuestos con PDF',
+    inicio: false,
+    pro: true,
+    empresa: true,
+    medida: true,
+  },
+  {
+    group: 'Módulos pagos',
+    feature: 'Flex (envíos y etiquetas)',
+    inicio: false,
+    pro: false,
+    empresa: true,
+    medida: 'Opcional',
+  },
+  {
+    group: 'Soporte',
+    feature: 'Soporte',
+    inicio: 'Base',
+    pro: 'Estándar',
+    empresa: 'Prioritario WPP',
+    medida: 'Dedicado',
+  },
+  {
+    group: 'Soporte',
+    feature: 'Capacitación / onboarding',
+    inicio: false,
+    pro: false,
+    empresa: true,
+    medida: true,
+  },
+  {
+    group: 'Soporte',
+    feature: 'Desarrollo a medida',
+    inicio: false,
+    pro: false,
+    empresa: false,
+    medida: true,
+  },
+];
+
+function compareCell(value: CompareCell): { kind: 'yes' | 'no' | 'text'; label: string } {
+  if (value === true) return { kind: 'yes', label: 'Incluido' };
+  if (value === false) return { kind: 'no', label: 'No' };
+  return { kind: 'text', label: value };
+}
 
 function formatPrice(amount: number): string {
   if (amount === 0) return '$0';
@@ -82,7 +277,9 @@ function formatPrice(amount: number): string {
 
 function whatsappUrl(planName: string): string {
   const text = encodeURIComponent(
-    `Hola, quiero info del plan ${planName} de Control+ (ventas y stock).`
+    planName === 'A medida'
+      ? 'Hola, quiero charlar por un trabajo a medida de Control+ (personalización / integración).'
+      : `Hola, quiero info del plan ${planName} de Control+ (ventas y stock).`
   );
   return `https://wa.me/${CONTACT_WHATSAPP}?text=${text}`;
 }
@@ -426,10 +623,10 @@ export function LandingPage() {
         <div className="lp-container">
           <div className="lp-center lp-reveal">
             <div className="lp-eyebrow">Planes</div>
-            <h2 className="lp-section-title">Elegí el plan que crece con tu negocio</h2>
+            <h2 className="lp-section-title">Empezá gratis. Pagá cuando necesites más alcance</h2>
             <p className="lp-section-sub">
-              Empezá gratis y pasá a un plan pago cuando lo necesites. El cobro online lo
-              conectamos después; por ahora te dejamos WhatsApp.
+              Inicio te deja operar el local. Pro y Empresa desbloquean equipo, estadísticas,
+              avisos, exports y módulos que multiplican el control.
             </p>
             <div className="lp-billing" role="group" aria-label="Facturación">
               <button
@@ -451,32 +648,37 @@ export function LandingPage() {
 
           <div className="lp-plans">
             {PLANS.map((plan) => {
+              const isCustom = plan.monthly === null;
               const amount =
-                plan.monthly === 0
-                  ? 0
+                plan.monthly === null || plan.monthly === 0
+                  ? plan.monthly
                   : yearly
                     ? Math.round(plan.monthly * 0.8)
                     : plan.monthly;
+              const ctaHref = plan.href ?? whatsappUrl(plan.name);
+              const external = !plan.href;
               return (
                 <article
                   key={plan.id}
-                  className={`lp-plan lp-reveal ${plan.popular ? 'is-pop' : ''}`}
+                  className={`lp-plan lp-reveal ${plan.popular ? 'is-pop' : ''}${isCustom ? ' is-custom' : ''}`}
                 >
                   {plan.popular ? <div className="lp-ribbon">Más elegido</div> : null}
                   <h4>{plan.name}</h4>
                   <p className="lp-plan-desc">{plan.desc}</p>
                   <p className="lp-price">
-                    {plan.monthly === 0 ? (
+                    {isCustom ? (
+                      'Consultá'
+                    ) : plan.monthly === 0 ? (
                       '$0'
                     ) : (
                       <>
-                        ${formatPrice(amount)}
+                        ${formatPrice(amount ?? 0)}
                         <small>/mes</small>
                       </>
                     )}
                   </p>
                   <p className="lp-plan-per">
-                    {plan.monthly === 0 ? 'Para siempre · 1 usuario' : perLabel}
+                    {plan.per ?? (plan.monthly === 0 ? 'Para siempre · 1 usuario' : perLabel)}
                   </p>
                   <ul>
                     {plan.features.map((feature) => (
@@ -485,20 +687,93 @@ export function LandingPage() {
                       </li>
                     ))}
                   </ul>
-                  <a
-                    className={`lp-btn lp-btn-block ${plan.popular ? 'lp-btn-primary' : 'lp-btn-ghost'}`}
-                    href={whatsappUrl(plan.name)}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    {plan.cta}
-                  </a>
+                  {external ? (
+                    <a
+                      className={`lp-btn lp-btn-block ${plan.popular ? 'lp-btn-primary' : 'lp-btn-ghost'}`}
+                      href={ctaHref}
+                      target="_blank"
+                      rel="noreferrer"
+                    >
+                      {plan.cta}
+                    </a>
+                  ) : (
+                    <Link
+                      className={`lp-btn lp-btn-block ${plan.popular ? 'lp-btn-primary' : 'lp-btn-ghost'}`}
+                      to={ctaHref}
+                    >
+                      {plan.cta}
+                    </Link>
+                  )}
                 </article>
               );
             })}
           </div>
+
+          <div className="lp-compare lp-reveal">
+            <div className="lp-compare-head">
+              <h3>Comparativa de funcionalidades</h3>
+              <p>
+                Miralo en fila: cuando pagás no es “lo mismo con otro nombre”. Sumás equipo, datos y
+                módulos que Inicio no incluye.
+              </p>
+            </div>
+            <div className="lp-compare-wrap">
+              <table className="lp-compare-table">
+                <thead>
+                  <tr>
+                    <th>Funcionalidad</th>
+                    <th>Inicio</th>
+                    <th className="is-accent">Pro</th>
+                    <th>Empresa</th>
+                    <th>A medida</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {COMPARE_ROWS.map((row, index) => {
+                    const prev = COMPARE_ROWS[index - 1];
+                    const showGroup = !prev || prev.group !== row.group;
+                    const cells = [
+                      compareCell(row.inicio),
+                      compareCell(row.pro),
+                      compareCell(row.empresa),
+                      compareCell(row.medida),
+                    ];
+                    return (
+                      <Fragment key={`${row.group}-${row.feature}`}>
+                        {showGroup ? (
+                          <tr className="lp-compare-group">
+                            <td colSpan={5}>{row.group}</td>
+                          </tr>
+                        ) : null}
+                        <tr>
+                          <th scope="row">{row.feature}</th>
+                          {cells.map((cell, i) => (
+                            <td
+                              key={`${row.feature}-${i}`}
+                              className={`${cell.kind === 'yes' ? 'is-yes' : ''}${cell.kind === 'no' ? 'is-no' : ''}${i === 1 ? ' is-accent' : ''}`}
+                            >
+                              {cell.kind === 'yes' ? (
+                                <span className="lp-compare-yes">Sí</span>
+                              ) : cell.kind === 'no' ? (
+                                <span className="lp-compare-no">—</span>
+                              ) : (
+                                <span className="lp-compare-text">{cell.label}</span>
+                              )}
+                            </td>
+                          ))}
+                        </tr>
+                      </Fragment>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
           <p className="lp-note">
-            Precios en pesos argentinos (ARS). Los planes pagos estarán disponibles próximamente.
+            Precios en pesos argentinos (ARS). En Inicio las estadísticas avanzadas están limitadas;
+            se desbloquean desde Pro. Los cobros online se habilitan próximamente; por ahora
+            coordinamos planes pagos por WhatsApp.
           </p>
         </div>
       </section>
@@ -516,7 +791,25 @@ export function LandingPage() {
             </details>
             <details>
               <summary>¿Puedo usarlo con varios empleados?</summary>
-              <p>Sí. En Pro y Empresa podés invitar empleados con permisos distintos.</p>
+              <p>
+                En Inicio es 1 usuario. Desde Pro sumás empleados con roles y código de invitación;
+                el admin valida el acceso.
+              </p>
+            </details>
+            <details>
+              <summary>¿Las estadísticas vienen en el gratis?</summary>
+              <p>
+                No. Inicio te deja operar el día a día. Las estadísticas avanzadas, exports y avisos
+                por Telegram se desbloquean en Pro.
+              </p>
+            </details>
+            <details>
+              <summary>¿Qué es el plan A medida?</summary>
+              <p>
+                Es para cuando necesitás algo más personalizado: módulos propios, integraciones o
+                flujos distintos. Charlamos por WhatsApp, armamos el alcance y te pasamos un
+                presupuesto.
+              </p>
             </details>
             <details>
               <summary>¿Cómo me llegan los avisos?</summary>

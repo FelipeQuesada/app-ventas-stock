@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Plus, Pencil, X, Eye, EyeOff } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { Plus, Pencil, X, Eye, EyeOff, Check, Ban } from 'lucide-react';
 import type { BrandRole, UserProfile } from '@advance-coat/shared';
 import { useAuth } from '../../context/AuthContext';
 import { useBrand } from '../../context/BrandContext';
@@ -7,6 +7,8 @@ import {
   listUsers,
   createUserAsAdmin,
   updateUser,
+  approvePendingUser,
+  rejectPendingUser,
   getAuthErrorMessage,
 } from '../../services/auth';
 
@@ -33,6 +35,16 @@ export function AdminUsersPage() {
   const [active, setActive] = useState(true);
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
+  const [actingUid, setActingUid] = useState<string | null>(null);
+
+  const pending = useMemo(
+    () => users.filter((u) => u.pendingApproval),
+    [users]
+  );
+  const members = useMemo(
+    () => users.filter((u) => !u.pendingApproval),
+    [users]
+  );
 
   async function load() {
     setLoading(true);
@@ -117,6 +129,34 @@ export function AdminUsersPage() {
     setUsers((prev) => prev.map((item) => (item.uid === u.uid ? { ...item, active: next } : item)));
   }
 
+  async function handleApprove(u: UserProfile) {
+    if (!user) return;
+    setActingUid(u.uid);
+    setError('');
+    try {
+      await approvePendingUser(u.uid, { userId: user.uid, userName: profile?.name });
+      await load();
+    } catch (err) {
+      setError(getAuthErrorMessage(err));
+    } finally {
+      setActingUid(null);
+    }
+  }
+
+  async function handleReject(u: UserProfile) {
+    if (!user) return;
+    setActingUid(u.uid);
+    setError('');
+    try {
+      await rejectPendingUser(u.uid, { userId: user.uid, userName: profile?.name });
+      await load();
+    } catch (err) {
+      setError(getAuthErrorMessage(err));
+    } finally {
+      setActingUid(null);
+    }
+  }
+
   if (loading) return <div className="loading-screen">Cargando usuarios…</div>;
 
   return (
@@ -124,12 +164,66 @@ export function AdminUsersPage() {
       <div className="page-header">
         <div>
           <h3 style={{ margin: 0 }}>Usuarios</h3>
-          <p>Altas, roles y activación de accesos</p>
+          <p>Altas, roles, códigos de invitación y validación de empleados</p>
         </div>
         <button type="button" className="btn btn-primary" onClick={openCreate}>
           <Plus size={16} /> Nuevo usuario
         </button>
       </div>
+
+      {error && !mode && <p className="error-text">{error}</p>}
+
+      {pending.length > 0 && (
+        <div className="card" style={{ marginBottom: 16 }}>
+          <h3 className="card-title" style={{ marginTop: 0 }}>
+            Pendientes de aprobación ({pending.length})
+          </h3>
+          <p className="muted" style={{ marginTop: 0 }}>
+            Se registraron con el código de la marca. Validá para darles acceso.
+          </p>
+          <div className="table-wrap">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Nombre</th>
+                  <th>Email</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {pending.map((u) => (
+                  <tr key={u.uid}>
+                    <td>
+                      <strong>{u.name}</strong>
+                    </td>
+                    <td>{u.email}</td>
+                    <td>
+                      <div className="actions">
+                        <button
+                          type="button"
+                          className="btn btn-primary btn-sm"
+                          disabled={actingUid === u.uid}
+                          onClick={() => void handleApprove(u)}
+                        >
+                          <Check size={14} /> Aprobar
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-ghost btn-sm"
+                          disabled={actingUid === u.uid}
+                          onClick={() => void handleReject(u)}
+                        >
+                          <Ban size={14} /> Rechazar
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
 
       {mode && (
         <form className="card" style={{ marginBottom: 16 }} onSubmit={handleSubmit}>
@@ -224,7 +318,7 @@ export function AdminUsersPage() {
             </tr>
           </thead>
           <tbody>
-            {users.map((u) => {
+            {members.map((u) => {
               const isActive = u.active !== false;
               return (
                 <tr key={u.uid}>

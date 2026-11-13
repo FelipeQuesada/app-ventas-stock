@@ -13,7 +13,12 @@ import {
   limit,
 } from 'firebase/firestore';
 import type { Brand, BrandStatus, PlanId } from '@advance-coat/shared';
-import { DEFAULT_BRAND_ID, PLAN_DEFINITIONS } from '@advance-coat/shared';
+import {
+  DEFAULT_BRAND_ID,
+  PLAN_DEFINITIONS,
+  generateInviteCode,
+  normalizeInviteCode,
+} from '@advance-coat/shared';
 import { db } from '@/lib/firebase';
 
 const COLLECTION = 'brands';
@@ -29,6 +34,7 @@ function mapBrand(id: string, data: Record<string, unknown>): Brand {
       ? (data.planId as PlanId)
       : 'starter') as PlanId,
     status: (data.status as BrandStatus) || 'active',
+    inviteCode: (data.inviteCode as string) || undefined,
     planExpiresAt: (data.planExpiresAt as { toDate?: () => Date })?.toDate?.(),
     phone: (data.phone as string) || undefined,
     email: (data.email as string) || undefined,
@@ -38,9 +44,22 @@ function mapBrand(id: string, data: Record<string, unknown>): Brand {
     salesChannels: Array.isArray(data.salesChannels)
       ? (data.salesChannels as Brand['salesChannels'])
       : undefined,
+    paymentMethodIds: Array.isArray(data.paymentMethodIds)
+      ? (data.paymentMethodIds as Brand['paymentMethodIds'])
+      : undefined,
     createdAt: (data.createdAt as { toDate?: () => Date })?.toDate?.(),
     updatedAt: (data.updatedAt as { toDate?: () => Date })?.toDate?.(),
   };
+}
+
+async function allocateInviteCode(): Promise<string> {
+  for (let attempt = 0; attempt < 12; attempt++) {
+    const code = generateInviteCode(6);
+    const q = query(collection(db, COLLECTION), where('inviteCode', '==', code), limit(1));
+    const snap = await getDocs(q);
+    if (snap.empty) return code;
+  }
+  return generateInviteCode(8);
 }
 
 export async function getBrand(brandId: string): Promise<Brand | null> {
@@ -89,12 +108,14 @@ export async function createBrand(input: {
   salesChannels?: string[];
 }): Promise<Brand> {
   const id = input.id || doc(collection(db, COLLECTION)).id;
+  const inviteCode = await allocateInviteCode();
   const payload = {
     name: input.name.trim(),
     slug: input.slug,
     ownerUid: input.ownerUid,
     planId: input.planId ?? 'trial',
     status: input.status ?? 'trial',
+    inviteCode,
     phone: input.phone?.trim() || null,
     email: input.email?.trim() || null,
     cuit: input.cuit?.trim() || null,
@@ -138,12 +159,14 @@ export async function updateBrand(
     logoUrl: string | null;
     planId: PlanId;
     status: BrandStatus;
+    inviteCode: string;
     phone: string | null;
     email: string | null;
     cuit: string | null;
     businessType: string | null;
     sellingStatus: string | null;
     salesChannels: string[] | null;
+    paymentMethodIds: Brand['paymentMethodIds'] | null;
     planExpiresAt: Date | null;
   }>
 ): Promise<void> {
@@ -152,14 +175,34 @@ export async function updateBrand(
   if (data.logoUrl !== undefined) payload.logoUrl = data.logoUrl;
   if (data.planId !== undefined) payload.planId = data.planId;
   if (data.status !== undefined) payload.status = data.status;
+  if (data.inviteCode !== undefined) payload.inviteCode = data.inviteCode;
   if (data.phone !== undefined) payload.phone = data.phone;
   if (data.email !== undefined) payload.email = data.email;
   if (data.cuit !== undefined) payload.cuit = data.cuit;
   if (data.businessType !== undefined) payload.businessType = data.businessType;
   if (data.sellingStatus !== undefined) payload.sellingStatus = data.sellingStatus;
   if (data.salesChannels !== undefined) payload.salesChannels = data.salesChannels;
+  if (data.paymentMethodIds !== undefined) payload.paymentMethodIds = data.paymentMethodIds;
   if (data.planExpiresAt !== undefined) payload.planExpiresAt = data.planExpiresAt;
   await updateDoc(doc(db, COLLECTION, brandId), payload);
+}
+
+export async function getBrandByInviteCode(code: string): Promise<Brand | null> {
+  const inviteCode = normalizeInviteCode(code);
+  if (inviteCode.length < 4) return null;
+  const q = query(collection(db, COLLECTION), where('inviteCode', '==', inviteCode), limit(1));
+  const snap = await getDocs(q);
+  if (snap.empty) return null;
+  return mapBrand(snap.docs[0].id, snap.docs[0].data());
+}
+
+export async function ensureBrandInviteCode(brandId: string): Promise<string> {
+  const brand = await getBrand(brandId);
+  if (!brand) throw new Error('Marca no encontrada');
+  if (brand.inviteCode) return brand.inviteCode;
+  const inviteCode = await allocateInviteCode();
+  await updateBrand(brandId, { inviteCode });
+  return inviteCode;
 }
 
 const LEGACY_COLLECTIONS = [

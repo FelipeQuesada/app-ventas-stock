@@ -62,6 +62,34 @@ export function AuthGate() {
     );
   }
 
+  if (profile.pendingApproval) {
+    return (
+      <div className="loading-screen" style={{ flexDirection: 'column', gap: 12, padding: 24 }}>
+        <p style={{ margin: 0, textAlign: 'center', fontSize: 18, fontWeight: 600 }}>
+          Tu acceso está pendiente de aprobación
+        </p>
+        <p className="muted" style={{ margin: 0, textAlign: 'center', maxWidth: 420 }}>
+          Un administrador de tu marca tiene que validar tu cuenta. Cuando lo haga, volvé a entrar
+          con el mismo email.
+        </p>
+        <button
+          type="button"
+          className="btn btn-secondary"
+          disabled={retrying}
+          onClick={() => {
+            setRetrying(true);
+            void refreshProfile().finally(() => setRetrying(false));
+          }}
+        >
+          {retrying ? 'Revisando…' : 'Ya me aprobaron'}
+        </button>
+        <button type="button" className="btn btn-ghost" onClick={() => void signOutUser()}>
+          Cerrar sesión
+        </button>
+      </div>
+    );
+  }
+
   if (isSuperAdminRole(profile.role) && !brand) {
     return <Navigate to="/platform" replace />;
   }

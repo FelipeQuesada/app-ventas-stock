@@ -3664,6 +3664,8 @@ table.data-table tr.caja-row-retiro:hover td {
 
 .admin-content {
   padding: 24px 32px 48px;
+  min-width: 0;
+  overflow-x: hidden;
 }
 
 .admin-hero {
@@ -3804,32 +3806,72 @@ table.data-table tr.caja-row-retiro:hover td {
   pointer-events: none;
 }
 
-.platform-brands-table.table-wrap {
+.platform-brands-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.platform-brand-card {
+  margin: 0;
+  padding: 14px 16px;
   overflow: visible;
 }
 
-.platform-brands-table .data-table th {
+.platform-brand-card.is-saving {
+  opacity: 0.65;
+}
+
+.platform-brand-card-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.platform-brand-card-title {
+  min-width: 0;
+}
+
+.platform-brand-card-title strong {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.platform-brand-card-controls {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.platform-brand-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.platform-brand-field-label {
   font-size: 11px;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--text-muted, #94a3b8);
+  font-weight: 600;
 }
 
-.platform-brands-table .data-table td {
-  vertical-align: middle;
-  padding-top: 14px;
-  padding-bottom: 14px;
-}
-
-.platform-brands-table tr.is-saving {
-  opacity: 0.65;
+.platform-brand-field .platform-pill {
+  min-width: 0;
+  width: 100%;
 }
 
 .platform-brand-cell {
   display: flex;
   align-items: center;
   gap: 12px;
-  min-width: 160px;
+  min-width: 0;
+  flex: 1;
 }
 
 .platform-brand-avatar {
@@ -3848,6 +3890,7 @@ table.data-table tr.caja-row-retiro:hover td {
 .platform-brand-meta {
   font-size: 12px;
   margin-top: 2px;
+  overflow-wrap: anywhere;
 }
 
 .platform-contact {
@@ -3855,12 +3898,25 @@ table.data-table tr.caja-row-retiro:hover td {
   flex-direction: column;
   gap: 2px;
   font-size: 13px;
+  min-width: 0;
+}
+
+.platform-contact-email {
+  overflow-wrap: anywhere;
+}
+
+@media (min-width: 720px) {
+  .platform-brand-card-controls {
+    grid-template-columns: minmax(140px, 180px) minmax(120px, 160px);
+    align-items: end;
+  }
 }
 
 .platform-pill {
   position: relative;
   display: inline-block;
-  min-width: 138px;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .platform-pill-trigger {
@@ -3880,6 +3936,13 @@ table.data-table tr.caja-row-retiro:hover td {
   background: inherit;
   color: inherit;
   transition: box-shadow 0.15s ease, transform 0.1s ease;
+}
+
+.platform-pill-trigger > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .platform-pill-trigger:hover:not(:disabled) {

@@ -11,14 +11,16 @@ import { format, parseISO } from 'date-fns';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import type { DiscountType, PresupuestoItem, Product } from '@advance-coat/shared';
 import {
-  SALE_SELLERS,
   calculateDiscount,
   calculateSaleTotal,
   createExtraItem,
   formatCurrency,
   getUniqueProductCategories,
+  isAdvanceBrand,
 } from '@advance-coat/shared';
 import { useAuth } from '@/context/AuthContext';
+import { useBrand } from '@/context/BrandContext';
+import { useBrandSellers } from '@/hooks/useBrandSellers';
 import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
@@ -66,6 +68,9 @@ export default function PresupuestoScreen() {
     }>();
   const router = useRouter();
   const { user, profile } = useAuth();
+  const { brand } = useBrand();
+  const { sellers } = useBrandSellers();
+  const advanceContacts = isAdvanceBrand(brand?.id);
 
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
@@ -78,9 +83,9 @@ export default function PresupuestoScreen() {
     parseDateParam(defaultValidUntil(format(new Date(), 'yyyy-MM-dd')))
   );
   const [lockValidUntil, setLockValidUntil] = useState(false);
-  const [contactName, setContactName] = useState('Mateo');
-  const [contactPhone, setContactPhone] = useState(CONTACT_DEFAULTS.Mateo.phone);
-  const [contactEmail, setContactEmail] = useState(CONTACT_DEFAULTS.Mateo.email);
+  const [contactName, setContactName] = useState('');
+  const [contactPhone, setContactPhone] = useState('');
+  const [contactEmail, setContactEmail] = useState('');
   const [clientName, setClientName] = useState(clientNameParam ?? '');
   const [clientPhone, setClientPhone] = useState(clientPhoneParam ?? '');
   const [clientEmail, setClientEmail] = useState('');
@@ -107,7 +112,7 @@ export default function PresupuestoScreen() {
             setLockValidUntil(true);
             setDate(existing.date);
             setValidUntil(existing.validUntil);
-            setContactName(existing.contactName || 'Mateo');
+            setContactName(existing.contactName || profile?.name || '');
             setContactPhone(existing.contactPhone || '');
             setContactEmail(existing.contactEmail || '');
             setClientName(existing.customer.name || '');
@@ -140,6 +145,45 @@ export default function PresupuestoScreen() {
     setValidUntil(parseDateParam(defaultValidUntil(format(date, 'yyyy-MM-dd'))));
   }, [date, lockValidUntil]);
 
+  const applyContact = useCallback(
+    (name: string) => {
+      setContactName(name);
+      if (advanceContacts) {
+        const defaults = CONTACT_DEFAULTS[name];
+        if (defaults) {
+          setContactPhone(defaults.phone);
+          setContactEmail(defaults.email);
+        }
+        return;
+      }
+      setContactPhone(brand?.phone ?? '');
+      setContactEmail(brand?.email ?? '');
+    },
+    [advanceContacts, brand?.phone, brand?.email]
+  );
+
+  useEffect(() => {
+    if (edit || contactName) return;
+    if (advanceContacts) {
+      applyContact('Mateo');
+      return;
+    }
+    const fallback = profile?.name || sellers[0] || '';
+    if (!fallback) return;
+    setContactName(fallback);
+    setContactPhone(brand?.phone ?? '');
+    setContactEmail(brand?.email ?? '');
+  }, [
+    edit,
+    contactName,
+    advanceContacts,
+    profile?.name,
+    sellers,
+    brand?.phone,
+    brand?.email,
+    applyContact,
+  ]);
+
   const searchTerm = search.toLowerCase().trim();
   const categories = useMemo(() => getUniqueProductCategories(products), [products]);
   const showBrowse = searchTerm.length > 0 || category !== null;
@@ -166,15 +210,6 @@ export default function PresupuestoScreen() {
     Number(discountValue.replace(',', '.')) || 0
   );
   const total = calculateSaleTotal(subtotal, discountAmount);
-
-  const applyContact = (name: string) => {
-    setContactName(name);
-    const defaults = CONTACT_DEFAULTS[name];
-    if (defaults) {
-      setContactPhone(defaults.phone);
-      setContactEmail(defaults.email);
-    }
-  };
 
   const addProduct = (product: Product) => {
     setItems((current) => {
@@ -374,7 +409,7 @@ export default function PresupuestoScreen() {
           <SelectField
             label="Persona de contacto"
             value={contactName}
-            options={[...SALE_SELLERS]}
+            options={sellers}
             onChange={applyContact}
           />
           <Input label="Teléfono contacto" value={contactPhone} onChangeText={setContactPhone} />

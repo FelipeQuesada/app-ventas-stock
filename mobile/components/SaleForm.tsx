@@ -10,7 +10,9 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import type { Href } from 'expo-router';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useAuth } from '@/context/AuthContext';
+import { useBrand } from '@/context/BrandContext';
 import { useCart } from '@/context/CartContext';
+import { useBrandSellers } from '@/hooks/useBrandSellers';
 import { SearchBar } from '@/components/ui/SearchBar';
 import { ProductFilters } from '@/components/ProductFilters';
 import { ProductListItem } from '@/components/ui/ProductListItem';
@@ -32,8 +34,13 @@ import {
 } from '@/services/sales';
 import { findCustomerByPhone } from '@/services/customers';
 import { Product, Sale, SaleItem, PaymentMethod, DiscountType, Customer } from '@/types';
-import { getPaymentMethodLabel, getPaymentMethodAlias, buildSalePaymentData, isInvoiceEligibleMethod } from '@/constants/payments';
-import { SALE_SELLERS } from '@/constants/sellers';
+import {
+  getPaymentMethodLabel,
+  getPaymentMethodAlias,
+  getPaymentMethodsForBrand,
+  buildSalePaymentData,
+  isInvoiceEligibleMethod,
+} from '@/constants/payments';
 import { formatCurrency } from '@/utils/format';
 import { calculateChange } from '@/utils/discount';
 import { normalizePhoneKey } from '@/utils/phone';
@@ -58,9 +65,22 @@ interface SaleFormProps {
 
 export function SaleForm({ mode, saleId }: SaleFormProps) {
   const { user, profile } = useAuth();
+  const { brand, limits } = useBrand();
+  const { sellers } = useBrandSellers();
   const cart = useCart();
   const router = useRouter();
   const isEdit = mode === 'edit';
+
+  const paymentMethods = useMemo(
+    () =>
+      getPaymentMethodsForBrand({
+        brandId: brand?.id,
+        planId: brand?.planId,
+        enabledMethodIds: brand?.paymentMethodIds,
+      }),
+    [brand?.id, brand?.planId, brand?.paymentMethodIds]
+  );
+  const canDualPayment = limits.multiPayment && paymentMethods.length > 1;
 
   const [products, setProducts] = useState<Product[]>([]);
   const [sales, setSales] = useState<Sale[]>([]);
@@ -99,6 +119,20 @@ export function SaleForm({ mode, saleId }: SaleFormProps) {
 
   const selectedItems = isEdit ? editItems : cart.items;
   const setSelectedItems = isEdit ? setEditItems : cart.setItems;
+
+  useEffect(() => {
+    if (selectedPayments.length > 0 || paymentMethods.length === 0) return;
+    const preferred =
+      paymentMethods.find((pm) => pm.value === 'efectivo')?.value ?? paymentMethods[0].value;
+    setSelectedPayments([preferred]);
+  }, [paymentMethods, selectedPayments.length]);
+
+  useEffect(() => {
+    if (!canDualPayment && paymentMode === 'dual') {
+      setPaymentMode('single');
+      setSplitAmounts({});
+    }
+  }, [canDualPayment, paymentMode]);
 
   const loadProducts = useCallback(async () => {
     const [productsData, salesData] = await Promise.all([
@@ -596,9 +630,9 @@ export function SaleForm({ mode, saleId }: SaleFormProps) {
         label="Vendedor"
         value={sellerName}
         options={
-          sellerName && !(SALE_SELLERS as readonly string[]).includes(sellerName)
-            ? [sellerName, ...SALE_SELLERS]
-            : [...SALE_SELLERS]
+          sellerName && !sellers.includes(sellerName)
+            ? [sellerName, ...sellers]
+            : sellers
         }
         onChange={setSellerName}
         placeholder="Elegí quién vende"
@@ -780,6 +814,8 @@ export function SaleForm({ mode, saleId }: SaleFormProps) {
 
       <PaymentMethodPicker
         mode={paymentMode}
+        methods={paymentMethods}
+        allowDual={canDualPayment}
         onModeChange={(mode) => {
           setPaymentMode(mode);
           if (mode === 'dual') {

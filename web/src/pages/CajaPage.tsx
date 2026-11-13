@@ -11,7 +11,6 @@ import {
   buildCajaRetiroMessage,
   buildWhatsAppUrl,
   CAJA_WHATSAPP_PHONE,
-  SALE_SELLERS,
   isBrandAdminRole,
   isSuperAdminRole,
 } from '@advance-coat/shared';
@@ -26,6 +25,7 @@ import {
 } from '../services/caja';
 import { getSalesForDay } from '../services/sales';
 import { useAuth } from '../context/AuthContext';
+import { useBrandSellers } from '../hooks/useBrandSellers';
 
 function CajaRow({
   label,
@@ -48,6 +48,7 @@ function CajaRow({
 
 export function CajaPage() {
   const { user, profile } = useAuth();
+  const { sellers } = useBrandSellers();
   const isAdmin = isBrandAdminRole(profile?.role) || isSuperAdminRole(profile?.role);
   const today = new Date();
   const [cajaCambio, setCajaCambio] = useState('');
@@ -420,7 +421,7 @@ export function CajaPage() {
             required
           >
             <option value="">Seleccioná…</option>
-            {SALE_SELLERS.map((name) => (
+            {sellers.map((name) => (
               <option key={name} value={name}>
                 {name}
               </option>
@@ -526,7 +527,7 @@ export function CajaPage() {
                 required
               >
                 <option value="">Seleccioná…</option>
-                {SALE_SELLERS.map((name) => (
+                {sellers.map((name) => (
                   <option key={name} value={name}>
                     {name}
                   </option>

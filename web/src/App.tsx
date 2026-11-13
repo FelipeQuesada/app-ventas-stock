@@ -7,6 +7,7 @@ import { AdminGate } from './components/AdminGate';
 import { PlatformGate } from './components/PlatformGate';
 import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
+import { JoinPage } from './pages/JoinPage';
 import { LandingPage } from './pages/LandingPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { ProductsPage } from './pages/ProductsPage';
@@ -44,6 +45,7 @@ export default function App() {
               <Route path="/legal/:slug" element={<LegalPage />} />
               <Route path="/login" element={<LoginPage />} />
               <Route path="/register" element={<RegisterPage />} />
+              <Route path="/join" element={<JoinPage />} />
               <Route path="/admin/setup" element={<Navigate to="/login" replace />} />
 
               <Route element={<PlatformGate />}>

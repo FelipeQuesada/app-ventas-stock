@@ -30,6 +30,8 @@ export interface Brand {
   ownerUid: string;
   planId: PlanId;
   status: BrandStatus;
+  /** Código para que empleados se sumen solos */
+  inviteCode?: string;
   /** Fin del trial / vigencia opcional */
   planExpiresAt?: Date;
   phone?: string;
@@ -38,6 +40,11 @@ export interface Brand {
   businessType?: BusinessType;
   sellingStatus?: SellingStatus;
   salesChannels?: SalesChannel[];
+  /**
+   * Medios de pago habilitados (marcas no-Advance, plan Pro+).
+   * Si está vacío/undefined se usan todos los estándar.
+   */
+  paymentMethodIds?: PaymentMethod[];
   createdAt?: Date;
   updatedAt?: Date;
 }
@@ -61,7 +68,10 @@ export interface UserProfile {
   /** Marca a la que pertenece. Null solo para super_admin. */
   brandId?: string | null;
   photoUrl?: string;
+  /** false = desactivado o pendiente de aprobación */
   active?: boolean;
+  /** Empleado se registró con código y espera OK del admin */
+  pendingApproval?: boolean;
   createdAt?: Date;
 }
 

@@ -12,7 +12,7 @@ interface QuickActionProps {
   color?: string;
 }
 
-export function QuickAction({ title, icon, href, color = colors.primary }: QuickActionProps) {
+export function QuickAction({ title, icon, href, color = colors.accent }: QuickActionProps) {
   const router = useRouter();
 
   return (

@@ -33,10 +33,12 @@ import {
 import type { Sale, Product } from '@advance-coat/shared';
 import { startOfMonth, subDays, startOfDay, endOfDay } from 'date-fns';
 import { useAuth } from '../context/AuthContext';
+import { useBrand } from '../context/BrandContext';
 
 export function DashboardPage() {
   const navigate = useNavigate();
   const { profile } = useAuth();
+  const { limits } = useBrand();
   const isAdmin = isBrandAdminRole(profile?.role) || isSuperAdminRole(profile?.role);
   const [sales, setSales] = useState<Sale[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -200,11 +202,13 @@ export function DashboardPage() {
               <div className="icon-box"><Wallet size={18} /></div>
               <span>Caja</span>
             </Link>
-            <Link to="/flex" className="quick-link">
-              <div className="icon-box"><Truck size={18} /></div>
-              <span>Flex</span>
-            </Link>
-            {isAdmin && (
+            {limits.flex && (
+              <Link to="/flex" className="quick-link">
+                <div className="icon-box"><Truck size={18} /></div>
+                <span>Flex</span>
+              </Link>
+            )}
+            {isAdmin && limits.statistics && (
               <Link to="/statistics" className="quick-link">
                 <div className="icon-box"><BarChart3 size={18} /></div>
                 <span>Estadísticas</span>

@@ -24,7 +24,7 @@ export const PLAN_DEFINITIONS: Record<PlanId, PlanDefinition> = {
     name: 'Prueba',
     description: '14 días para probar el sistema',
     limits: {
-      maxUsers: 2,
+      maxUsers: 5,
       statistics: true,
       tiendanube: false,
       flex: false,
@@ -34,10 +34,24 @@ export const PLAN_DEFINITIONS: Record<PlanId, PlanDefinition> = {
   },
   starter: {
     id: 'starter',
-    name: 'Starter',
-    description: 'Ideal para un local',
+    name: 'Inicio',
+    description: 'Operá tu local gratis',
     limits: {
-      maxUsers: 3,
+      maxUsers: 1,
+      statistics: false,
+      tiendanube: false,
+      flex: false,
+      presupuestos: false,
+      // Gratis: solo Transferencia (sin dual ni catálogo amplio)
+      multiPayment: false,
+    },
+  },
+  pro: {
+    id: 'pro',
+    name: 'Pro',
+    description: 'Equipo, control y reportes',
+    limits: {
+      maxUsers: 5,
       statistics: true,
       tiendanube: false,
       flex: false,
@@ -45,27 +59,14 @@ export const PLAN_DEFINITIONS: Record<PlanId, PlanDefinition> = {
       multiPayment: true,
     },
   },
-  pro: {
-    id: 'pro',
-    name: 'Pro',
-    description: 'Stock, caja y equipo completo',
-    limits: {
-      maxUsers: 10,
-      statistics: true,
-      tiendanube: true,
-      flex: true,
-      presupuestos: true,
-      multiPayment: true,
-    },
-  },
   enterprise: {
     id: 'enterprise',
-    name: 'Enterprise',
-    description: 'Sin límites prácticos',
+    name: 'Empresa',
+    description: 'Más usuarios, Flex y soporte',
     limits: {
-      maxUsers: 100,
+      maxUsers: 25,
       statistics: true,
-      tiendanube: true,
+      tiendanube: false,
       flex: true,
       presupuestos: true,
       multiPayment: true,

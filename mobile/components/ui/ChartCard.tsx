@@ -1,10 +1,19 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, StyleSheet, Dimensions, ScrollView, Platform } from 'react-native';
 import Svg, { Polyline, Circle, Polygon } from 'react-native-svg';
 import { Card } from './Card';
 import { colors, spacing, typography, radius } from '@/constants/theme';
 const isWeb = Platform.OS === 'web';
 const screenWidth = Dimensions.get('window').width;
+
+function useChartWidth(fallback = screenWidth - 80) {
+  const [width, setWidth] = useState(Math.max(fallback, 200));
+  const onLayout = (event: { nativeEvent: { layout: { width: number } } }) => {
+    const next = Math.floor(event.nativeEvent.layout.width);
+    if (next > 0 && Math.abs(next - width) > 1) setWidth(next);
+  };
+  return { width, onLayout };
+}
 
 export const CHART_PALETTE = [
   '#2563EB',
@@ -38,7 +47,7 @@ export function ChartCard({ title, subtitle, children, scrollable = false }: Cha
       <Text style={styles.title}>{title}</Text>
       {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
       {scrollable ? (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.scroll}>
           {children}
         </ScrollView>
       ) : (
@@ -85,7 +94,8 @@ function WebBarChart({ data, color }: { data: BarChartData[]; color: string }) {
 }
 
 function WebLineChart({ data, color, area = false }: { data: BarChartData[]; color: string; area?: boolean }) {
-  const width = Math.max(screenWidth - 80, data.length * 28);
+  const { width: measured, onLayout } = useChartWidth(screenWidth - 80);
+  const width = measured;
   const height = 180;
   const padding = 16;
   const max = Math.max(...data.map((d) => d.value), 1);
@@ -101,31 +111,36 @@ function WebLineChart({ data, color, area = false }: { data: BarChartData[]; col
     `${points[points.length - 1]?.x ?? padding},${baseline}`,
     `${points[0]?.x ?? padding},${baseline}`,
   ].join(' ');
+  const labelStep = Math.max(1, Math.ceil(data.length / 6));
 
   return (
-    <View style={{ width, height: height + 28 }}>
-      <Svg width={width} height={height}>
-        {area ? (
-          <Polygon points={areaPoints} fill={`${color}22`} stroke="none" />
-        ) : null}
-        <Polyline
-          points={polyline}
-          fill="none"
-          stroke={color}
-          strokeWidth={2.5}
-          strokeLinejoin="round"
-          strokeLinecap="round"
-        />
-        {points.map((point) => (
-          <Circle key={point.label} cx={point.x} cy={point.y} r={3.5} fill={color} />
-        ))}
-      </Svg>
-      <View style={styles.webLineLabels}>
-        {points.filter((_, i) => i % Math.ceil(data.length / 8) === 0 || i === data.length - 1).map((point) => (
-          <Text key={point.label} style={styles.webBarLabel}>
-            {point.label}
-          </Text>
-        ))}
+    <View style={styles.chartFrame} onLayout={onLayout}>
+      <View style={{ width, height: height + 28, maxWidth: '100%' }}>
+        <Svg width={width} height={height}>
+          {area ? (
+            <Polygon points={areaPoints} fill={`${color}22`} stroke="none" />
+          ) : null}
+          <Polyline
+            points={polyline}
+            fill="none"
+            stroke={color}
+            strokeWidth={2.5}
+            strokeLinejoin="round"
+            strokeLinecap="round"
+          />
+          {points.map((point, index) => (
+            <Circle key={`${point.label}-${index}`} cx={point.x} cy={point.y} r={3} fill={color} />
+          ))}
+        </Svg>
+        <View style={styles.webLineLabels}>
+          {points
+            .filter((_, i) => i % labelStep === 0 || i === data.length - 1)
+            .map((point, index) => (
+              <Text key={`${point.label}-${index}`} style={styles.webBarLabel}>
+                {point.label}
+              </Text>
+            ))}
+        </View>
       </View>
     </View>
   );
@@ -214,36 +229,55 @@ function NativeLineChart({
   formatYLabel?: (value: number) => string;
 }) {
   const { LineChart } = require('react-native-gifted-charts');
-  const chartData = data.map((d) => ({ value: d.value, label: d.label }));
-  const chartWidth = Math.max(screenWidth - 80, data.length * 40);
+  const { width: measured, onLayout } = useChartWidth(screenWidth - 80);
+  const yAxisLabelWidth = 40;
+  const initialSpacing = 8;
+  const endSpacing = 8;
+  const chartWidth = Math.max(measured - yAxisLabelWidth, 160);
+  const pointGap =
+    data.length > 1
+      ? Math.max(6, (chartWidth - initialSpacing - endSpacing) / (data.length - 1))
+      : 24;
+  const labelStep = Math.max(1, Math.ceil(data.length / 5));
+  const chartData = data.map((d, index) => ({
+    value: d.value,
+    label: index % labelStep === 0 || index === data.length - 1 ? d.label : '',
+  }));
   const maxValue = Math.max(...data.map((d) => d.value), 1);
 
   return (
-    <LineChart
-      data={chartData}
-      width={chartWidth}
-      height={200}
-      maxValue={maxValue}
-      color={color}
-      thickness={2}
-      hideRules
-      curved
-      areaChart={area}
-      startFillColor={area ? `${color}44` : undefined}
-      endFillColor={area ? `${color}08` : undefined}
-      startOpacity={area ? 0.35 : undefined}
-      endOpacity={area ? 0.05 : undefined}
-      xAxisColor={colors.border}
-      yAxisColor={colors.border}
-      yAxisTextStyle={styles.axisText}
-      xAxisLabelTextStyle={styles.axisText}
-      formatYLabel={formatYLabel ?? formatCompactAxis}
-      noOfSections={4}
-      isAnimated={false}
-      spacing={data.length > 15 ? 20 : 35}
-      dataPointsColor={color}
-      dataPointsRadius={4}
-    />
+    <View style={styles.chartFrame} onLayout={onLayout}>
+      <LineChart
+        data={chartData}
+        width={chartWidth}
+        height={200}
+        maxValue={maxValue}
+        color={color}
+        thickness={2}
+        hideRules
+        curved
+        areaChart={area}
+        startFillColor={area ? `${color}44` : undefined}
+        endFillColor={area ? `${color}08` : undefined}
+        startOpacity={area ? 0.35 : undefined}
+        endOpacity={area ? 0.05 : undefined}
+        xAxisColor={colors.border}
+        yAxisColor={colors.border}
+        yAxisTextStyle={styles.axisText}
+        xAxisLabelTextStyle={styles.axisText}
+        formatYLabel={formatYLabel ?? formatCompactAxis}
+        noOfSections={4}
+        isAnimated={false}
+        spacing={pointGap}
+        initialSpacing={initialSpacing}
+        endSpacing={endSpacing}
+        yAxisLabelWidth={yAxisLabelWidth}
+        dataPointsColor={color}
+        dataPointsRadius={3}
+        overflowTop={12}
+        overflowBottom={0}
+      />
+    </View>
   );
 }
 
@@ -632,9 +666,18 @@ export function StatsRankList({
 const styles = StyleSheet.create({
   card: {
     marginBottom: spacing.md,
+    overflow: 'hidden',
   },
   content: {
     width: '100%',
+    overflow: 'hidden',
+  },
+  scroll: {
+    overflow: 'hidden',
+  },
+  chartFrame: {
+    width: '100%',
+    overflow: 'hidden',
   },
   title: {
     ...typography.h3,

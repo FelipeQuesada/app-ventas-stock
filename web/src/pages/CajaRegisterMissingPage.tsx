@@ -7,7 +7,6 @@ import {
   calculateCajaTotal,
   calculateCajaGanancia,
   calculateCambioCierre,
-  SALE_SELLERS,
   isBrandAdminRole,
   isSuperAdminRole,
 } from '@advance-coat/shared';
@@ -19,6 +18,7 @@ import {
 } from '../services/caja';
 import { getSalesForDay } from '../services/sales';
 import { useAuth } from '../context/AuthContext';
+import { useBrandSellers } from '../hooks/useBrandSellers';
 
 function parseDateInput(value: string): Date | null {
   if (!value) return null;
@@ -30,6 +30,7 @@ export function CajaRegisterMissingPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { user, profile } = useAuth();
+  const { sellers } = useBrandSellers();
   const isAdmin = isBrandAdminRole(profile?.role) || isSuperAdminRole(profile?.role);
 
   const initialDate =
@@ -239,7 +240,7 @@ export function CajaRegisterMissingPage() {
             required
           >
             <option value="">Seleccioná…</option>
-            {SALE_SELLERS.map((name) => (
+            {sellers.map((name) => (
               <option key={name} value={name}>
                 {name}
               </option>
@@ -268,7 +269,7 @@ export function CajaRegisterMissingPage() {
               required
             >
               <option value="">Seleccioná…</option>
-              {SALE_SELLERS.map((name) => (
+              {sellers.map((name) => (
                 <option key={name} value={name}>
                   {name}
                 </option>

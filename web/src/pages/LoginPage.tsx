@@ -156,7 +156,9 @@ export function LoginPage() {
 
               {!forgot && (
                 <p className="muted register-footer-link">
-                  ¿Sos dueño de un negocio? <Link to="/register">Registrá tu marca</Link>
+                  ¿Sos dueño? <Link to="/register">Registrá tu marca</Link>
+                  <br />
+                  ¿Sos empleado? <Link to="/join">Unite con un código</Link>
                 </p>
               )}
             </motion.div>

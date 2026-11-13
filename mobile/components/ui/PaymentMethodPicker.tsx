@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
-import { PAYMENT_METHODS } from '@/constants/payments';
+import { PAYMENT_METHODS, type PaymentMethodOption } from '@/constants/payments';
 import { PaymentMethod } from '@/types';
 import { Input } from '@/components/ui/Input';
 import { formatCurrency } from '@/utils/format';
@@ -14,6 +14,8 @@ interface PaymentMethodPickerProps {
   onModeChange: (mode: PaymentMode) => void;
   selected: PaymentMethod[];
   onChange: (methods: PaymentMethod[]) => void;
+  methods?: PaymentMethodOption[];
+  allowDual?: boolean;
   splitAmounts?: Partial<Record<PaymentMethod, string>>;
   onSplitAmountChange?: (method: PaymentMethod, amount: string) => void;
   total?: number;
@@ -28,6 +30,8 @@ export function PaymentMethodPicker({
   onModeChange,
   selected,
   onChange,
+  methods = PAYMENT_METHODS,
+  allowDual = true,
   splitAmounts,
   onSplitAmountChange,
   total = 0,
@@ -36,6 +40,8 @@ export function PaymentMethodPicker({
   cashChange = 0,
   cashDue = 0,
 }: PaymentMethodPickerProps) {
+  const paymentMethods = methods.length > 0 ? methods : PAYMENT_METHODS;
+  const showDual = allowDual && paymentMethods.length > 1;
   const splitTotal =
     mode === 'dual'
       ? selected.reduce((sum, method) => {
@@ -63,6 +69,7 @@ export function PaymentMethodPicker({
   return (
     <View style={styles.container}>
       <Text style={styles.label}>Forma de pago</Text>
+      {showDual ? (
       <View style={styles.modeRow}>
         <TouchableOpacity
           style={[styles.modeChip, mode === 'single' && styles.modeChipActive]}
@@ -83,9 +90,10 @@ export function PaymentMethodPicker({
           </Text>
         </TouchableOpacity>
       </View>
+      ) : null}
 
       <View style={styles.grid}>
-        {PAYMENT_METHODS.map((pm) => {
+        {paymentMethods.map((pm) => {
           const isSelected = selected.includes(pm.value);
           const disabled =
             mode === 'dual' && !isSelected && selected.length >= 2;
@@ -122,7 +130,7 @@ export function PaymentMethodPicker({
 
       {mode === 'dual' && selected.length === 2
         ? selected.map((method) => {
-            const label = PAYMENT_METHODS.find((pm) => pm.value === method)?.label ?? method;
+            const label = paymentMethods.find((pm) => pm.value === method)?.label ?? method;
             if (method === 'efectivo') {
               return (
                 <View key={method} style={styles.efectivoSplit}>

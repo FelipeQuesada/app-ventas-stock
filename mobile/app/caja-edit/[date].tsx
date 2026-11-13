@@ -17,7 +17,7 @@ import {
   saveCaja,
 } from '@/services/caja';
 import { getSales } from '@/services/sales';
-import { SALE_SELLERS } from '@/constants/sellers';
+import { useBrandSellers } from '@/hooks/useBrandSellers';
 import { calculateCajaTotal } from '@/utils/caja';
 import { formatCurrency, formatDate } from '@/utils/format';
 import { showAlert, showConfirm } from '@/utils/alert';
@@ -45,6 +45,7 @@ function CajaRow({
 }
 
 export default function CajaEditScreen() {
+  const { sellers } = useBrandSellers();
   const { date: dateParam } = useLocalSearchParams<{ date: string }>();
   const router = useRouter();
   const { user, profile } = useAuth();
@@ -138,7 +139,7 @@ export default function CajaEditScreen() {
   };
 
   const handleSave = async () => {
-    const closer = closedByName || SALE_SELLERS[0];
+    const closer = closedByName || profile?.name || sellers[0] || 'Sin nombre';
     if (isNaN(cajaCambioAmount) || cajaCambioAmount < 0) {
       showAlert('Error', 'Ingresá un monto válido para caja cambio');
       return;
@@ -258,7 +259,7 @@ export default function CajaEditScreen() {
           <SelectField
             label="Quién cierra la caja"
             value={closedByName}
-            options={[...SALE_SELLERS]}
+            options={sellers}
             onChange={setClosedByName}
             placeholder="Seleccioná…"
           />

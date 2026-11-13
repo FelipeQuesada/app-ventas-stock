@@ -1,3 +1,4 @@
+import { Platform } from 'react-native';
 import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist/legacy/build/pdf.mjs';
 import { readAsStringAsync, EncodingType } from 'expo-file-system/legacy';
 import {
@@ -5,8 +6,10 @@ import {
   type FlexLabelsParseResult,
 } from '@advance-coat/shared';
 
-// Sin worker (React Native / Expo)
-GlobalWorkerOptions.workerSrc = '';
+// En nativo Metro usa un stub: pdfjs-dist no corre en Hermes.
+if (Platform.OS === 'web') {
+  GlobalWorkerOptions.workerSrc = '';
+}
 
 function base64ToUint8Array(base64: string): Uint8Array {
   const binary =
@@ -54,6 +57,11 @@ export async function parseFlexLabelsPdfUri(
   uri: string,
   options?: { referenceYear?: number }
 ): Promise<FlexLabelsParseResult> {
+  if (Platform.OS !== 'web') {
+    throw new Error(
+      'La importación de etiquetas PDF de Flex no está disponible en la app móvil. Usá la versión web de Control+.'
+    );
+  }
   const base64 = await readAsStringAsync(uri, { encoding: EncodingType.Base64 });
   const data = base64ToUint8Array(base64);
   const pageTexts = await extractPageTextsFromData(data);

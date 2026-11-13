@@ -8,6 +8,7 @@ import {
 } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useAuth } from '@/context/AuthContext';
+import { useBrand } from '@/context/BrandContext';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { PeriodFilter } from '@/components/ui/PeriodFilter';
@@ -26,10 +27,6 @@ import {
 import { LoadingScreen } from '@/components/ui/EmptyState';
 import { getSales } from '@/services/sales';
 import { getProducts } from '@/services/products';
-import {
-  exportSalesInRangeToExcel,
-  buildSalesPdfHtml,
-} from '@/services/export';
 import {
   getMonthlyComparison,
   getTopProducts,
@@ -63,6 +60,10 @@ import { showAlert } from '@/utils/alert';
 import { PdfPreviewModal, PdfPreviewState } from '@/components/ui/PdfPreviewModal';
 import { colors, spacing, typography, radius } from '@/constants/theme';
 
+function canOpenStatistics(role: string | undefined) {
+  return role === 'admin' || role === 'owner' || role === 'super_admin';
+}
+
 function KpiCard({
   label,
   value,
@@ -85,6 +86,7 @@ function KpiCard({
 
 export default function StatisticsScreen() {
   const { profile } = useAuth();
+  const { limits } = useBrand();
   const router = useRouter();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -110,12 +112,12 @@ export default function StatisticsScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      if (profile?.role !== 'admin') {
+      if (!limits.statistics || !canOpenStatistics(profile?.role)) {
         router.replace('/(tabs)');
         return;
       }
       loadData();
-    }, [loadData, profile?.role, router])
+    }, [loadData, profile?.role, limits.statistics, router])
   );
 
   const filtered = useMemo(
@@ -180,6 +182,7 @@ export default function StatisticsScreen() {
   const handleExportExcel = async () => {
     setExporting(true);
     try {
+      const { exportSalesInRangeToExcel } = await import('@/services/export');
       await exportSalesInRangeToExcel(
         filtered,
         period.range.start,
@@ -196,15 +199,21 @@ export default function StatisticsScreen() {
     }
   };
 
-  const handleExportPdf = () => {
+  const handleExportPdf = async () => {
     if (filtered.length === 0) {
       showAlert('Error', 'No hay ventas en este período para exportar');
       return;
     }
-    setPdfPreview({
-      html: buildSalesPdfHtml(filtered, 'Informe de ventas', periodLabel, resinOptions),
-      title: `Informe ${periodLabel}`,
-    });
+    try {
+      const { buildSalesPdfHtml } = await import('@/services/export');
+      setPdfPreview({
+        html: buildSalesPdfHtml(filtered, 'Informe de ventas', periodLabel, resinOptions),
+        title: `Informe ${periodLabel}`,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'No se pudo generar el PDF';
+      showAlert('Error', message);
+    }
   };
 
   if (loading) return <LoadingScreen />;

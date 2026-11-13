@@ -3,8 +3,6 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Plus, Trash2, Search, ShoppingCart, Landmark, Banknote, CreditCard, QrCode } from 'lucide-react';
 import type { DiscountType, PaymentMethod, Product, SaleItem, SaleTicketData } from '@advance-coat/shared';
 import {
-  SALE_SELLERS,
-  PAYMENT_METHODS,
   formatCurrency,
   calculateDiscount,
   calculateSaleTotal,
@@ -12,6 +10,7 @@ import {
   createExtraItem,
   getPaymentMethodLabel,
   getPaymentMethodAlias,
+  getPaymentMethodsForBrand,
   buildSalePaymentData,
   isInvoiceEligibleMethod,
   getUniqueProductCategories,
@@ -28,6 +27,8 @@ import {
 } from '@advance-coat/shared';
 import { getProducts } from '../services/products';
 import { createSale, updateSale, getSale } from '../services/sales';
+import { useBrand } from '../context/BrandContext';
+import { useBrandSellers } from '../hooks/useBrandSellers';
 import {
   deleteSaleDraft,
   getSaleDraft,
@@ -102,11 +103,24 @@ function DraftNumberInput({
 
 export function SalesPage() {
   const { user } = useAuth();
+  const { brand, limits } = useBrand();
+  const { sellers } = useBrandSellers();
   const cart = useCart();
   const navigate = useNavigate();
   const [params] = useSearchParams();
   const editId = params.get('edit');
   const draftId = params.get('draft');
+
+  const paymentMethods = useMemo(
+    () =>
+      getPaymentMethodsForBrand({
+        brandId: brand?.id,
+        planId: brand?.planId,
+        enabledMethodIds: brand?.paymentMethodIds,
+      }),
+    [brand?.id, brand?.planId, brand?.paymentMethodIds]
+  );
+  const canDualPayment = limits.multiPayment && paymentMethods.length > 1;
 
   const [products, setProducts] = useState<Product[]>([]);
   const [search, setSearch] = useState('');
@@ -119,7 +133,7 @@ export function SalesPage() {
   const [customerEmail, setCustomerEmail] = useState('');
   const [customerCuit, setCustomerCuit] = useState('');
   const [paymentMode, setPaymentMode] = useState<'single' | 'dual'>('single');
-  const [selectedPayments, setSelectedPayments] = useState<PaymentMethod[]>(['efectivo']);
+  const [selectedPayments, setSelectedPayments] = useState<PaymentMethod[]>([]);
   const [splitAmounts, setSplitAmounts] = useState<Partial<Record<PaymentMethod, string>>>({});
   const [wantsInvoice, setWantsInvoice] = useState(false);
   const [discountType, setDiscountType] = useState<DiscountType | null>(null);
@@ -139,6 +153,20 @@ export function SalesPage() {
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const loadedSaleKey = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (selectedPayments.length > 0 || paymentMethods.length === 0) return;
+    const preferred =
+      paymentMethods.find((pm) => pm.value === 'efectivo')?.value ?? paymentMethods[0].value;
+    setSelectedPayments([preferred]);
+  }, [paymentMethods, selectedPayments.length]);
+
+  useEffect(() => {
+    if (!canDualPayment && paymentMode === 'dual') {
+      setPaymentMode('single');
+      setSplitAmounts({});
+    }
+  }, [canDualPayment, paymentMode]);
 
   useEffect(() => {
     let cancelled = false;
@@ -537,12 +565,15 @@ export function SalesPage() {
         <label>Vendedor</label>
         <select value={seller} onChange={(e) => setSeller(e.target.value)}>
           <option value="">Elegí quién vende</option>
-          {SALE_SELLERS.map((s) => (
+          {sellers.map((s) => (
             <option key={s} value={s}>
               {s}
             </option>
           ))}
         </select>
+        {sellers.length === 0 ? (
+          <p className="caja-hint">No hay usuarios activos. Sumá empleados desde Usuarios o con el código de marca.</p>
+        ) : null}
       </div>
 
       <h4 className="sale-section-title">Datos del cliente</h4>
@@ -829,6 +860,7 @@ export function SalesPage() {
       )}
 
       <h4 className="sale-section-title">Forma de pago</h4>
+      {canDualPayment ? (
       <div className="payment-mode-row">
         <button
           type="button"
@@ -854,8 +886,9 @@ export function SalesPage() {
           Dos métodos
         </button>
       </div>
+      ) : null}
       <div className="payment-grid">
-        {PAYMENT_METHODS.map((pm) => {
+        {paymentMethods.map((pm) => {
           const Icon = PAYMENT_ICONS[pm.icon] ?? Banknote;
           const isSelected = selectedPayments.includes(pm.value);
           const disabled = paymentMode === 'dual' && !isSelected && selectedPayments.length >= 2;
@@ -911,7 +944,7 @@ export function SalesPage() {
       ) : null}
       {paymentMode === 'dual' && selectedPayments.length === 2
         ? selectedPayments.map((method) => {
-            const label = PAYMENT_METHODS.find((pm) => pm.value === method)?.label ?? method;
+            const label = paymentMethods.find((pm) => pm.value === method)?.label ?? getPaymentMethodLabel(method);
             if (method === 'efectivo') {
               return (
                 <div className="sale-split-efectivo" key={method}>

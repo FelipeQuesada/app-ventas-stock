@@ -1,7 +1,17 @@
 import type { PaymentMethod, Sale, SalePaymentSplit } from '../types/index';
 import { formatCurrency } from '../utils/format';
+import { getPlanLimits } from './plans';
+import { isAdvanceBrand } from './sellers';
 
-export const PAYMENT_METHODS: { value: PaymentMethod; label: string; icon: string; alias?: string }[] = [
+export type PaymentMethodOption = {
+  value: PaymentMethod;
+  label: string;
+  icon: string;
+  alias?: string;
+};
+
+/** Catálogo Advance (transferencias nominadas + medios estándar) */
+export const ADVANCE_PAYMENT_METHODS: PaymentMethodOption[] = [
   { value: 'transferencia_feli', label: 'Transferencia Feli', icon: 'account-balance', alias: 'feliquesada' },
   { value: 'transferencia_mateo', label: 'Transferencia Mateo', icon: 'account-balance', alias: 'matequesada' },
   { value: 'transferencia_paula', label: 'Transferencia Paula', icon: 'account-balance', alias: 'Paularuben.mp' },
@@ -11,6 +21,29 @@ export const PAYMENT_METHODS: { value: PaymentMethod; label: string; icon: strin
   { value: 'qr', label: 'QR', icon: 'qr-code' },
 ];
 
+/** Medios que una marca Pro+ puede habilitar */
+export const STANDARD_PAYMENT_METHODS: PaymentMethodOption[] = [
+  { value: 'transferencia', label: 'Transferencia', icon: 'account-balance' },
+  { value: 'efectivo', label: 'Efectivo', icon: 'payments' },
+  { value: 'debito', label: 'Débito', icon: 'credit-card' },
+  { value: 'credito', label: 'Crédito', icon: 'credit-card' },
+  { value: 'qr', label: 'QR', icon: 'qr-code' },
+  { value: 'mercado_pago', label: 'Mercado Pago', icon: 'account-balance' },
+];
+
+/** Plan gratis: solo transferencia genérica */
+export const FREE_PAYMENT_METHODS: PaymentMethodOption[] = [
+  { value: 'transferencia', label: 'Transferencia', icon: 'account-balance' },
+];
+
+/** @deprecated Preferí getPaymentMethodsForBrand. Se mantiene como Advance para compat. */
+export const PAYMENT_METHODS = ADVANCE_PAYMENT_METHODS;
+
+const ALL_PAYMENT_METHODS: PaymentMethodOption[] = [
+  ...ADVANCE_PAYMENT_METHODS,
+  ...STANDARD_PAYMENT_METHODS,
+];
+
 const LEGACY_LABELS: Record<string, string> = {
   transferencia: 'Transferencia',
   mercado_pago: 'Mercado Pago',
@@ -18,14 +51,43 @@ const LEGACY_LABELS: Record<string, string> = {
 
 export function getPaymentMethodLabel(method: string, storedLabel?: string): string {
   if (storedLabel) return storedLabel;
-  const found = PAYMENT_METHODS.find((pm) => pm.value === method);
+  const found = ALL_PAYMENT_METHODS.find((pm) => pm.value === method);
   if (found) return found.label;
   return LEGACY_LABELS[method] ?? method;
 }
 
 export function getPaymentMethodAlias(method: PaymentMethod | null | undefined): string | null {
   if (!method) return null;
-  return PAYMENT_METHODS.find((pm) => pm.value === method)?.alias ?? null;
+  return ALL_PAYMENT_METHODS.find((pm) => pm.value === method)?.alias ?? null;
+}
+
+/**
+ * Métodos de pago visibles para la marca.
+ * - Advance: catálogo nominado histórico
+ * - Gratis: solo Transferencia
+ * - Pro+: estándar (o subset guardado en brand.paymentMethodIds)
+ */
+export function getPaymentMethodsForBrand(input: {
+  brandId?: string | null;
+  planId?: string | null;
+  enabledMethodIds?: PaymentMethod[] | null;
+}): PaymentMethodOption[] {
+  if (isAdvanceBrand(input.brandId)) {
+    return ADVANCE_PAYMENT_METHODS;
+  }
+
+  const limits = getPlanLimits(input.planId ?? undefined);
+  if (!limits.multiPayment) {
+    return FREE_PAYMENT_METHODS;
+  }
+
+  const enabled = input.enabledMethodIds?.filter(Boolean) ?? [];
+  if (enabled.length > 0) {
+    const selected = STANDARD_PAYMENT_METHODS.filter((pm) => enabled.includes(pm.value));
+    return selected.length > 0 ? selected : FREE_PAYMENT_METHODS;
+  }
+
+  return STANDARD_PAYMENT_METHODS;
 }
 
 export const INVOICE_ELIGIBLE_METHODS: PaymentMethod[] = ['debito', 'credito', 'qr'];

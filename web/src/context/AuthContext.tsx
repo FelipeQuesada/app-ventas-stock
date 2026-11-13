@@ -34,7 +34,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         p = await repairOwnerProfileIfMissing(firebaseUser);
       }
       setProfileError(null);
-      if (p && p.active === false) {
+      // Pendientes de aprobación pueden quedarse logueados (pantalla de espera)
+      if (p && p.active === false && !p.pendingApproval) {
         await signOutUser();
         setProfile(null);
         return;

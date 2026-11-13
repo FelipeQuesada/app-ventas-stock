@@ -36,6 +36,7 @@ import { getSales } from '../services/sales';
 import { getProducts } from '../services/products';
 import { PeriodFilter } from '../components/PeriodFilter';
 import { useAuth } from '../context/AuthContext';
+import { useBrand } from '../context/BrandContext';
 import {
   getTopProducts,
   getPaymentMethodRevenueStats,
@@ -103,6 +104,7 @@ function RankRow({
 
 export function StatisticsPage() {
   const { profile } = useAuth();
+  const { limits } = useBrand();
   const [sales, setSales] = useState<Sale[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
@@ -186,7 +188,7 @@ export function StatisticsPage() {
   const sellerTotal = sellers.reduce((sum, item) => sum + item.value, 0) || 1;
   const dominantPayment = payments[0];
 
-  if (!isBrandAdminRole(profile?.role) && !isSuperAdminRole(profile?.role)) {
+  if (!limits.statistics || (!isBrandAdminRole(profile?.role) && !isSuperAdminRole(profile?.role))) {
     return <Navigate to="/app" replace />;
   }
 
