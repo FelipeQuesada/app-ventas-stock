@@ -15,6 +15,7 @@ import {
 import { formatCurrency, formatDate } from '@/utils/format';
 import { showAlert } from '@/utils/alert';
 import { colors, radius, spacing, typography } from '@/constants/theme';
+import { useBrand } from '@/context/BrandContext';
 
 type Props = {
   visible: boolean;
@@ -25,14 +26,21 @@ type Props = {
 
 export function SaleTicketModal({ visible, sale, onClose, title = 'Venta registrada' }: Props) {
   const [pdfPreview, setPdfPreview] = useState<PdfPreviewState>(null);
+  const { brand } = useBrand();
 
   if (!sale) return null;
 
-  const hasPhone = !!normalizeWhatsAppPhone(sale.customer?.phone);
+  const ticket: SaleTicketData = {
+    ...sale,
+    brandName: sale.brandName || brand?.name || 'Advance Coat',
+    brandId: sale.brandId ?? brand?.id ?? null,
+  };
+
+  const hasPhone = !!normalizeWhatsAppPhone(ticket.customer?.phone);
 
   const handleShare = async () => {
     try {
-      await shareSaleTicket(sale);
+      await shareSaleTicket(ticket);
     } catch {
       showAlert('Error', 'No se pudo compartir el ticket');
     }
@@ -46,7 +54,7 @@ export function SaleTicketModal({ visible, sale, onClose, title = 'Venta registr
           'Esta venta no tiene teléfono de cliente. Se abrirá WhatsApp sin destinatario.'
         );
       }
-      await shareSaleTicketWhatsApp(sale);
+      await shareSaleTicketWhatsApp(ticket);
     } catch {
       showAlert('Error', 'No se pudo abrir WhatsApp');
     }
@@ -54,7 +62,7 @@ export function SaleTicketModal({ visible, sale, onClose, title = 'Venta registr
 
   const handleGroup = async () => {
     try {
-      await copySaleGroupText(sale);
+      await copySaleGroupText(ticket);
       showAlert('Copiado', 'Mensaje de grupo copiado al portapapeles');
     } catch {
       showAlert('Error', 'No se pudo copiar el mensaje de grupo');
@@ -63,7 +71,7 @@ export function SaleTicketModal({ visible, sale, onClose, title = 'Venta registr
 
   const handleExport = async () => {
     try {
-      await exportSaleTicketFile(sale);
+      await exportSaleTicketFile(ticket);
     } catch {
       showAlert('Error', 'No se pudo exportar el ticket');
     }
@@ -71,7 +79,7 @@ export function SaleTicketModal({ visible, sale, onClose, title = 'Venta registr
 
   const handlePdf = () => {
     setPdfPreview({
-      html: buildSaleTicketHtml(sale),
+      html: buildSaleTicketHtml(ticket),
       title: 'Presupuesto',
     });
   };
@@ -89,18 +97,18 @@ export function SaleTicketModal({ visible, sale, onClose, title = 'Venta registr
           </View>
 
           <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-            <Text style={styles.brand}>Advance Coat</Text>
-            <Text style={styles.meta}>{formatDate(sale.date)}</Text>
-            {sale.customer?.name ? (
-              <Text style={styles.meta}>Cliente: {sale.customer.name}</Text>
+            <Text style={styles.brand}>{ticket.brandName}</Text>
+            <Text style={styles.meta}>{formatDate(ticket.date)}</Text>
+            {ticket.customer?.name ? (
+              <Text style={styles.meta}>Cliente: {ticket.customer.name}</Text>
             ) : null}
-            {sale.customer?.phone ? (
-              <Text style={styles.meta}>Tel: {sale.customer.phone}</Text>
+            {ticket.customer?.phone ? (
+              <Text style={styles.meta}>Tel: {ticket.customer.phone}</Text>
             ) : null}
 
             <View style={styles.divider} />
 
-            {sale.items.map((item, index) => (
+            {ticket.items.map((item, index) => (
               <View key={`${item.productId}-${index}`} style={styles.itemRow}>
                 <View style={styles.itemInfo}>
                   <Text style={styles.itemName}>{item.productName}</Text>
@@ -116,19 +124,19 @@ export function SaleTicketModal({ visible, sale, onClose, title = 'Venta registr
 
             <View style={styles.summaryRow}>
               <Text style={styles.summaryLabel}>Subtotal</Text>
-              <Text style={styles.summaryValue}>{formatCurrency(sale.subtotal)}</Text>
+              <Text style={styles.summaryValue}>{formatCurrency(ticket.subtotal)}</Text>
             </View>
-            {(sale.discountAmount ?? 0) > 0 && (
+            {(ticket.discountAmount ?? 0) > 0 && (
               <View style={styles.summaryRow}>
                 <Text style={styles.summaryLabel}>Descuento</Text>
                 <Text style={[styles.summaryValue, styles.discount]}>
-                  -{formatCurrency(sale.discountAmount ?? 0)}
+                  -{formatCurrency(ticket.discountAmount ?? 0)}
                 </Text>
               </View>
             )}
             <View style={styles.summaryRow}>
               <Text style={styles.totalLabel}>Total</Text>
-              <Text style={styles.totalValue}>{formatCurrency(sale.total)}</Text>
+              <Text style={styles.totalValue}>{formatCurrency(ticket.total)}</Text>
             </View>
           </ScrollView>
 

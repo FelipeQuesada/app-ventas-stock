@@ -14,6 +14,8 @@ import { format } from 'date-fns';
 
 const TICKET_WEB_LINK = 'https://linktr.ee/AdvanceCoat';
 const TICKET_WEB_LABEL = 'Página web e instructivo de uso';
+const DEFAULT_TICKET_BRAND = 'Advance Coat';
+const DEFAULT_BRAND_ID = 'advance-coat';
 
 export type SaleTicketData = Pick<
   Sale,
@@ -29,7 +31,20 @@ export type SaleTicketData = Pick<
   | 'amountPaid'
   | 'change'
   | 'createdByName'
-> & { id?: string };
+> & { id?: string; brandName?: string; brandId?: string | null };
+
+function resolveTicketBrandName(sale: Sale | SaleTicketData): string {
+  const named = 'brandName' in sale ? sale.brandName : undefined;
+  if (named?.trim()) return named.trim();
+  return DEFAULT_TICKET_BRAND;
+}
+
+function isAdvanceTicket(sale: Sale | SaleTicketData): boolean {
+  const brandId = 'brandId' in sale ? sale.brandId : undefined;
+  if (brandId === DEFAULT_BRAND_ID) return true;
+  if (typeof brandId === 'string' && brandId.length > 0) return false;
+  return resolveTicketBrandName(sale).toLowerCase() === 'advance coat';
+}
 
 /** Normaliza teléfonos AR a formato wa.me (549XXXXXXXXXX). */
 export function normalizeWhatsAppPhone(phone: string | undefined | null): string | null {
@@ -63,8 +78,9 @@ export function buildWhatsAppUrl(phone: string | null | undefined, text: string)
 }
 
 export function buildSaleTicketText(sale: Sale | SaleTicketData): string {
+  const brandName = resolveTicketBrandName(sale);
   const lines: string[] = [];
-  lines.push('ADVANCE COAT');
+  lines.push(brandName.toUpperCase());
   lines.push('Presupuesto');
   lines.push('----------------------------');
   lines.push(`Fecha: ${formatDate(sale.date)}`);
@@ -87,9 +103,11 @@ export function buildSaleTicketText(sale: Sale | SaleTicketData): string {
   }
   lines.push(`TOTAL: ${formatCurrency(sale.total)}`);
   lines.push(`Pago: ${getSalePaymentLabel(sale)}`);
-  lines.push('----------------------------');
-  lines.push(TICKET_WEB_LABEL);
-  lines.push(TICKET_WEB_LINK);
+  if (isAdvanceTicket(sale)) {
+    lines.push('----------------------------');
+    lines.push(TICKET_WEB_LABEL);
+    lines.push(TICKET_WEB_LINK);
+  }
   return lines.join('\n');
 }
 
@@ -117,6 +135,7 @@ export function buildSaleGroupText(sale: Sale | SaleTicketData): string {
 }
 
 export function buildSaleTicketHtml(sale: Sale | SaleTicketData): string {
+  const brandName = resolveTicketBrandName(sale);
   const itemsHtml = sale.items
     .map(
       (item) => `
@@ -126,6 +145,10 @@ export function buildSaleTicketHtml(sale: Sale | SaleTicketData): string {
       </tr>`
     )
     .join('');
+
+  const footer = isAdvanceTicket(sale)
+    ? `<p class="meta">${escapeHtml(TICKET_WEB_LABEL)}<br/><a href="${TICKET_WEB_LINK}">${TICKET_WEB_LINK}</a></p>`
+    : '';
 
   return `<!DOCTYPE html>
 <html>
@@ -143,7 +166,7 @@ export function buildSaleTicketHtml(sale: Sale | SaleTicketData): string {
   </style>
 </head>
 <body>
-  <h1>Advance Coat</h1>
+  <h1>${escapeHtml(brandName)}</h1>
   <div class="meta">Presupuesto · ${formatDate(sale.date)}</div>
   ${sale.createdByName ? `<p><strong>Vendedor:</strong> ${escapeHtml(sale.createdByName)}</p>` : ''}
   ${sale.customer?.name ? `<p><strong>Cliente:</strong> ${escapeHtml(sale.customer.name)}</p>` : ''}
@@ -153,7 +176,7 @@ export function buildSaleTicketHtml(sale: Sale | SaleTicketData): string {
   ${(sale.discountAmount ?? 0) > 0 ? `<p class="label">Descuento: -${formatCurrency(sale.discountAmount ?? 0)}</p>` : ''}
   <p class="total">TOTAL: ${formatCurrency(sale.total)}</p>
   <p class="label">Pago: ${escapeHtml(getSalePaymentLabel(sale))}</p>
-  <p class="meta">${escapeHtml(TICKET_WEB_LABEL)}<br/><a href="${TICKET_WEB_LINK}">${TICKET_WEB_LINK}</a></p>
+  ${footer}
 </body>
 </html>`;
 }

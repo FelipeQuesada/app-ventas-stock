@@ -23,13 +23,24 @@ import { getProducts } from '../services/products';
 import { exportSalesInRangeToExcel, exportSalesInRangeToPdf, printHtml } from '../services/export';
 import { PeriodFilter } from '../components/PeriodFilter';
 import { useAuth } from '../context/AuthContext';
+import { useBrand } from '../context/BrandContext';
+import type { SaleTicketData } from '@advance-coat/shared';
 
 export function SalesListPage() {
   const { user, profile } = useAuth();
+  const { brand } = useBrand();
   const [sales, setSales] = useState<Sale[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState<PeriodSelection>(createDefaultPeriod());
+
+  function withBrandTicket(sale: Sale): SaleTicketData {
+    return {
+      ...sale,
+      brandName: brand?.name,
+      brandId: brand?.id ?? null,
+    };
+  }
 
   async function load() {
     setLoading(true);
@@ -68,14 +79,15 @@ export function SalesListPage() {
   }
 
   function openWhatsApp(sale: Sale) {
-    const text = buildSaleTicketText(sale);
+    const ticket = withBrandTicket(sale);
+    const text = buildSaleTicketText(ticket);
     const url = buildWhatsAppUrl(sale.customer?.phone, text);
     window.open(url, '_blank');
   }
 
   async function copyGroup(sale: Sale) {
     try {
-      await navigator.clipboard.writeText(buildSaleGroupText(sale));
+      await navigator.clipboard.writeText(buildSaleGroupText(withBrandTicket(sale)));
       window.alert('Mensaje de grupo copiado');
     } catch {
       window.alert('No se pudo copiar el mensaje');
@@ -83,7 +95,7 @@ export function SalesListPage() {
   }
 
   function openPdf(sale: Sale) {
-    printHtml(buildSaleTicketHtml(sale));
+    printHtml(buildSaleTicketHtml(withBrandTicket(sale)));
   }
 
   if (loading) return <div className="loading-screen">Cargando ventas…</div>;

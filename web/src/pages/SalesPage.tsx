@@ -386,6 +386,8 @@ export function SalesPage() {
         amountPaid: input.amountPaid,
         change: input.change,
         createdByName: input.createdByName,
+        brandName: brand?.name,
+        brandId: brand?.id ?? null,
       };
 
       if (editId) {

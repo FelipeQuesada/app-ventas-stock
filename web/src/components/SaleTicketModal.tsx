@@ -10,6 +10,7 @@ import {
   buildWhatsAppUrl,
 } from '@advance-coat/shared';
 import { printHtml } from '../services/export';
+import { useBrand } from '../context/BrandContext';
 
 type Props = {
   sale: SaleTicketData | null;
@@ -18,7 +19,14 @@ type Props = {
 };
 
 export function SaleTicketModal({ sale, title = 'Venta registrada', onClose }: Props) {
+  const { brand } = useBrand();
   if (!sale) return null;
+
+  const ticket: SaleTicketData = {
+    ...sale,
+    brandName: sale.brandName || brand?.name || 'Advance Coat',
+    brandId: sale.brandId ?? brand?.id ?? null,
+  };
 
   function openWhatsApp(text: string, phone?: string) {
     window.open(buildWhatsAppUrl(phone, text), '_blank');
@@ -44,19 +52,19 @@ export function SaleTicketModal({ sale, title = 'Venta registrada', onClose }: P
         </div>
 
         <div className="sale-ticket-preview">
-          <p className="sale-ticket-brand">Advance Coat</p>
+          <p className="sale-ticket-brand">{ticket.brandName}</p>
           <p className="muted" style={{ textAlign: 'center', margin: '4px 0 0' }}>
-            {formatDate(sale.date)}
+            {formatDate(ticket.date)}
           </p>
-          {sale.createdByName ? (
+          {ticket.createdByName ? (
             <p className="muted" style={{ textAlign: 'center', margin: '2px 0 0' }}>
-              Vendedor: {sale.createdByName}
+              Vendedor: {ticket.createdByName}
             </p>
           ) : null}
 
           <div className="sale-ticket-divider" />
 
-          {sale.items.map((item, index) => (
+          {ticket.items.map((item, index) => (
             <div className="sale-ticket-item" key={`${item.productId}-${index}`}>
               <div>
                 <strong>{item.productName}</strong>
@@ -73,23 +81,23 @@ export function SaleTicketModal({ sale, title = 'Venta registrada', onClose }: P
           <div className="sale-ticket-summary">
             <div className="row">
               <span className="muted">Subtotal</span>
-              <strong>{formatCurrency(sale.subtotal)}</strong>
+              <strong>{formatCurrency(ticket.subtotal)}</strong>
             </div>
-            {(sale.discountAmount ?? 0) > 0 ? (
+            {(ticket.discountAmount ?? 0) > 0 ? (
               <div className="row">
                 <span className="muted">Descuento</span>
                 <strong style={{ color: 'var(--success)' }}>
-                  -{formatCurrency(sale.discountAmount ?? 0)}
+                  -{formatCurrency(ticket.discountAmount ?? 0)}
                 </strong>
               </div>
             ) : null}
             <div className="row sale-ticket-total">
               <span>Total</span>
-              <strong>{formatCurrency(sale.total)}</strong>
+              <strong>{formatCurrency(ticket.total)}</strong>
             </div>
             <div className="row">
               <span className="muted">Pago</span>
-              <strong>{getSalePaymentLabel(sale)}</strong>
+              <strong>{getSalePaymentLabel(ticket)}</strong>
             </div>
           </div>
         </div>
@@ -98,21 +106,21 @@ export function SaleTicketModal({ sale, title = 'Venta registrada', onClose }: P
           <button
             type="button"
             className="btn btn-primary btn-sm"
-            onClick={() => openWhatsApp(buildSaleTicketText(sale), sale.customer?.phone)}
+            onClick={() => openWhatsApp(buildSaleTicketText(ticket), ticket.customer?.phone)}
           >
             WhatsApp
           </button>
           <button
             type="button"
             className="btn btn-ghost btn-sm"
-            onClick={() => void copyText(buildSaleGroupText(sale), 'Mensaje de grupo copiado')}
+            onClick={() => void copyText(buildSaleGroupText(ticket), 'Mensaje de grupo copiado')}
           >
             Grupo
           </button>
           <button
             type="button"
             className="btn btn-secondary btn-sm"
-            onClick={() => printHtml(buildSaleTicketHtml(sale))}
+            onClick={() => printHtml(buildSaleTicketHtml(ticket))}
           >
             PDF
           </button>
@@ -121,7 +129,7 @@ export function SaleTicketModal({ sale, title = 'Venta registrada', onClose }: P
           <button
             type="button"
             className="btn btn-ghost btn-sm"
-            onClick={() => void copyText(buildSaleTicketText(sale), 'Presupuesto copiado')}
+            onClick={() => void copyText(buildSaleTicketText(ticket), 'Presupuesto copiado')}
           >
             Copiar presupuesto
           </button>
