@@ -155,20 +155,32 @@ export async function signIn(email: string, password: string) {
 
   // Legacy: usuarios sin brandId → Advance
   if (profile.role !== 'super_admin' && !profile.brandId) {
-    await updateDoc(doc(db, 'users', profile.uid), { brandId: DEFAULT_BRAND_ID });
-    if (isSuperAdminEmail(profile.email) || profile.role === 'admin' || profile.role === 'owner') {
+    try {
+      await updateDoc(doc(db, 'users', profile.uid), { brandId: DEFAULT_BRAND_ID });
+      profile = { ...profile, brandId: DEFAULT_BRAND_ID };
+    } catch (err) {
+      console.warn('No se pudo sellar brandId en login:', err);
+      profile = { ...profile, brandId: DEFAULT_BRAND_ID };
+    }
+    if (profile.role === 'admin' || profile.role === 'owner' || isSuperAdminEmail(profile.email)) {
       await ensureLegacyAdvanceBrand(profile.uid).catch(() => undefined);
     }
   }
 
   if (profile.role !== 'super_admin' && profile.brandId) {
-    const brand = await getBrand(profile.brandId);
-    if (brand?.status === 'suspended') {
-      await signOut(auth);
-      throw accessError(
-        'auth/brand-suspended',
-        'Esta marca está suspendida. Contactá a soporte Control+.'
-      );
+    try {
+      const brand = await getBrand(profile.brandId);
+      if (brand?.status === 'suspended') {
+        await signOut(auth);
+        throw accessError(
+          'auth/brand-suspended',
+          'Esta marca está suspendida. Contactá a soporte Control+.'
+        );
+      }
+    } catch (err) {
+      const code = (err as { code?: string })?.code;
+      if (code === 'auth/brand-suspended') throw err;
+      console.warn('No se pudo leer la marca en login:', err);
     }
   }
 

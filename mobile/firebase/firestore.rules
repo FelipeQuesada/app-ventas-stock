@@ -62,7 +62,20 @@ service cloud.firestore {
     function brandWriteOk() {
       return isSuperAdmin()
         || (hasOwnProfile()
-            && request.resource.data.brandId == userBrandId());
+            && !missingBrandId(request.resource.data)
+            && request.resource.data.brandId == userBrandId())
+        // Docs legacy Advance sin brandId (updates de stock, etc.)
+        || (hasOwnProfile()
+            && userBrandId() == 'advance-coat'
+            && missingBrandId(request.resource.data));
+    }
+
+    /** Update de stock (y sellado opcional de brandId legacy) */
+    function stockOnlyUpdate() {
+      return request.resource.data.diff(resource.data).affectedKeys()
+        .hasOnly(['stock'])
+        || request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['stock', 'brandId']);
     }
 
     function canSelfSealAdvanceBrand(uid) {
@@ -134,7 +147,8 @@ service cloud.firestore {
       allow read, update: if isSuperAdmin();
       allow read: if isAuthenticated() && isActiveMember() && sameBrand(resource.data);
       allow create: if isAuthenticated() && isActiveMember() && brandWriteOk();
-      allow update: if isAuthenticated() && isActiveMember() && sameBrand(resource.data) && brandWriteOk();
+      allow update: if isAuthenticated() && isActiveMember() && sameBrand(resource.data)
+        && (brandWriteOk() || stockOnlyUpdate());
       allow delete: if isBrandAdmin() && sameBrand(resource.data);
     }
 
@@ -142,7 +156,8 @@ service cloud.firestore {
       allow read, update: if isSuperAdmin();
       allow read: if isAuthenticated() && isActiveMember() && sameBrand(resource.data);
       allow create: if isAuthenticated() && isActiveMember() && brandWriteOk();
-      allow update: if isAuthenticated() && isActiveMember() && sameBrand(resource.data) && brandWriteOk();
+      allow update: if isAuthenticated() && isActiveMember() && sameBrand(resource.data)
+        && (brandWriteOk() || stockOnlyUpdate());
       allow delete: if isBrandAdmin() && sameBrand(resource.data);
     }
 

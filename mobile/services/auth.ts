@@ -171,15 +171,27 @@ export async function signIn(email: string, password: string) {
   }
 
   if (profile.role !== 'super_admin' && !profile.brandId) {
-    await updateDoc(doc(db, 'users', profile.uid), { brandId: DEFAULT_BRAND_ID });
+    try {
+      await updateDoc(doc(db, 'users', profile.uid), { brandId: DEFAULT_BRAND_ID });
+      profile = { ...profile, brandId: DEFAULT_BRAND_ID };
+    } catch (err) {
+      console.warn('No se pudo sellar brandId en login:', err);
+      profile = { ...profile, brandId: DEFAULT_BRAND_ID };
+    }
     await ensureLegacyAdvanceBrand(profile.uid).catch(() => undefined);
   }
 
   if (profile.role !== 'super_admin' && profile.brandId) {
-    const brand = await getBrand(profile.brandId);
-    if (brand?.status === 'suspended') {
-      await signOut(auth);
-      throw accessError('auth/brand-suspended', 'Esta marca está suspendida.');
+    try {
+      const brand = await getBrand(profile.brandId);
+      if (brand?.status === 'suspended') {
+        await signOut(auth);
+        throw accessError('auth/brand-suspended', 'Esta marca está suspendida.');
+      }
+    } catch (err) {
+      const code = (err as { code?: string })?.code;
+      if (code === 'auth/brand-suspended') throw err;
+      console.warn('No se pudo leer la marca en login:', err);
     }
   }
 

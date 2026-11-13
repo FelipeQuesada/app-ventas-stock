@@ -624,6 +624,47 @@ export function LandingPage() {
         </div>
       </section>
 
+      <section className="lp-section lp-partners-section" id="clientes">
+        <div className="lp-container">
+          <div className="lp-center lp-reveal">
+            <div className="lp-eyebrow">Clientes</div>
+            <h2 className="lp-section-title">Trabajamos con</h2>
+            <p className="lp-section-sub">
+              Marcas que ya operan ventas, stock y caja con Control+.
+            </p>
+          </div>
+          <div className="lp-partners lp-reveal" aria-label="Marcas con las que trabajamos">
+            <a
+              className="lp-partner"
+              href="https://www.advancecoat.com.ar/"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Advance Coat (abre en una pestaña nueva)"
+            >
+              <img src="/partners/advance-coat.png?v=4" alt="Advance Coat" loading="lazy" />
+            </a>
+            <a
+              className="lp-partner"
+              href="https://www.sismofiesta.com.ar/"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="SISMD (abre en una pestaña nueva)"
+            >
+              <img src="/partners/sismd.png?v=3" alt="SISMD" loading="lazy" />
+            </a>
+            <a
+              className="lp-partner"
+              href="https://www.kelcot.com.ar/"
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="KELCOT (abre en una pestaña nueva)"
+            >
+              <img src="/partners/kelcot.png?v=3" alt="KELCOT" loading="lazy" />
+            </a>
+          </div>
+        </div>
+      </section>
+
       <section className="lp-section" id="planes">
         <div className="lp-container">
           <div className="lp-center lp-reveal">

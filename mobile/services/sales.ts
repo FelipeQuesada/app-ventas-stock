@@ -12,6 +12,7 @@ import {
 } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { listByBrand, withBrandFields } from '@/lib/brandQuery';
+import { requireBrandId } from '@/lib/brandScope';
 import { Sale, SaleItem, PaymentMethod, SaleCustomer, DiscountType, SalePaymentSplit } from '@/types';
 import { saveCustomer } from '@/services/customers';
 import { aggregateProductQuantities, isExtraItem } from '@/utils/sale';
@@ -123,15 +124,19 @@ export async function createSale(
 
   try {
     const saleId = await commitSaleCreate(input);
-    await logAudit({
-      action: 'sale_create',
-      entityType: 'sale',
-      entityId: saleId,
-      summary: `Venta por $${input.total}`,
-      userId: input.createdBy,
-      userName: input.createdByName,
-      meta: { total: input.total, paymentMethod: input.paymentMethod },
-    });
+    try {
+      await logAudit({
+        action: 'sale_create',
+        entityType: 'sale',
+        entityId: saleId,
+        summary: `Venta por $${input.total}`,
+        userId: input.createdBy,
+        userName: input.createdByName,
+        meta: { total: input.total, paymentMethod: input.paymentMethod },
+      });
+    } catch (auditError) {
+      console.warn('Venta registrada, pero el audit log falló:', auditError);
+    }
     return saleId;
   } catch (error) {
     if (!options.skipOfflineQueue && isLikelyNetworkError(error)) {
@@ -169,8 +174,15 @@ async function commitSaleCreate(input: CreateSaleInput): Promise<string> {
     const productRef = doc(db, 'products', productId);
     const snap = await getDoc(productRef);
     if (snap.exists()) {
-      const currentStock = snap.data().stock as number;
-      batch.update(productRef, { stock: Math.max(0, currentStock - totalQty) });
+      const data = snap.data();
+      const currentStock = data.stock as number;
+      const patch: Record<string, unknown> = {
+        stock: Math.max(0, currentStock - totalQty),
+      };
+      if (!data.brandId) {
+        patch.brandId = requireBrandId();
+      }
+      batch.update(productRef, patch);
     }
   }
 

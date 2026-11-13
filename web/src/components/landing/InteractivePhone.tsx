@@ -1,11 +1,14 @@
 import { useMemo, useState } from 'react';
 import {
+  BarChart3,
   CheckCircle2,
   LayoutDashboard,
   MoreHorizontal,
   Package,
   ShoppingCart,
+  Users,
   Wallet,
+  Warehouse,
 } from 'lucide-react';
 
 type Tab = 'inicio' | 'ventas' | 'productos' | 'caja';
@@ -210,7 +213,7 @@ export function InteractivePhone() {
                     <svg
                       className="lp-app-chart"
                       viewBox={`0 0 ${chart.width} ${chart.height}`}
-                      preserveAspectRatio="none"
+                      preserveAspectRatio="xMidYMid meet"
                       onMouseLeave={() => setActiveIdx(null)}
                     >
                       <defs>
@@ -275,6 +278,51 @@ export function InteractivePhone() {
                       <span>04/11</span>
                       <span>09/11</span>
                     </div>
+                  </div>
+                </div>
+
+                <div className="lp-app-quick">
+                  <div className="lp-app-quick-head">
+                    <b>Accesos rápidos</b>
+                    <small>Atajos frecuentes</small>
+                  </div>
+                  <div className="lp-app-quick-grid">
+                    <button type="button" onClick={() => setTab('ventas')}>
+                      <span className="lp-app-quick-icon">
+                        <ShoppingCart size={16} />
+                      </span>
+                      Nueva venta
+                    </button>
+                    <button type="button" onClick={() => setTab('productos')}>
+                      <span className="lp-app-quick-icon">
+                        <Package size={16} />
+                      </span>
+                      Productos
+                    </button>
+                    <button type="button" onClick={() => setTab('caja')}>
+                      <span className="lp-app-quick-icon">
+                        <Wallet size={16} />
+                      </span>
+                      Caja
+                    </button>
+                    <button type="button" onClick={() => setTab('productos')}>
+                      <span className="lp-app-quick-icon">
+                        <Warehouse size={16} />
+                      </span>
+                      Stock
+                    </button>
+                    <button type="button" className="is-muted">
+                      <span className="lp-app-quick-icon">
+                        <Users size={16} />
+                      </span>
+                      Clientes
+                    </button>
+                    <button type="button" className="is-muted">
+                      <span className="lp-app-quick-icon">
+                        <BarChart3 size={16} />
+                      </span>
+                      Estadísticas
+                    </button>
                   </div>
                 </div>
               </div>
