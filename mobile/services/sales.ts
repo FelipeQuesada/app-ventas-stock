@@ -176,13 +176,10 @@ async function commitSaleCreate(input: CreateSaleInput): Promise<string> {
     if (snap.exists()) {
       const data = snap.data();
       const currentStock = data.stock as number;
-      const patch: Record<string, unknown> = {
+      // Solo stock: sellar brandId en el mismo batch rompía rules en productos legacy
+      batch.update(productRef, {
         stock: Math.max(0, currentStock - totalQty),
-      };
-      if (!data.brandId) {
-        patch.brandId = requireBrandId();
-      }
-      batch.update(productRef, patch);
+      });
     }
   }
 

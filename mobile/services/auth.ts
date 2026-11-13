@@ -82,10 +82,14 @@ function accessError(code: string, message: string) {
   return err;
 }
 
-function mapProfile(uid: string, data: Record<string, unknown>): UserProfile {
-  const email = (data.email as string) || '';
+function mapProfile(
+  uid: string,
+  data: Record<string, unknown>,
+  authEmail?: string | null
+): UserProfile {
+  const email = (data.email as string) || authEmail || '';
   let role = data.role as UserRole;
-  if (isSuperAdminEmail(email)) role = 'super_admin';
+  if (isSuperAdminEmail(email) || isSuperAdminEmail(authEmail)) role = 'super_admin';
   return {
     uid,
     email,
@@ -102,7 +106,7 @@ function mapProfile(uid: string, data: Record<string, unknown>): UserProfile {
 export async function getUserProfile(uid: string): Promise<UserProfile | null> {
   const snap = await getDoc(doc(db, 'users', uid));
   if (!snap.exists()) return null;
-  return mapProfile(uid, snap.data());
+  return mapProfile(uid, snap.data(), auth.currentUser?.email);
 }
 
 export async function repairOwnerProfileIfMissing(user: User): Promise<UserProfile | null> {
@@ -166,8 +170,24 @@ export async function signIn(email: string, password: string) {
     throw accessError('auth/user-disabled-app', 'Tu usuario está desactivado.');
   }
 
-  if (isSuperAdminEmail(profile.email) && profile.role !== 'super_admin') {
-    await updateDoc(doc(db, 'users', profile.uid), { role: 'super_admin', brandId: null });
+  if (isSuperAdminEmail(profile.email) || isSuperAdminEmail(result.user.email)) {
+    try {
+      await updateDoc(doc(db, 'users', profile.uid), {
+        email: (result.user.email || profile.email || '').toLowerCase(),
+        role: 'super_admin',
+        active: true,
+        pendingApproval: false,
+      });
+    } catch (err) {
+      console.warn('No se pudo sellar super_admin en login:', err);
+    }
+    profile = {
+      ...profile,
+      email: (result.user.email || profile.email || '').toLowerCase(),
+      role: 'super_admin',
+      active: true,
+      pendingApproval: false,
+    };
   }
 
   if (profile.role !== 'super_admin' && !profile.brandId) {

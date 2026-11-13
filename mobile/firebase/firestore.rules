@@ -17,12 +17,23 @@ service cloud.firestore {
       return get(ownProfilePath()).data;
     }
 
-    function isSuperAdmin() {
+    /** Email del token Auth (fuente de verdad; no depende del doc users). */
+    function authEmailIsSuperAdmin() {
+      return isAuthenticated()
+        && request.auth.token.email is string
+        && request.auth.token.email.matches('(?i)^felimq09@gmail\\.com$');
+    }
+
+    function profileIsSuperAdmin() {
       return hasOwnProfile() && (
         ownData().role == 'super_admin'
-        || ownData().email == 'felimq09@gmail.com'
-        || ownData().email == 'Felimq09@gmail.com'
+        || (ownData().email is string
+            && ownData().email.matches('(?i)^felimq09@gmail\\.com$'))
       );
+    }
+
+    function isSuperAdmin() {
+      return authEmailIsSuperAdmin() || profileIsSuperAdmin();
     }
 
     function isBrandAdmin() {
@@ -39,7 +50,7 @@ service cloud.firestore {
         || data.brandId == '';
     }
 
-    /** Legacy Advance: perfil sin brandId opera como advance-coat (no super_admin). */
+    /** Legacy Advance: perfil sin brandId opera como advance-coat. */
     function userBrandId() {
       return isSuperAdmin()
         ? 'advance-coat'
@@ -152,6 +163,7 @@ service cloud.firestore {
         || (hasOwnProfile() && isBrandAdmin() && userBrandId() == brandId);
     }
 
+    // Super admin: acceso total (OR con el resto de reglas)
     match /products/{productId} {
       allow read, create, update, delete: if isSuperAdmin();
       allow read: if isAuthenticated() && isActiveMember() && sameBrand(resource.data);
@@ -164,10 +176,7 @@ service cloud.firestore {
     match /sales/{saleId} {
       allow read, create, update, delete: if isSuperAdmin();
       allow read: if isAuthenticated() && isActiveMember() && sameBrand(resource.data);
-      allow create: if isAuthenticated() && isActiveMember() && (
-        brandWriteOk()
-        || (isAdvanceUser() && request.resource.data.brandId == 'advance-coat')
-      );
+      allow create: if isAuthenticated() && isActiveMember() && brandWriteOk();
       allow update: if isAuthenticated() && isActiveMember() && sameBrand(resource.data)
         && (brandWriteOk() || stockOnlyUpdate());
       allow delete: if isBrandAdmin() && sameBrand(resource.data);

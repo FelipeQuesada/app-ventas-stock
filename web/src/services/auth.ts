@@ -82,10 +82,14 @@ function accessError(code: string, message: string) {
   return err;
 }
 
-function mapProfile(uid: string, data: Record<string, unknown>): UserProfile {
-  const email = (data.email as string) || '';
+function mapProfile(
+  uid: string,
+  data: Record<string, unknown>,
+  authEmail?: string | null
+): UserProfile {
+  const email = (data.email as string) || authEmail || '';
   let role = data.role as UserRole;
-  if (isSuperAdminEmail(email)) {
+  if (isSuperAdminEmail(email) || isSuperAdminEmail(authEmail)) {
     role = 'super_admin';
   }
   const pendingApproval = data.pendingApproval === true;
@@ -145,21 +149,26 @@ export async function signIn(email: string, password: string) {
     );
   }
 
-  // Auto-promover / sellar super admin en Firestore (las rules leen el doc, no el client)
-  if (isSuperAdminEmail(profile.email)) {
-    const patch: Record<string, unknown> = {};
+  // Auto-promover / sellar super admin (rules también miran token email)
+  if (isSuperAdminEmail(profile.email) || isSuperAdminEmail(result.user.email)) {
+    const patch: Record<string, unknown> = {
+      email: (result.user.email || profile.email || '').toLowerCase(),
+    };
     if (profile.role !== 'super_admin') patch.role = 'super_admin';
     if (profile.active === false) patch.active = true;
     if (profile.pendingApproval) patch.pendingApproval = false;
-    if (Object.keys(patch).length > 0) {
+    try {
       await updateDoc(doc(db, 'users', profile.uid), patch);
-      profile = {
-        ...profile,
-        role: 'super_admin',
-        active: true,
-        pendingApproval: false,
-      };
+    } catch (err) {
+      console.warn('No se pudo sellar super_admin en login:', err);
     }
+    profile = {
+      ...profile,
+      email: String(patch.email),
+      role: 'super_admin',
+      active: true,
+      pendingApproval: false,
+    };
   }
 
   // Legacy: usuarios sin brandId → Advance
@@ -213,7 +222,7 @@ export async function changeUserPassword(newPassword: string) {
 export async function getUserProfile(uid: string): Promise<UserProfile | null> {
   const snap = await getDoc(doc(db, 'users', uid));
   if (!snap.exists()) return null;
-  return mapProfile(uid, snap.data());
+  return mapProfile(uid, snap.data(), auth.currentUser?.email);
 }
 
 function belongsToBrand(user: UserProfile, brandId: string): boolean {
