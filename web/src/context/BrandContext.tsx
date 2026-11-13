@@ -65,17 +65,12 @@ export function BrandProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    // Legacy Advance: usuarios sin brandId operan como Advance hasta que se selle el perfil
+    // Super admin sin marca elegida → Advance (para poder vender/cerrar caja)
+    // Legacy sin brandId → Advance
     const brandId =
       overrideBrandId ||
       profile.brandId ||
-      (isSuperAdminRole(profile.role) ? null : DEFAULT_BRAND_ID);
-    if (!brandId) {
-      setBrand(null);
-      setActiveBrandId(null);
-      setError(null);
-      return;
-    }
+      DEFAULT_BRAND_ID;
 
     setLoading(true);
     try {
@@ -118,11 +113,7 @@ export function BrandProvider({ children }: { children: React.ReactNode }) {
 
   const exitBrand = useCallback(() => {
     setOverrideBrandId(null);
-    if (isSuperAdmin) {
-      setBrand(null);
-      setActiveBrandId(null);
-    }
-  }, [isSuperAdmin]);
+  }, []);
 
   const limits = useMemo(
     () => getPlanLimits(brand?.planId ?? 'starter'),

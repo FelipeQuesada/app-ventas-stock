@@ -145,12 +145,21 @@ export async function signIn(email: string, password: string) {
     );
   }
 
-  // Auto-promover / sellar super admin
-  if (isSuperAdminEmail(profile.email) && profile.role !== 'super_admin') {
-    await updateDoc(doc(db, 'users', profile.uid), {
-      role: 'super_admin',
-      brandId: null,
-    });
+  // Auto-promover / sellar super admin en Firestore (las rules leen el doc, no el client)
+  if (isSuperAdminEmail(profile.email)) {
+    const patch: Record<string, unknown> = {};
+    if (profile.role !== 'super_admin') patch.role = 'super_admin';
+    if (profile.active === false) patch.active = true;
+    if (profile.pendingApproval) patch.pendingApproval = false;
+    if (Object.keys(patch).length > 0) {
+      await updateDoc(doc(db, 'users', profile.uid), patch);
+      profile = {
+        ...profile,
+        role: 'super_admin',
+        active: true,
+        pendingApproval: false,
+      };
+    }
   }
 
   // Legacy: usuarios sin brandId → Advance
