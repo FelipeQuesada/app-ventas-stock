@@ -153,10 +153,10 @@ export async function signIn(email: string, password: string) {
   if (isSuperAdminEmail(profile.email) || isSuperAdminEmail(result.user.email)) {
     const patch: Record<string, unknown> = {
       email: (result.user.email || profile.email || '').toLowerCase(),
+      role: 'super_admin',
+      active: true,
+      pendingApproval: false,
     };
-    if (profile.role !== 'super_admin') patch.role = 'super_admin';
-    if (profile.active === false) patch.active = true;
-    if (profile.pendingApproval) patch.pendingApproval = false;
     try {
       await updateDoc(doc(db, 'users', profile.uid), patch);
     } catch (err) {

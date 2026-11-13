@@ -20,7 +20,6 @@ import { db } from '../lib/firebase';
 import { saveCustomer } from './customers';
 import { logAudit } from './audit';
 import { listByBrand, withBrandFields } from '../lib/brandQuery';
-import { requireBrandId } from '../lib/brandScope';
 
 const COLLECTION = 'sales';
 
