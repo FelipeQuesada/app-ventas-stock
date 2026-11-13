@@ -26,6 +26,11 @@ export interface PresupuestoData {
   discountType?: DiscountType | null;
   discountValue?: number;
   discountAmount?: number;
+  brandName?: string;
+  brandLogoUrl?: string | null;
+  brandWhatsapp?: string | null;
+  brandEmail?: string | null;
+  brandTagline?: string | null;
 }
 
 function toIsoDate(value: Date | string): string {
@@ -80,13 +85,17 @@ function formatDisplayDate(iso: string): string {
 }
 
 /** Nombre sugerido al guardar el PDF (también va en <title>). */
-export function buildPresupuestoDocumentTitle(clientName?: string): string {
+export function buildPresupuestoDocumentTitle(
+  clientName?: string,
+  brandName = 'Advance Coat'
+): string {
   const clean = (clientName ?? '')
     .trim()
     .replace(/[\\/:*?"<>|]+/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
-  return clean ? `Presupuesto Advance Coat ${clean}` : 'Presupuesto Advance Coat';
+  const brand = brandName.trim() || 'Advance Coat';
+  return clean ? `Presupuesto ${brand} ${clean}` : `Presupuesto ${brand}`;
 }
 
 export function defaultValidUntil(fromIso: string, days = 10): string {
@@ -105,10 +114,15 @@ export function buildPresupuestoHtml(data: PresupuestoData): string {
     data.discountType === 'percent'
       ? `Descuento (${data.discountValue ?? 0}%)`
       : 'Descuento';
+  const brandName = (data.brandName ?? 'Advance Coat').trim() || 'Advance Coat';
+  const brandTagline = data.brandTagline?.trim() || '';
+  const brandEmail = data.brandEmail?.trim() || '';
+  const brandWhatsapp = data.brandWhatsapp?.trim() || '';
   const logoUrl =
-    typeof window !== 'undefined'
+    data.brandLogoUrl?.trim() ||
+    (typeof window !== 'undefined'
       ? `${window.location.origin}/logo-advance.png`
-      : '/logo-advance.png';
+      : '/logo-advance.png');
 
   const minRows = 8;
   const rowsHtml = Array.from({ length: Math.max(minRows, data.items.length) }, (_, index) => {
@@ -304,10 +318,10 @@ export function buildPresupuestoHtml(data: PresupuestoData): string {
   <div class="sheet">
     <div class="header">
       <div class="brand">
-        <img src="${logoUrl}" alt="Advance Coat" />
+        <img src="${escapeHtml(logoUrl)}" alt="${escapeHtml(brandName)}" />
         <div>
-          <h1>ADVANCE COAT</h1>
-          <p>RESINAS EPOXI</p>
+          <h1>${escapeHtml(brandName.toUpperCase())}</h1>
+          ${brandTagline ? `<p>${escapeHtml(brandTagline)}</p>` : ''}
         </div>
       </div>
       <div class="date-box">FECHA: ${escapeHtml(formatDisplayDate(data.date))}</div>
@@ -363,14 +377,14 @@ export function buildPresupuestoHtml(data: PresupuestoData): string {
       </div>
       <div class="sign">
         <p>Ante cualquier duda estamos a su disposición</p>
-        <div class="name">${escapeHtml(data.signerName || data.contactName || 'Advance Coat')}</div>
+        <div class="name">${escapeHtml(data.signerName || data.contactName || brandName)}</div>
       </div>
     </div>
 
     <div class="footer">
-      <span>ADVANCECOAT.ARG@GMAIL.COM</span>
-      <span>WWW.ADVANCECOAT.COM.AR</span>
-      <span>+54 9 11 5171-4211</span>
+      ${brandEmail ? `<span>${escapeHtml(brandEmail.toUpperCase())}</span>` : ''}
+      ${brandWhatsapp ? `<span>WhatsApp ${escapeHtml(brandWhatsapp)}</span>` : ''}
+      <span>${escapeHtml(brandName.toUpperCase())}</span>
     </div>
   </div>
 </body>

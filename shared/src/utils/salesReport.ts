@@ -71,7 +71,8 @@ export function buildSalesHistoryReportHtml(
   sales: Sale[],
   title: string,
   periodLabel?: string,
-  resinTotals?: ResinAccountingTotals
+  resinTotals?: ResinAccountingTotals,
+  brandName = 'Advance Coat'
 ): string {
   const totalRevenue = sales.reduce((sum, sale) => sum + sale.total, 0);
   const paymentSummary = buildSalesHistoryPaymentSummary(sales);
@@ -121,7 +122,7 @@ export function buildSalesHistoryReportHtml(
   .total-row td{font-weight:700;background:#F8F9FC}
   .summary-table{max-width:420px}
 </style></head><body>
-  <h1>Advance Coat — ${escapeHtml(title)}</h1>
+  <h1>${escapeHtml(brandName)} — ${escapeHtml(title)}</h1>
   <div class="meta">${sales.length} ventas · Recaudación ${formatCurrency(totalRevenue)}${periodMeta}</div>
   <table>
     <thead>

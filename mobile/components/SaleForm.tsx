@@ -6,13 +6,20 @@ import {
   ScrollView,
   TouchableOpacity,
 } from 'react-native';
-import { useFocusEffect, useRouter } from 'expo-router';
+import { useFocusEffect, useLocalSearchParams, useRouter } from 'expo-router';
 import type { Href } from 'expo-router';
 import MaterialIcons from '@expo/vector-icons/MaterialIcons';
 import { useAuth } from '@/context/AuthContext';
 import { useBrand } from '@/context/BrandContext';
 import { useCart } from '@/context/CartContext';
 import { useBrandSellers } from '@/hooks/useBrandSellers';
+import {
+  deleteSaleDraft,
+  getSaleDraft,
+  listSaleDrafts,
+  saveSaleDraft,
+  type SaleDraft,
+} from '@/services/saleDrafts';
 import { SearchBar } from '@/components/ui/SearchBar';
 import { ProductFilters } from '@/components/ProductFilters';
 import { ProductListItem } from '@/components/ui/ProductListItem';
@@ -52,7 +59,7 @@ import {
   getUniqueProductCategories,
   hasActiveProductBrowse,
 } from '@/utils/productList';
-import { showAlert } from '@/utils/alert';
+import { showAlert, showConfirm } from '@/utils/alert';
 import { SaleTicketModal } from '@/components/SaleTicketModal';
 import { SaleTicketData } from '@/utils/saleTicket';
 import { getPendingSalesCount, syncPendingSales } from '@/services/offlineQueue';
@@ -69,7 +76,9 @@ export function SaleForm({ mode, saleId }: SaleFormProps) {
   const { sellers } = useBrandSellers();
   const cart = useCart();
   const router = useRouter();
+  const params = useLocalSearchParams<{ draft?: string }>();
   const isEdit = mode === 'edit';
+  const draftParam = typeof params.draft === 'string' ? params.draft : undefined;
 
   const paymentMethods = useMemo(
     () =>
@@ -116,6 +125,10 @@ export function SaleForm({ mode, saleId }: SaleFormProps) {
   const [extraPrice, setExtraPrice] = useState('');
   const [ticketSale, setTicketSale] = useState<SaleTicketData | null>(null);
   const [pendingCount, setPendingCount] = useState(0);
+  const [draftId, setDraftId] = useState<string | null>(null);
+  const [drafts, setDrafts] = useState<SaleDraft[]>([]);
+  const [showDrafts, setShowDrafts] = useState(false);
+  const [savingDraft, setSavingDraft] = useState(false);
 
   const selectedItems = isEdit ? editItems : cart.items;
   const setSelectedItems = isEdit ? setEditItems : cart.setItems;
@@ -448,6 +461,71 @@ export function SaleForm({ mode, saleId }: SaleFormProps) {
     resetExtraForm();
   };
 
+  const applyDraft = useCallback(
+    (draft: SaleDraft) => {
+      setDraftId(draft.id);
+      cart.setItems(draft.items);
+      setSaleDate(draft.date);
+      setCustomerName(draft.customer.name ?? '');
+      setCustomerEmail(draft.customer.email ?? '');
+      setCustomerPhone(draft.customer.phone ?? '');
+      setCustomerCuit(draft.customer.cuit ?? '');
+      setSellerName(draft.createdByName ?? '');
+      setDiscountType(draft.discountType ?? null);
+      setDiscountValue(draft.discountValue ? String(draft.discountValue) : '');
+      setAmountPaid(draft.amountPaid ? String(draft.amountPaid) : '');
+      setWantsInvoice(draft.wantsInvoice === true);
+      if (draft.paymentSplits && draft.paymentSplits.length === 2) {
+        setPaymentMode('dual');
+        setSelectedPayments(draft.paymentSplits.map((split) => split.method));
+        setSplitAmounts(
+          Object.fromEntries(
+            draft.paymentSplits.map((split) => [split.method, String(split.amount)])
+          ) as Partial<Record<PaymentMethod, string>>
+        );
+      } else {
+        setPaymentMode('single');
+        setSelectedPayments([draft.paymentMethod]);
+        setSplitAmounts({});
+      }
+      setShowDrafts(false);
+    },
+    [cart]
+  );
+
+  const refreshDrafts = useCallback(async () => {
+    if (isEdit) return;
+    try {
+      const list = await listSaleDrafts();
+      setDrafts(list);
+    } catch (error) {
+      console.warn('No se pudieron cargar borradores', error);
+    }
+  }, [isEdit]);
+
+  useFocusEffect(
+    useCallback(() => {
+      void refreshDrafts();
+    }, [refreshDrafts])
+  );
+
+  useEffect(() => {
+    if (isEdit || !draftParam) return;
+    let active = true;
+    (async () => {
+      try {
+        const draft = await getSaleDraft(draftParam);
+        if (!active || !draft) return;
+        applyDraft(draft);
+      } catch {
+        if (active) showAlert('Error', 'No se pudo abrir el borrador');
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [isEdit, draftParam, applyDraft]);
+
   const resetForm = () => {
     if (!isEdit) cart.clear();
     else setEditItems([]);
@@ -465,8 +543,43 @@ export function SaleForm({ mode, saleId }: SaleFormProps) {
     setDiscountType(null);
     setDiscountValue('');
     setAmountPaid('');
+    setDraftId(null);
     resetExtraForm();
     loadProducts();
+    void refreshDrafts();
+  };
+
+  const handleSaveDraft = async () => {
+    if (isEdit) return;
+    if (selectedItems.length === 0) {
+      showAlert('Error', 'Agregá al menos un producto o extra para guardar el borrador');
+      return;
+    }
+    if (!user) return;
+    setSavingDraft(true);
+    try {
+      const input = buildSaleInput();
+      const id = await saveSaleDraft(draftId, input);
+      setDraftId(id);
+      await refreshDrafts();
+      showAlert('Listo', 'Borrador guardado. Cuando pase el cliente, registrá la venta.');
+    } catch (error) {
+      showAlert('Error', error instanceof Error ? error.message : 'No se pudo guardar el borrador');
+    } finally {
+      setSavingDraft(false);
+    }
+  };
+
+  const handleDiscardDraft = async (id: string) => {
+    const ok = await showConfirm('Quitar borrador', '¿Eliminar este borrador?', 'Quitar');
+    if (!ok) return;
+    try {
+      await deleteSaleDraft(id);
+      if (draftId === id) setDraftId(null);
+      await refreshDrafts();
+    } catch (error) {
+      showAlert('Error', error instanceof Error ? error.message : 'No se pudo eliminar');
+    }
   };
 
   const buildSaleInput = () => {
@@ -572,6 +685,8 @@ export function SaleForm({ mode, saleId }: SaleFormProps) {
         amountPaid: input.amountPaid,
         change: input.change,
         createdByName: input.createdByName,
+        brandName: brand?.name,
+        brandId: brand?.id ?? null,
       };
 
       if (isEdit && saleId) {
@@ -580,6 +695,13 @@ export function SaleForm({ mode, saleId }: SaleFormProps) {
       } else {
         try {
           await createSale(input);
+          if (draftId) {
+            try {
+              await deleteSaleDraft(draftId);
+            } catch {
+              // La venta ya quedó registrada.
+            }
+          }
           setTicketSale(ticket);
           resetForm();
         } catch (error) {
@@ -615,6 +737,63 @@ export function SaleForm({ mode, saleId }: SaleFormProps) {
       contentContainerStyle={styles.content}
       keyboardShouldPersistTaps="handled"
     >
+      {!isEdit ? (
+        <TouchableOpacity
+          style={styles.draftToggle}
+          onPress={() => setShowDrafts((open) => !open)}
+          activeOpacity={0.8}
+        >
+          <MaterialIcons name="description" size={18} color={colors.primary} />
+          <Text style={styles.draftToggleText}>
+            {showDrafts ? 'Ocultar borradores' : `Ver borradores (${drafts.length})`}
+          </Text>
+        </TouchableOpacity>
+      ) : null}
+
+      {!isEdit && showDrafts ? (
+        <View style={styles.draftsBox}>
+          {drafts.length === 0 ? (
+            <Text style={styles.hint}>No hay borradores</Text>
+          ) : (
+            drafts.map((draft) => {
+              const names = draft.items.map((item) => item.productName);
+              const preview = names.slice(0, 2).join(', ');
+              const extra = names.length > 2 ? ` +${names.length - 2}` : '';
+              return (
+                <View key={draft.id} style={styles.draftCard}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.draftTitle}>
+                      {draft.customer.name || draft.customer.phone || 'Sin cliente'}
+                    </Text>
+                    <Text style={styles.hint}>
+                      {preview}
+                      {extra}
+                    </Text>
+                  </View>
+                  <Text style={styles.draftTotal}>{formatCurrency(draft.total)}</Text>
+                  <TouchableOpacity
+                    style={styles.draftAction}
+                    onPress={() => applyDraft(draft)}
+                  >
+                    <Text style={styles.draftActionText}>Continuar</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={styles.draftDiscard}
+                    onPress={() => void handleDiscardDraft(draft.id)}
+                  >
+                    <Text style={styles.draftDiscardText}>Quitar</Text>
+                  </TouchableOpacity>
+                </View>
+              );
+            })
+          )}
+        </View>
+      ) : null}
+
+      {draftId && !isEdit ? (
+        <Text style={styles.hint}>Borrador listo. Cuando pase el cliente, registrá la venta.</Text>
+      ) : null}
+
       {pendingCount > 0 && (
         <View style={styles.pendingBanner}>
           <MaterialIcons name="cloud-off" size={18} color={colors.warning} />
@@ -964,6 +1143,17 @@ export function SaleForm({ mode, saleId }: SaleFormProps) {
         variant="secondary"
         style={styles.registerButton}
       />
+      {!isEdit ? (
+        <Button
+          title={savingDraft ? 'Guardando…' : 'Guardar borrador'}
+          onPress={() => void handleSaveDraft()}
+          loading={savingDraft}
+          disabled={loading || savingDraft}
+          size="lg"
+          variant="outline"
+          style={styles.draftSaveButton}
+        />
+      ) : null}
     </ScrollView>
 
     <SaleTicketModal
@@ -987,6 +1177,66 @@ const styles = StyleSheet.create({
   content: {
     padding: spacing.md,
     paddingBottom: spacing.xxl,
+  },
+  draftToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    alignSelf: 'flex-start',
+    paddingVertical: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  draftToggleText: {
+    ...typography.body,
+    color: colors.primary,
+    fontWeight: '600',
+  },
+  draftsBox: {
+    gap: spacing.sm,
+    marginBottom: spacing.md,
+  },
+  draftCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: spacing.sm,
+    backgroundColor: colors.surface,
+    borderWidth: 1,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    padding: spacing.sm,
+  },
+  draftTitle: {
+    ...typography.body,
+    fontWeight: '700',
+    color: colors.text,
+  },
+  draftTotal: {
+    ...typography.body,
+    fontWeight: '700',
+    color: colors.text,
+  },
+  draftAction: {
+    backgroundColor: colors.primary,
+    borderRadius: radius.sm,
+    paddingHorizontal: spacing.sm,
+    paddingVertical: 6,
+  },
+  draftActionText: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 12,
+  },
+  draftDiscard: {
+    paddingHorizontal: 4,
+    paddingVertical: 6,
+  },
+  draftDiscardText: {
+    color: colors.danger,
+    fontWeight: '600',
+    fontSize: 12,
+  },
+  draftSaveButton: {
+    marginTop: spacing.sm,
   },
   pendingBanner: {
     flexDirection: 'row',

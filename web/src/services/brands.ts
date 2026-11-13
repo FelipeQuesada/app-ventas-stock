@@ -37,6 +37,10 @@ function mapBrand(id: string, data: Record<string, unknown>): Brand {
     inviteCode: (data.inviteCode as string) || undefined,
     planExpiresAt: (data.planExpiresAt as { toDate?: () => Date })?.toDate?.(),
     phone: (data.phone as string) || undefined,
+    whatsapp:
+      (typeof data.whatsapp === 'string' && data.whatsapp.trim()) ||
+      (typeof data.phone === 'string' && data.phone.trim()) ||
+      undefined,
     email: (data.email as string) || undefined,
     cuit: (data.cuit as string) || undefined,
     businessType: data.businessType as Brand['businessType'],
@@ -166,6 +170,7 @@ export async function updateBrand(
     status: BrandStatus;
     inviteCode: string;
     phone: string | null;
+    whatsapp: string | null;
     email: string | null;
     cuit: string | null;
     businessType: string | null;
@@ -184,6 +189,7 @@ export async function updateBrand(
   if (data.status !== undefined) payload.status = data.status;
   if (data.inviteCode !== undefined) payload.inviteCode = data.inviteCode;
   if (data.phone !== undefined) payload.phone = data.phone;
+  if (data.whatsapp !== undefined) payload.whatsapp = data.whatsapp;
   if (data.email !== undefined) payload.email = data.email;
   if (data.cuit !== undefined) payload.cuit = data.cuit;
   if (data.businessType !== undefined) payload.businessType = data.businessType;

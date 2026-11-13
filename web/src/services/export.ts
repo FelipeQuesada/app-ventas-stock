@@ -22,6 +22,7 @@ import {
   getPaymentMethodStats,
   getPaymentMethodRevenueStats,
 } from './stats';
+import { getActiveBrandName } from '../lib/brandScope';
 
 function buildSalesRows(sales: Sale[]) {
   return sales.map((sale) => ({
@@ -234,7 +235,7 @@ export function buildCajaPdfHtml(records: DailyCaja[], title: string): string {
   th,td{border-bottom:1px solid #E8ECF4;padding:8px 4px;text-align:left}
   th{background:#F8F9FC}
 </style></head><body>
-  <h1>Advance Coat — ${title}</h1>
+  <h1>${getActiveBrandName()} — ${title}</h1>
   <div class="meta">${records.length} cierres registrados</div>
   <div class="summary">
     <div class="chip"><strong>Ganancia:</strong> ${formatCurrency(totalGanancia)}</div>
@@ -320,7 +321,7 @@ export async function exportSalesReportText(
 
   const totalRevenue = sales.reduce((sum, sale) => sum + sale.total, 0);
   const parts = [
-    `ADVANCE COAT — Reporte ${label}`,
+    `${getActiveBrandName().toUpperCase()} — Reporte ${label}`,
     `Ventas: ${sales.length}`,
     `Recaudación: $${totalRevenue.toFixed(2)}`,
     '============================',
@@ -338,7 +339,13 @@ export function buildSalesPdfHtml(
   resinOptions?: ResinAccountingOptions
 ): string {
   const resinTotals = resinOptions ? computeResinAccounting(sales, resinOptions) : undefined;
-  return buildSalesHistoryReportHtml(sales, title, periodLabel, resinTotals);
+  return buildSalesHistoryReportHtml(
+    sales,
+    title,
+    periodLabel,
+    resinTotals,
+    getActiveBrandName()
+  );
 }
 
 export function buildCustomersPdfHtml(customers: Customer[]): string {
@@ -363,7 +370,7 @@ export function buildCustomersPdfHtml(customers: Customer[]): string {
   th,td{border-bottom:1px solid #E8ECF4;padding:8px 4px;text-align:left}
   th{background:#F8F9FC}
 </style></head><body>
-  <h1>Advance Coat — Clientes</h1>
+  <h1>${getActiveBrandName()} — Clientes</h1>
   <p>${customers.length} registros</p>
   <table>
     <thead><tr><th>Nombre</th><th>Email</th><th>Teléfono</th></tr></thead>

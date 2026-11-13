@@ -464,8 +464,13 @@ export function PresupuestoPage() {
           discountType,
           discountValue: Number(discountValue) || 0,
           discountAmount,
+          brandName: brand?.name,
+          brandLogoUrl: brand?.logoUrl,
+          brandWhatsapp: brand?.whatsapp || brand?.phone,
+          brandEmail: brand?.email,
+          brandTagline: isAdvanceBrand(brand?.id) ? 'RESINAS EPOXI' : null,
         }),
-        buildPresupuestoDocumentTitle(clientName)
+        buildPresupuestoDocumentTitle(clientName, brand?.name)
       );
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo guardar el presupuesto');
@@ -499,6 +504,10 @@ export function PresupuestoPage() {
 
         {error ? <div className="alert alert-danger">{error}</div> : null}
 
+        <div className="sale-desktop-grid">
+        <div className="sale-desktop-left">
+        <section className="sale-desktop-panel sale-desktop-info">
+        <div className="sale-meta-row">
         <DateField label="Fecha" value={date} onChange={setDate} />
         <DateField
           label="Válido hasta"
@@ -508,6 +517,7 @@ export function PresupuestoPage() {
             setValidUntil(value);
           }}
         />
+        </div>
 
         <h4 className="sale-section-title">Persona de contacto</h4>
         <div className="field">
@@ -574,7 +584,10 @@ export function PresupuestoPage() {
             placeholder="cliente@email.com"
           />
         </div>
+        </section>
 
+        <section className="sale-desktop-panel sale-desktop-catalog">
+        <h4 className="sale-section-title">Productos</h4>
         <div className="sale-search">
           <Search size={16} className="sale-search-icon" />
           <input
@@ -684,7 +697,10 @@ export function PresupuestoPage() {
             </button>
           </div>
         )}
+        </section>
+        </div>
 
+        <aside className="sale-desktop-panel sale-desktop-checkout">
         <h4 className="sale-section-title">Productos del presupuesto ({items.length})</h4>
 
         {items.length === 0 ? (
@@ -825,6 +841,8 @@ export function PresupuestoPage() {
           <FileText size={18} style={{ marginRight: 8 }} />
           {saving ? 'Guardando…' : editId ? 'Guardar cambios y PDF' : 'Guardar y generar PDF'}
         </button>
+        </aside>
+        </div>
       </form>
     </div>
   );

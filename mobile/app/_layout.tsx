@@ -39,7 +39,8 @@ function AuthGate({ children }: { children: React.ReactNode }) {
     }
 
     if (user && profile?.pendingApproval) {
-      // Queda en sesión; no lo mandamos a tabs ni a register
+      const onPending = inAuth && segments[1] === 'pending';
+      if (!onPending) router.replace('/(auth)/pending');
       return;
     }
 

@@ -26,6 +26,7 @@ export function BrandSettingsPage() {
   const { brand, isBrandAdmin, limits, refreshBrand } = useBrand();
   const [name, setName] = useState('');
   const [phone, setPhone] = useState('');
+  const [whatsapp, setWhatsapp] = useState('');
   const [inviteCode, setInviteCode] = useState('');
   const [paymentMethodIds, setPaymentMethodIds] = useState<PaymentMethod[]>(DEFAULT_PRO_PAYMENTS);
   const [telegramChatId, setTelegramChatId] = useState('');
@@ -38,6 +39,7 @@ export function BrandSettingsPage() {
     if (!brand) return;
     setName(brand.name ?? '');
     setPhone(brand.phone ?? '');
+    setWhatsapp(brand.whatsapp ?? brand.phone ?? '');
     setInviteCode(brand.inviteCode ?? '');
     const saved = brand.paymentMethodIds?.filter(Boolean) ?? [];
     setPaymentMethodIds(saved.length > 0 ? saved : DEFAULT_PRO_PAYMENTS);
@@ -47,6 +49,7 @@ export function BrandSettingsPage() {
     brand?.id,
     brand?.name,
     brand?.phone,
+    brand?.whatsapp,
     brand?.inviteCode,
     brand?.paymentMethodIds,
     brand?.telegramChatId,
@@ -104,6 +107,7 @@ export function BrandSettingsPage() {
       await updateBrand(brand.id, {
         name: name.trim(),
         phone: phone.trim() || null,
+        whatsapp: whatsapp.trim() || null,
       });
       await refreshBrand();
       setMessage('Marca actualizada.');
@@ -231,8 +235,27 @@ export function BrandSettingsPage() {
             <input id="brandName" value={name} onChange={(e) => setName(e.target.value)} required />
           </div>
           <div className="field">
-            <label htmlFor="brandPhone">Teléfono</label>
-            <input id="brandPhone" value={phone} onChange={(e) => setPhone(e.target.value)} />
+            <label htmlFor="brandWhatsapp">WhatsApp de la marca</label>
+            <input
+              id="brandWhatsapp"
+              value={whatsapp}
+              onChange={(e) => setWhatsapp(e.target.value)}
+              placeholder="11 5771 5316"
+              inputMode="tel"
+            />
+            <p className="caja-hint">
+              Se usa al compartir cierres de caja y en el pie de presupuestos / tickets.
+            </p>
+          </div>
+          <div className="field">
+            <label htmlFor="brandPhone">Teléfono (opcional)</label>
+            <input
+              id="brandPhone"
+              value={phone}
+              onChange={(e) => setPhone(e.target.value)}
+              placeholder="Si es distinto al WhatsApp"
+              inputMode="tel"
+            />
           </div>
 
           <ImageDropzone

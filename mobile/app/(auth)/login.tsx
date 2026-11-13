@@ -113,6 +113,12 @@ export default function LoginScreen() {
             </TouchableOpacity>
 
             <Text style={styles.hint}>
+              ¿Sos empleado?{' '}
+              <Link href="/(auth)/join" style={styles.linkInline}>
+                Sumarme con código
+              </Link>
+            </Text>
+            <Text style={styles.hint}>
               ¿Sos dueño de un negocio?{' '}
               <Link href="/(auth)/register" style={styles.linkInline}>
                 Registrá tu marca

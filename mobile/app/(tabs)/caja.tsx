@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useAuth } from '@/context/AuthContext';
+import { useBrand } from '@/context/BrandContext';
 import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
@@ -67,7 +68,10 @@ export default function CajaScreen() {
   const { sellers } = useBrandSellers();
   const router = useRouter();
   const { user, profile } = useAuth();
+  const { brand } = useBrand();
   const isAdmin = profile?.role === 'admin' || profile?.role === 'owner';
+  const cajaWhatsapp =
+    brand?.whatsapp?.trim() || brand?.phone?.trim() || CAJA_WHATSAPP_PHONE;
   const today = new Date();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -132,7 +136,7 @@ export default function CajaScreen() {
 
   const offerShareMessage = (title: string, message: string) => {
     const openWhatsApp = async () => {
-      const url = buildWhatsAppUrl(CAJA_WHATSAPP_PHONE, message);
+      const url = buildWhatsAppUrl(cajaWhatsapp, message);
       const canOpen = await Linking.canOpenURL(url);
       if (canOpen) {
         await Linking.openURL(url);

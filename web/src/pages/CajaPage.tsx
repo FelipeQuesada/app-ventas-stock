@@ -25,6 +25,7 @@ import {
 } from '../services/caja';
 import { getSalesForDay } from '../services/sales';
 import { useAuth } from '../context/AuthContext';
+import { useBrand } from '../context/BrandContext';
 import { useBrandSellers } from '../hooks/useBrandSellers';
 
 function CajaRow({
@@ -48,8 +49,11 @@ function CajaRow({
 
 export function CajaPage() {
   const { user, profile } = useAuth();
+  const { brand } = useBrand();
   const { sellers } = useBrandSellers();
   const isAdmin = isBrandAdminRole(profile?.role) || isSuperAdminRole(profile?.role);
+  const cajaWhatsapp =
+    brand?.whatsapp?.trim() || brand?.phone?.trim() || CAJA_WHATSAPP_PHONE;
   const today = new Date();
   const [cajaCambio, setCajaCambio] = useState('');
   const [cashSales, setCashSales] = useState(0);
@@ -158,7 +162,7 @@ export function CajaPage() {
 
   function openWhatsAppShare() {
     if (!shareMessage) return;
-    window.open(buildWhatsAppUrl(CAJA_WHATSAPP_PHONE, shareMessage), '_blank');
+    window.open(buildWhatsAppUrl(cajaWhatsapp, shareMessage), '_blank');
   }
 
   async function handleRetiro() {
@@ -341,6 +345,28 @@ export function CajaPage() {
         </div>
       </div>
 
+      <div className="caja-desktop-stats" aria-label="Resumen rápido">
+        <div className="caja-stat">
+          <span className="caja-stat-label">Efectivo hoy</span>
+          <strong className="caja-stat-value">{formatCurrency(cashSales)}</strong>
+        </div>
+        <div className="caja-stat">
+          <span className="caja-stat-label">Caja total</span>
+          <strong className="caja-stat-value">{formatCurrency(cajaTotal)}</strong>
+        </div>
+        <div className="caja-stat">
+          <span className="caja-stat-label">Ganancia</span>
+          <strong className="caja-stat-value caja-stat-accent">{formatCurrency(ganancia)}</strong>
+        </div>
+        {isAdmin ? (
+          <div className="caja-stat">
+            <span className="caja-stat-label">Caja central</span>
+            <strong className="caja-stat-value">{formatCurrency(centralBalance)}</strong>
+          </div>
+        ) : null}
+      </div>
+
+      <div className={`caja-desktop-grid${isAdmin ? ' caja-desktop-grid-admin' : ''}`}>
       {isAdmin && (
         <div className="card caja-card caja-central-card">
           <CajaRow label="Caja central" value={formatCurrency(centralBalance)} highlight accent />
@@ -428,6 +454,7 @@ export function CajaPage() {
             ))}
           </select>
         </div>
+      </div>
       </div>
 
       {info && <p className="success-text">{info}</p>}

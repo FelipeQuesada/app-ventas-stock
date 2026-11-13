@@ -35,6 +35,8 @@ export interface Brand {
   /** Fin del trial / vigencia opcional */
   planExpiresAt?: Date;
   phone?: string;
+  /** WhatsApp de la marca (cierres, tickets, presupuestos) */
+  whatsapp?: string;
   email?: string;
   cuit?: string;
   businessType?: BusinessType;

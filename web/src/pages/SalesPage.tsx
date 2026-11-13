@@ -558,6 +558,10 @@ export function SalesPage() {
         <p className="caja-hint">Borrador listo. Cuando pase el cliente, registrá la venta.</p>
       ) : null}
 
+      <div className="sale-desktop-grid">
+      <div className="sale-desktop-left">
+      <section className="sale-desktop-panel sale-desktop-info">
+      <div className="sale-meta-row">
       <div className="field">
         <label>Fecha</label>
         <input type="date" value={saleDate} onChange={(e) => setSaleDate(e.target.value)} />
@@ -577,8 +581,10 @@ export function SalesPage() {
           <p className="caja-hint">No hay usuarios activos. Sumá empleados desde Usuarios o con el código de marca.</p>
         ) : null}
       </div>
+      </div>
 
       <h4 className="sale-section-title">Datos del cliente</h4>
+      <div className="sale-customer-row">
       <div className="field">
         <label>{wantsInvoice ? 'Teléfono *' : 'Teléfono (identificador)'}</label>
         <input
@@ -605,7 +611,11 @@ export function SalesPage() {
           placeholder="cliente@email.com"
         />
       </div>
+      </div>
+      </section>
 
+      <section className="sale-desktop-panel sale-desktop-catalog">
+      <h4 className="sale-section-title">Productos</h4>
       <div className="sale-search">
         <Search size={16} className="sale-search-icon" />
         <input
@@ -747,7 +757,10 @@ export function SalesPage() {
           </div>
         </div>
       )}
+      </section>
+      </div>
 
+      <aside className="sale-desktop-panel sale-desktop-checkout">
       <h4 className="sale-section-title">
         Productos seleccionados ({cart.items.length})
       </h4>
@@ -1110,6 +1123,8 @@ export function SalesPage() {
           {savingDraft ? 'Guardando…' : 'Guardar borrador'}
         </button>
       )}
+      </aside>
+      </div>
 
       {ticketSale ? (
         <SaleTicketModal

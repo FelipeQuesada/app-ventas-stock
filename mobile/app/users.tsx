@@ -14,9 +14,11 @@ import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { LoadingScreen, EmptyState } from '@/components/ui/EmptyState';
 import {
+  approvePendingUser,
   createUserAsAdmin,
   getAuthErrorMessage,
   listUsers,
+  rejectPendingUser,
   updateUserRole,
 } from '@/services/auth';
 import { getRecentAuditLogs, AuditLog } from '@/services/audit';
@@ -109,8 +111,57 @@ export default function UsersScreen() {
     }
   };
 
+  const pendingUsers = users.filter((u) => u.pendingApproval);
+  const activeUsers = users.filter((u) => !u.pendingApproval);
+
+  const handleApprove = async (target: UserProfile) => {
+    if (!user) return;
+    try {
+      await approvePendingUser(target.uid, { userId: user.uid, userName: profile?.name });
+      showAlert('Listo', `${target.name} aprobado`);
+      await load();
+    } catch (error) {
+      showAlert('Error', getAuthErrorMessage(error));
+    }
+  };
+
+  const handleReject = async (target: UserProfile) => {
+    if (!user) return;
+    try {
+      await rejectPendingUser(target.uid, { userId: user.uid, userName: profile?.name });
+      showAlert('Listo', 'Solicitud rechazada');
+      await load();
+    } catch (error) {
+      showAlert('Error', getAuthErrorMessage(error));
+    }
+  };
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
+      {pendingUsers.length > 0 ? (
+        <>
+          <Text style={styles.section}>Pendientes de aprobación ({pendingUsers.length})</Text>
+          {pendingUsers.map((item) => (
+            <Card key={item.uid} style={styles.userCard}>
+              <View style={styles.userInfo}>
+                <Text style={styles.userName}>{item.name}</Text>
+                <Text style={styles.userEmail}>{item.email}</Text>
+                <Text style={styles.userRole}>Esperando aprobación</Text>
+              </View>
+              <View style={{ gap: 8 }}>
+                <Button title="Aprobar" onPress={() => void handleApprove(item)} size="sm" />
+                <Button
+                  title="Rechazar"
+                  onPress={() => void handleReject(item)}
+                  variant="outline"
+                  size="sm"
+                />
+              </View>
+            </Card>
+          ))}
+        </>
+      ) : null}
+
       <Card style={styles.card}>
         <Text style={styles.title}>Nuevo usuario</Text>
         <Input label="Nombre" value={name} onChangeText={setName} placeholder="Nombre completo" />
@@ -151,27 +202,32 @@ export default function UsersScreen() {
         <Button title="Crear usuario" onPress={handleCreate} loading={saving} />
       </Card>
 
-      <Text style={styles.section}>Usuarios ({users.length})</Text>
-      {users.length === 0 ? (
+      <Text style={styles.section}>Usuarios ({activeUsers.length})</Text>
+      {activeUsers.length === 0 ? (
         <EmptyState icon="people" title="Sin usuarios" subtitle="Creá el primero arriba" />
       ) : (
-        users.map((item) => (
+        activeUsers.map((item) => (
           <Card key={item.uid} style={styles.userCard}>
             <View style={styles.userInfo}>
               <Text style={styles.userName}>{item.name}</Text>
               <Text style={styles.userEmail}>{item.email}</Text>
               <Text style={styles.userRole}>
-                {item.role === 'admin' ? 'Administrador' : 'Empleado'}
+                {item.role === 'admin' || item.role === 'owner'
+                  ? item.role === 'owner'
+                    ? 'Dueño'
+                    : 'Administrador'
+                  : 'Empleado'}
+                {item.active === false ? ' · Inactivo' : ''}
               </Text>
             </View>
-            {item.uid !== user?.uid && (
+            {item.uid !== user?.uid && item.role !== 'owner' ? (
               <Button
                 title={item.role === 'admin' ? 'Hacer empleado' : 'Hacer admin'}
                 onPress={() => handleToggleRole(item)}
                 variant="outline"
                 size="sm"
               />
-            )}
+            ) : null}
           </Card>
         ))
       )}

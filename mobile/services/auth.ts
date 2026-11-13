@@ -31,6 +31,7 @@ import { logAudit } from '@/services/audit';
 import {
   createBrand,
   getBrand,
+  getBrandByInviteCode,
   isSlugAvailable,
   slugifyBrandName,
   findBrandByOwnerUid,
@@ -442,4 +443,116 @@ export async function updateUserRole(
   actor: { userId: string; userName?: string }
 ): Promise<void> {
   await updateUser(uid, { role }, actor);
+}
+
+/** Empleado se registra con el código de la marca y queda pendiente de aprobación. */
+export async function registerEmployeeWithInviteCode(input: {
+  email: string;
+  password: string;
+  name: string;
+  inviteCode: string;
+}): Promise<{ user: User; brandId: string; brandName: string }> {
+  const email = input.email.trim().toLowerCase();
+  let user = auth.currentUser;
+
+  if (!user) {
+    try {
+      const result = await createUserWithEmailAndPassword(auth, email, input.password);
+      user = result.user;
+    } catch (err) {
+      const code = (err as { code?: string })?.code;
+      if (code === 'auth/email-already-in-use') {
+        const signed = await signInWithEmailAndPassword(auth, email, input.password);
+        user = signed.user;
+      } else {
+        throw err;
+      }
+    }
+  }
+
+  if (!user) throw new Error('No se pudo crear la sesión');
+
+  const already = await getUserProfile(user.uid);
+  if (already?.brandId) {
+    if (already.pendingApproval) {
+      const known = await getBrand(already.brandId);
+      return {
+        user,
+        brandId: already.brandId,
+        brandName: known?.name ?? 'tu marca',
+      };
+    }
+    await signOut(auth);
+    throw accessError(
+      'auth/email-already-in-use',
+      'Ese email ya está registrado. Probá iniciar sesión.'
+    );
+  }
+
+  const brand = await getBrandByInviteCode(input.inviteCode);
+  if (!brand?.inviteCode) {
+    await signOut(auth);
+    throw accessError(
+      'auth/invalid-invite',
+      'Código de marca inválido. Pedile el código actualizado a tu administrador.'
+    );
+  }
+  if (brand.status === 'suspended') {
+    await signOut(auth);
+    throw accessError(
+      'auth/brand-suspended',
+      'Esta marca está suspendida. No se pueden sumar empleados.'
+    );
+  }
+
+  await setDoc(doc(db, 'users', user.uid), {
+    email: (user.email ?? email).toLowerCase(),
+    name: input.name.trim(),
+    role: 'employee',
+    brandId: brand.id,
+    inviteCode: brand.inviteCode,
+    pendingApproval: true,
+    active: false,
+    createdAt: serverTimestamp(),
+  });
+
+  return { user, brandId: brand.id, brandName: brand.name };
+}
+
+export async function approvePendingUser(
+  uid: string,
+  actor: { userId: string; userName?: string },
+  role: BrandRole = 'employee'
+): Promise<void> {
+  await updateDoc(doc(db, 'users', uid), {
+    pendingApproval: false,
+    active: true,
+    role,
+  });
+  await logAudit({
+    action: 'user_update',
+    entityType: 'user',
+    entityId: uid,
+    summary: `Empleado aprobado (${role})`,
+    userId: actor.userId,
+    userName: actor.userName,
+  });
+}
+
+export async function rejectPendingUser(
+  uid: string,
+  actor: { userId: string; userName?: string }
+): Promise<void> {
+  await updateDoc(doc(db, 'users', uid), {
+    pendingApproval: false,
+    active: false,
+  });
+  await logAudit({
+    action: 'user_update',
+    entityType: 'user',
+    entityId: uid,
+    summary: 'Solicitud de empleado rechazada',
+    userId: actor.userId,
+    userName: actor.userName,
+  });
 }

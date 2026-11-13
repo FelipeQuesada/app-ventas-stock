@@ -311,6 +311,11 @@ export default function PresupuestoScreen() {
     discountType,
     discountValue: Number(discountValue.replace(',', '.')) || 0,
     discountAmount,
+    brandName: brand?.name,
+    brandLogoUrl: brand?.logoUrl,
+    brandWhatsapp: brand?.whatsapp || brand?.phone,
+    brandEmail: brand?.email,
+    brandTagline: isAdvanceBrand(brand?.id) ? 'RESINAS EPOXI' : null,
   });
 
   const handlePreviewPdf = async () => {
@@ -321,7 +326,7 @@ export default function PresupuestoScreen() {
     const html = await buildPresupuestoHtmlAsync(buildPdfData());
     setPdfPreview({
       html,
-      title: buildPresupuestoDocumentTitle(clientName),
+      title: buildPresupuestoDocumentTitle(clientName, brand?.name),
     });
   };
 
@@ -367,7 +372,7 @@ export default function PresupuestoScreen() {
         const html = await buildPresupuestoHtmlAsync(buildPdfData());
         setPdfPreview({
           html,
-          title: buildPresupuestoDocumentTitle(saved.customer.name),
+          title: buildPresupuestoDocumentTitle(saved.customer.name, brand?.name),
         });
       } else {
         showAlert('Guardado', 'Presupuesto guardado', [
@@ -405,7 +410,7 @@ export default function PresupuestoScreen() {
             maximumDate={new Date(2100, 11, 31)}
           />
 
-          <Text style={styles.section}>Contacto Advance Coat</Text>
+          <Text style={styles.section}>Persona de contacto</Text>
           <SelectField
             label="Persona de contacto"
             value={contactName}

@@ -16,8 +16,27 @@ import {
 } from '@advance-coat/shared';
 import { useAuth } from './AuthContext';
 import { getBrand } from '../services/brands';
-import { setActiveBrandId } from '../lib/brandScope';
+import { setActiveBrandId, setActiveBrandMeta } from '../lib/brandScope';
 import { invalidateProductsCache } from '../services/products';
+
+const BRAND_SESSION_KEY = 'controlplus.activeBrandId';
+
+function readStoredBrandId(): string | null {
+  try {
+    return sessionStorage.getItem(BRAND_SESSION_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function writeStoredBrandId(brandId: string | null) {
+  try {
+    if (brandId) sessionStorage.setItem(BRAND_SESSION_KEY, brandId);
+    else sessionStorage.removeItem(BRAND_SESSION_KEY);
+  } catch {
+    // ignore (modo privado / storage bloqueado)
+  }
+}
 
 interface BrandContextType {
   brand: Brand | null;
@@ -49,9 +68,10 @@ const BrandContext = createContext<BrandContextType>({
 export function BrandProvider({ children }: { children: React.ReactNode }) {
   const { profile, loading: authLoading } = useAuth();
   const [brand, setBrand] = useState<Brand | null>(null);
-  const [loading, setLoading] = useState(false);
+  // true hasta el primer resolve: evita redirigir a /platform en el primer paint
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [overrideBrandId, setOverrideBrandId] = useState<string | null>(null);
+  const [overrideBrandId, setOverrideBrandId] = useState<string | null>(() => readStoredBrandId());
 
   const isSuperAdmin = isSuperAdminRole(profile?.role);
   const isBrandAdmin = isBrandAdminRole(profile?.role) || isSuperAdmin;
@@ -61,38 +81,61 @@ export function BrandProvider({ children }: { children: React.ReactNode }) {
     if (!profile) {
       setBrand(null);
       setActiveBrandId(null);
+      setActiveBrandMeta(null);
       setError(null);
+      setLoading(false);
       return;
     }
 
-    // Super admin sin marca elegida → Advance (para poder vender/cerrar caja)
-    // Legacy sin brandId → Advance
+    const superAdmin = isSuperAdminRole(profile.role);
+
+    // Super admin: solo opera una marca si entró (override / sessionStorage).
+    // Usuarios normales: brandId del perfil o Advance legacy.
     const brandId =
       overrideBrandId ||
       profile.brandId ||
-      DEFAULT_BRAND_ID;
+      (superAdmin ? null : DEFAULT_BRAND_ID);
+
+    if (!brandId) {
+      setBrand(null);
+      setActiveBrandId(null);
+      setActiveBrandMeta(null);
+      setError(null);
+      setLoading(false);
+      return;
+    }
 
     setLoading(true);
     try {
       const b = await getBrand(brandId);
       if (b) {
         setBrand(b);
-        setActiveBrandId(b.id);
+        setActiveBrandMeta({
+          id: b.id,
+          name: b.name,
+          whatsapp: b.whatsapp,
+          phone: b.phone,
+          logoUrl: b.logoUrl,
+          email: b.email,
+        });
         setError(null);
-      } else if (!isSuperAdminRole(profile.role)) {
-        // Marca huérfana / inexistente → operar como Advance
+      } else if (!superAdmin) {
         setBrand(null);
-        setActiveBrandId(DEFAULT_BRAND_ID);
+        setActiveBrandMeta({ id: DEFAULT_BRAND_ID, name: 'Advance Coat' });
         setError(null);
       } else {
         setBrand(null);
-        setActiveBrandId(brandId);
+        setActiveBrandId(null);
+        setActiveBrandMeta(null);
+        writeStoredBrandId(null);
+        setOverrideBrandId(null);
         setError('No se encontró la marca');
       }
       invalidateProductsCache();
     } catch (err) {
       setBrand(null);
-      setActiveBrandId(isSuperAdminRole(profile.role) ? brandId : DEFAULT_BRAND_ID);
+      setActiveBrandId(superAdmin ? null : DEFAULT_BRAND_ID);
+      setActiveBrandMeta(null);
       setError((err as Error).message);
     } finally {
       setLoading(false);
@@ -104,15 +147,23 @@ export function BrandProvider({ children }: { children: React.ReactNode }) {
   }, [load]);
 
   useEffect(() => {
-    if (!profile) setOverrideBrandId(null);
+    if (!profile) {
+      setOverrideBrandId(null);
+      writeStoredBrandId(null);
+    }
   }, [profile?.uid]);
 
   const enterBrand = useCallback(async (brandId: string) => {
+    writeStoredBrandId(brandId);
     setOverrideBrandId(brandId);
   }, []);
 
   const exitBrand = useCallback(() => {
+    writeStoredBrandId(null);
     setOverrideBrandId(null);
+    setBrand(null);
+    setActiveBrandId(null);
+    setActiveBrandMeta(null);
   }, []);
 
   const limits = useMemo(

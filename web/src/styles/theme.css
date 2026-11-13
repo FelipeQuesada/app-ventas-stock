@@ -223,7 +223,8 @@ textarea {
   display: flex;
   flex-direction: column;
   overflow-x: hidden;
-  padding-bottom: calc(88px + env(safe-area-inset-bottom, 0px));
+  /* Espacio para el pill de navegación; el safe-area lo maneja el bottom-nav */
+  padding-bottom: 88px;
 }
 
 .topbar {
@@ -280,7 +281,8 @@ textarea {
   position: fixed;
   left: 12px;
   right: 12px;
-  bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+  /* En Safari (no PWA) el toolbar del browser ya ocupa abajo: no empujar de más */
+  bottom: 10px;
   z-index: 25;
   display: block;
   padding: 0;
@@ -288,6 +290,16 @@ textarea {
   border: none;
   box-shadow: none;
   pointer-events: none;
+}
+
+@media (display-mode: standalone), (display-mode: fullscreen) {
+  .main-area {
+    padding-bottom: calc(88px + env(safe-area-inset-bottom, 0px));
+  }
+
+  .bottom-nav {
+    bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+  }
 }
 
 .bottom-nav-pill {
@@ -2161,6 +2173,80 @@ table.data-table tr.caja-row-retiro:hover td {
   padding-bottom: 24px;
 }
 
+.sale-desktop-grid,
+.sale-desktop-left {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sale-desktop-panel {
+  min-width: 0;
+}
+
+.sale-meta-row,
+.sale-customer-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+@media (min-width: 1100px) {
+  .sale-form-app {
+    max-width: none;
+    width: 100%;
+    margin: 0;
+  }
+
+  .sale-desktop-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1.45fr) minmax(360px, 0.9fr);
+    gap: 24px;
+    align-items: start;
+  }
+
+  .sale-desktop-left {
+    gap: 16px;
+  }
+
+  .sale-desktop-panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 18px 20px 20px;
+  }
+
+  .sale-desktop-checkout {
+    position: sticky;
+    top: 16px;
+    max-height: calc(100vh - 40px);
+    overflow: auto;
+  }
+
+  .sale-meta-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px 16px;
+  }
+
+  .sale-customer-row {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 12px 16px;
+  }
+
+  .sale-desktop-info .sale-section-title,
+  .sale-desktop-catalog .sale-section-title,
+  .sale-desktop-checkout .sale-section-title {
+    margin-top: 0;
+  }
+
+  .sale-desktop-catalog .sale-section-title {
+    margin-bottom: 12px;
+  }
+}
+
 .sale-form-app .chip.active,
 .sale-category-chips .chip.active {
   background: var(--primary);
@@ -3060,9 +3146,75 @@ table.data-table tr.caja-row-retiro:hover td {
   width: 100%;
 }
 
+.caja-desktop-stats {
+  display: none;
+}
+
+.caja-desktop-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
 @media (min-width: 960px) {
   .caja-page {
-    max-width: 620px;
+    max-width: none;
+    width: 100%;
+  }
+
+  .caja-desktop-stats {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 14px;
+    margin-bottom: 18px;
+  }
+
+  .caja-stat {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+    padding: 16px 18px;
+  }
+
+  .caja-stat-label {
+    display: block;
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-bottom: 6px;
+  }
+
+  .caja-stat-value {
+    font-size: 22px;
+    font-weight: 700;
+    color: var(--text);
+  }
+
+  .caja-stat-accent {
+    color: var(--success, #16a34a);
+  }
+
+  .caja-desktop-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 18px;
+    align-items: stretch;
+    margin-bottom: 8px;
+  }
+
+  .caja-desktop-grid-admin {
+    grid-template-columns: minmax(260px, 0.85fr) minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  .caja-central-card {
+    margin-bottom: 0;
+    height: 100%;
+  }
+
+  .caja-save-btn,
+  .caja-nomovement-btn {
+    max-width: none;
+    width: 100%;
   }
 }
 
@@ -4165,6 +4317,7 @@ table.data-table tr.caja-row-retiro:hover td {
 
   .admin-sidebar {
     padding: 16px;
+    padding-top: calc(16px + env(safe-area-inset-top, 0px));
   }
 
   .admin-nav {

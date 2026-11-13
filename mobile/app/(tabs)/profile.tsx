@@ -132,11 +132,18 @@ export default function ProfileScreen() {
           />
         ) : null}
         {isBrandAdmin ? (
-          <MenuItem
-            icon="admin-panel-settings"
-            label="Usuarios y auditoría"
-            onPress={() => router.push('/users')}
-          />
+          <>
+            <MenuItem
+              icon="storefront"
+              label="Ajustes de marca"
+              onPress={() => router.push('/brand-settings')}
+            />
+            <MenuItem
+              icon="admin-panel-settings"
+              label="Usuarios y auditoría"
+              onPress={() => router.push('/users')}
+            />
+          </>
         ) : null}
       </Card>
 
