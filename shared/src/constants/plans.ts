@@ -9,6 +9,8 @@ export interface PlanLimits {
   flex: boolean;
   presupuestos: boolean;
   multiPayment: boolean;
+  /** Avisos a un grupo de Telegram (cierres / ventas) */
+  telegram: boolean;
 }
 
 export interface PlanDefinition {
@@ -30,6 +32,7 @@ export const PLAN_DEFINITIONS: Record<PlanId, PlanDefinition> = {
       flex: false,
       presupuestos: true,
       multiPayment: true,
+      telegram: true,
     },
   },
   starter: {
@@ -44,6 +47,7 @@ export const PLAN_DEFINITIONS: Record<PlanId, PlanDefinition> = {
       presupuestos: false,
       // Gratis: solo Transferencia (sin dual ni catálogo amplio)
       multiPayment: false,
+      telegram: false,
     },
   },
   pro: {
@@ -57,6 +61,7 @@ export const PLAN_DEFINITIONS: Record<PlanId, PlanDefinition> = {
       flex: false,
       presupuestos: true,
       multiPayment: true,
+      telegram: true,
     },
   },
   enterprise: {
@@ -70,6 +75,7 @@ export const PLAN_DEFINITIONS: Record<PlanId, PlanDefinition> = {
       flex: true,
       presupuestos: true,
       multiPayment: true,
+      telegram: true,
     },
   },
 };

@@ -1,6 +1,8 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { onAuthStateChanged, User } from 'firebase/auth';
-import { auth } from '@/lib/firebase';
+import { DEFAULT_BRAND_ID } from '@advance-coat/shared';
+import { doc, updateDoc } from 'firebase/firestore';
+import { auth, db } from '@/lib/firebase';
 import { getUserProfile, repairOwnerProfileIfMissing, signOutUser } from '@/services/auth';
 import { UserProfile } from '@/types';
 import { setActiveBrandId } from '@/lib/brandScope';
@@ -30,15 +32,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (!p) {
         p = await repairOwnerProfileIfMissing(firebaseUser);
       }
-      if (p && p.active === false) {
+      if (p && p.active === false && !p.pendingApproval) {
         await signOutUser();
         setProfile(null);
         setActiveBrandId(null);
         return;
       }
+      if (p && p.role !== 'super_admin' && !p.brandId) {
+        try {
+          await updateDoc(doc(db, 'users', p.uid), { brandId: DEFAULT_BRAND_ID });
+          p = { ...p, brandId: DEFAULT_BRAND_ID };
+        } catch (err) {
+          console.warn('No se pudo sellar brandId legacy:', err);
+          p = { ...p, brandId: DEFAULT_BRAND_ID };
+        }
+      }
       setProfile(p);
-      if (p?.brandId) setActiveBrandId(p.brandId);
-      else setActiveBrandId(null);
+      setActiveBrandId(p?.brandId ?? (p && p.role !== 'super_admin' ? DEFAULT_BRAND_ID : null));
     } catch (error) {
       console.error('Error loading profile:', error);
       setProfile(null);

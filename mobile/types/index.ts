@@ -21,6 +21,7 @@ export interface UserProfile {
   brandId?: string | null;
   photoUrl?: string;
   active?: boolean;
+  pendingApproval?: boolean;
   createdAt?: Date;
 }
 

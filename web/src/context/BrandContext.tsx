@@ -8,6 +8,7 @@ import React, {
 } from 'react';
 import type { Brand } from '@advance-coat/shared';
 import {
+  DEFAULT_BRAND_ID,
   getPlanLimits,
   isBrandAdminRole,
   isSuperAdminRole,
@@ -64,7 +65,11 @@ export function BrandProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    const brandId = overrideBrandId || profile.brandId || null;
+    // Legacy Advance: usuarios sin brandId operan como Advance hasta que se selle el perfil
+    const brandId =
+      overrideBrandId ||
+      profile.brandId ||
+      (isSuperAdminRole(profile.role) ? null : DEFAULT_BRAND_ID);
     if (!brandId) {
       setBrand(null);
       setActiveBrandId(null);

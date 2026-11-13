@@ -35,8 +35,19 @@ service cloud.firestore {
         );
     }
 
+    function missingBrandId(data) {
+      return !('brandId' in data)
+        || data.brandId == null
+        || data.brandId == '';
+    }
+
+    /** Legacy Advance: perfil sin brandId opera como advance-coat (no super_admin). */
     function userBrandId() {
-      return ownData().brandId;
+      return isSuperAdmin()
+        ? null
+        : (hasOwnProfile() && !missingBrandId(ownData())
+            ? ownData().brandId
+            : 'advance-coat');
     }
 
     function sameBrand(data) {
@@ -45,13 +56,21 @@ service cloud.firestore {
         // legacy Advance sin brandId
         || (hasOwnProfile()
             && userBrandId() == 'advance-coat'
-            && !('brandId' in data));
+            && missingBrandId(data));
     }
 
     function brandWriteOk() {
       return isSuperAdmin()
         || (hasOwnProfile()
             && request.resource.data.brandId == userBrandId());
+    }
+
+    function canSelfSealAdvanceBrand() {
+      return request.auth.uid == userId
+        && !isSuperAdmin()
+        && missingBrandId(resource.data)
+        && request.resource.data.brandId == 'advance-coat'
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['brandId']);
     }
 
     function isActiveMember() {
@@ -88,6 +107,7 @@ service cloud.firestore {
         || employeeSelfJoinOk();
       allow update: if isSuperAdmin()
         || isBrandAdmin()
+        || canSelfSealAdvanceBrand()
         || (request.auth.uid == userId
             && !request.resource.data.diff(resource.data).affectedKeys()
                 .hasAny(['role', 'active', 'brandId', 'pendingApproval', 'inviteCode']));

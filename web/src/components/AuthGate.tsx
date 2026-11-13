@@ -94,18 +94,7 @@ export function AuthGate() {
     return <Navigate to="/platform" replace />;
   }
 
-  if (!isSuperAdminRole(profile.role) && !profile.brandId) {
-    return (
-      <div className="loading-screen" style={{ flexDirection: 'column', gap: 12, padding: 24 }}>
-        <p style={{ margin: 0, textAlign: 'center' }}>
-          Tu usuario no está asociado a ninguna marca.
-        </p>
-        <button type="button" className="btn btn-primary" onClick={() => void signOutUser()}>
-          Cerrar sesión
-        </button>
-      </div>
-    );
-  }
+  // Legacy sin brandId: BrandContext ya opera como Advance; no bloquear la app.
 
   return (
     <AppShell>

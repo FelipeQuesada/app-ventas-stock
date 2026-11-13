@@ -1,7 +1,8 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { onAuthStateChanged, type User } from 'firebase/auth';
-import type { UserProfile } from '@advance-coat/shared';
-import { auth } from '../lib/firebase';
+import { DEFAULT_BRAND_ID, type UserProfile } from '@advance-coat/shared';
+import { doc, updateDoc } from 'firebase/firestore';
+import { auth, db } from '../lib/firebase';
 import { getUserProfile, repairOwnerProfileIfMissing, signOutUser } from '../services/auth';
 
 interface AuthContextType {
@@ -39,6 +40,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         await signOutUser();
         setProfile(null);
         return;
+      }
+      // Legacy Advance: sellar brandId en perfil si falta (evita race del login)
+      if (p && p.role !== 'super_admin' && !p.brandId) {
+        try {
+          await updateDoc(doc(db, 'users', p.uid), { brandId: DEFAULT_BRAND_ID });
+          p = { ...p, brandId: DEFAULT_BRAND_ID };
+        } catch (err) {
+          console.warn('No se pudo sellar brandId legacy:', err);
+          p = { ...p, brandId: DEFAULT_BRAND_ID };
+        }
       }
       setProfile(p);
     } catch (error) {

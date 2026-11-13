@@ -67,7 +67,7 @@ export default function CajaScreen() {
   const { sellers } = useBrandSellers();
   const router = useRouter();
   const { user, profile } = useAuth();
-  const isAdmin = profile?.role === 'admin';
+  const isAdmin = profile?.role === 'admin' || profile?.role === 'owner';
   const today = new Date();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -108,7 +108,7 @@ export default function CajaScreen() {
       setSinMovimiento(todayCaja?.sinMovimiento === true);
       if (todayCaja?.closedByName) setClosedByName(todayCaja.closedByName);
 
-      if (profile?.role === 'admin' && user) {
+      if ((profile?.role === 'admin' || profile?.role === 'owner') && user) {
         const central = await getOrCreateCajaCentral({
           userId: user.uid,
           userName: profile.name,

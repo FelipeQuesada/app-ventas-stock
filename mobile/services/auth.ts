@@ -94,6 +94,7 @@ function mapProfile(uid: string, data: Record<string, unknown>): UserProfile {
     brandId: (data.brandId as string | null | undefined) ?? null,
     photoUrl: (data.photoUrl as string) || undefined,
     active: data.active !== false,
+    pendingApproval: data.pendingApproval === true,
     createdAt: (data.createdAt as { toDate?: () => Date })?.toDate?.(),
   };
 }

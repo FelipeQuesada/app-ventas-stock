@@ -7,7 +7,7 @@ import React, {
   useState,
 } from 'react';
 import type { Brand } from '@advance-coat/shared';
-import { getPlanLimits, type PlanLimits } from '@advance-coat/shared';
+import { DEFAULT_BRAND_ID, getPlanLimits, type PlanLimits } from '@advance-coat/shared';
 import { isBrandAdminRole, isSuperAdminRole } from '@/types';
 import { useAuth } from './AuthContext';
 import { getBrand } from '@/services/brands';
@@ -44,7 +44,16 @@ export function BrandProvider({ children }: { children: React.ReactNode }) {
 
   const load = useCallback(async () => {
     if (authLoading) return;
-    if (!profile?.brandId) {
+    if (!profile) {
+      setBrand(null);
+      setActiveBrandId(null);
+      return;
+    }
+
+    const brandId =
+      profile.brandId ||
+      (isSuperAdminRole(profile.role) ? null : DEFAULT_BRAND_ID);
+    if (!brandId) {
       setBrand(null);
       setActiveBrandId(null);
       return;
@@ -52,12 +61,12 @@ export function BrandProvider({ children }: { children: React.ReactNode }) {
 
     setLoading(true);
     try {
-      const b = await getBrand(profile.brandId);
+      const b = await getBrand(brandId);
       setBrand(b);
-      setActiveBrandId(b?.id ?? profile.brandId);
+      setActiveBrandId(b?.id ?? brandId);
       invalidateProductsCache();
     } catch {
-      setActiveBrandId(profile.brandId);
+      setActiveBrandId(brandId);
       setBrand(null);
     } finally {
       setLoading(false);

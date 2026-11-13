@@ -73,7 +73,7 @@ const PLANS: LandingPlan[] = [
       { text: 'Hasta 5 usuarios con roles', included: true },
       { text: 'Código para sumar empleados', included: true },
       { text: 'Estadísticas y comparativas', included: true },
-      { text: 'Avisos por Telegram', included: true },
+      { text: 'Avisos por Telegram (configurás el grupo)', included: true },
       { text: 'Caja central, borradores y presupuestos', included: true },
       { text: 'Export Excel / PDF', included: true },
       { text: 'Historial ilimitado', included: true },
@@ -90,10 +90,10 @@ const PLANS: LandingPlan[] = [
       { text: 'Todo lo del plan Pro', included: true },
       { text: 'Hasta 25 usuarios', included: true },
       { text: 'Módulo Flex (envíos)', included: true },
+      { text: 'Telegram: te lo conectamos nosotros', included: true },
       { text: 'Reportes avanzados y Excel', included: true },
       { text: 'Soporte prioritario por WhatsApp', included: true },
-      { text: 'Capacitación inicial del equipo', included: true },
-      { text: 'Onboarding asistido', included: true },
+      { text: 'Capacitación / onboarding asistido', included: true },
     ],
     cta: 'Hablar con ventas',
     popular: false,
@@ -287,7 +287,12 @@ function whatsappUrl(planName: string): string {
 function useReveal(enabled: boolean) {
   useEffect(() => {
     if (!enabled) return;
+    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     const nodes = document.querySelectorAll('.lp-reveal');
+    if (reduced) {
+      nodes.forEach((node) => node.classList.add('is-in'));
+      return;
+    }
     const io = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
@@ -297,7 +302,7 @@ function useReveal(enabled: boolean) {
           }
         });
       },
-      { threshold: 0.15 }
+      { threshold: 0.12, rootMargin: '0px 0px -8% 0px' }
     );
     nodes.forEach((node) => io.observe(node));
     return () => io.disconnect();
@@ -513,7 +518,7 @@ export function LandingPage() {
       </header>
 
       <section className="lp-section" id="funciones">
-        <div className="lp-container">
+        <div className="lp-container lp-reveal-stagger">
           <div className="lp-center lp-reveal">
             <div className="lp-eyebrow">Para qué sirve</div>
             <h2 className="lp-section-title">Todo tu negocio, en una sola app</h2>

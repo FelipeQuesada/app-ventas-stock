@@ -47,6 +47,11 @@ function mapBrand(id: string, data: Record<string, unknown>): Brand {
     paymentMethodIds: Array.isArray(data.paymentMethodIds)
       ? (data.paymentMethodIds as Brand['paymentMethodIds'])
       : undefined,
+    telegramChatId:
+      typeof data.telegramChatId === 'string' && data.telegramChatId.trim()
+        ? data.telegramChatId.trim()
+        : undefined,
+    telegramEnabled: data.telegramEnabled !== false,
     createdAt: (data.createdAt as { toDate?: () => Date })?.toDate?.(),
     updatedAt: (data.updatedAt as { toDate?: () => Date })?.toDate?.(),
   };
@@ -167,6 +172,8 @@ export async function updateBrand(
     sellingStatus: string | null;
     salesChannels: string[] | null;
     paymentMethodIds: Brand['paymentMethodIds'] | null;
+    telegramChatId: string | null;
+    telegramEnabled: boolean;
     planExpiresAt: Date | null;
   }>
 ): Promise<void> {
@@ -183,6 +190,8 @@ export async function updateBrand(
   if (data.sellingStatus !== undefined) payload.sellingStatus = data.sellingStatus;
   if (data.salesChannels !== undefined) payload.salesChannels = data.salesChannels;
   if (data.paymentMethodIds !== undefined) payload.paymentMethodIds = data.paymentMethodIds;
+  if (data.telegramChatId !== undefined) payload.telegramChatId = data.telegramChatId;
+  if (data.telegramEnabled !== undefined) payload.telegramEnabled = data.telegramEnabled;
   if (data.planExpiresAt !== undefined) payload.planExpiresAt = data.planExpiresAt;
   await updateDoc(doc(db, COLLECTION, brandId), payload);
 }

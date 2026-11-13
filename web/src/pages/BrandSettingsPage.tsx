@@ -28,6 +28,8 @@ export function BrandSettingsPage() {
   const [phone, setPhone] = useState('');
   const [inviteCode, setInviteCode] = useState('');
   const [paymentMethodIds, setPaymentMethodIds] = useState<PaymentMethod[]>(DEFAULT_PRO_PAYMENTS);
+  const [telegramChatId, setTelegramChatId] = useState('');
+  const [telegramEnabled, setTelegramEnabled] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
@@ -39,7 +41,17 @@ export function BrandSettingsPage() {
     setInviteCode(brand.inviteCode ?? '');
     const saved = brand.paymentMethodIds?.filter(Boolean) ?? [];
     setPaymentMethodIds(saved.length > 0 ? saved : DEFAULT_PRO_PAYMENTS);
-  }, [brand?.id, brand?.name, brand?.phone, brand?.inviteCode, brand?.paymentMethodIds]);
+    setTelegramChatId(brand.telegramChatId ?? '');
+    setTelegramEnabled(brand.telegramEnabled !== false);
+  }, [
+    brand?.id,
+    brand?.name,
+    brand?.phone,
+    brand?.inviteCode,
+    brand?.paymentMethodIds,
+    brand?.telegramChatId,
+    brand?.telegramEnabled,
+  ]);
 
   useEffect(() => {
     if (!brand?.id || brand.inviteCode) return;
@@ -147,6 +159,7 @@ export function BrandSettingsPage() {
 
   const plan = PLAN_DEFINITIONS[brand.planId] ?? PLAN_DEFINITIONS.starter;
   const canConfigurePayments = !isAdvance && limits.multiPayment;
+  const canConfigureTelegram = limits.telegram;
 
   function togglePaymentMethod(method: PaymentMethod) {
     if (method === 'transferencia') return;
@@ -171,6 +184,32 @@ export function BrandSettingsPage() {
       setPaymentMethodIds(next);
       await refreshBrand();
       setMessage('Medios de pago actualizados.');
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleSaveTelegram() {
+    if (!brand || !canConfigureTelegram) return;
+    setSaving(true);
+    setError('');
+    setMessage('');
+    try {
+      const chat = telegramChatId.trim();
+      await updateBrand(brand.id, {
+        telegramChatId: chat || null,
+        telegramEnabled,
+      });
+      await refreshBrand();
+      setMessage(
+        isAdvance
+          ? 'Preferencia de Telegram guardada. Advance usa el bot global de Control+.'
+          : chat
+            ? 'Telegram conectado. Los cierres de caja avisarán a ese grupo.'
+            : 'Telegram guardado sin chat: no se enviarán avisos hasta cargar el ID.'
+      );
     } catch (err) {
       setError((err as Error).message);
     } finally {
@@ -276,6 +315,67 @@ export function BrandSettingsPage() {
           </p>
         </div>
       ) : null}
+
+      {canConfigureTelegram ? (
+        <div className="card" style={{ marginBottom: 20 }}>
+          <h3 className="card-title">Telegram</h3>
+          {isAdvance ? (
+            <p className="muted" style={{ marginTop: 0 }}>
+              Advance usa el bot y el grupo global que configuramos nosotros (secretos de Cloud
+              Functions). Acá solo podés pausar o reactivar los avisos de esta marca.
+            </p>
+          ) : (
+            <p className="muted" style={{ marginTop: 0 }}>
+              Creá un grupo, sumá al bot de Control+, y pegá el <strong>chat ID</strong> del grupo.
+              Si preferís, lo configuramos nosotros en el plan Empresa.
+            </p>
+          )}
+          <label
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+              marginTop: 12,
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={telegramEnabled}
+              disabled={saving}
+              onChange={(e) => setTelegramEnabled(e.target.checked)}
+            />
+            <span>Enviar avisos de cierre / ventas</span>
+          </label>
+          {!isAdvance ? (
+            <div className="field" style={{ marginTop: 12 }}>
+              <label htmlFor="telegramChatId">Chat ID del grupo</label>
+              <input
+                id="telegramChatId"
+                value={telegramChatId}
+                onChange={(e) => setTelegramChatId(e.target.value)}
+                placeholder="-100…"
+                disabled={saving}
+              />
+            </div>
+          ) : null}
+          <button
+            type="button"
+            className="btn btn-primary"
+            style={{ marginTop: 16 }}
+            disabled={saving}
+            onClick={() => void handleSaveTelegram()}
+          >
+            {saving ? 'Guardando…' : 'Guardar Telegram'}
+          </button>
+        </div>
+      ) : (
+        <div className="card" style={{ marginBottom: 20 }}>
+          <h3 className="card-title">Telegram</h3>
+          <p className="muted" style={{ marginTop: 0 }}>
+            Los avisos al grupo están en Pro y Empresa. En Inicio no se conecta el bot.
+          </p>
+        </div>
+      )}
 
       <div className="card" style={{ marginBottom: 20 }}>
         <h3 className="card-title">Código para empleados</h3>

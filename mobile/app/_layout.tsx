@@ -38,13 +38,28 @@ function AuthGate({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    // Auth sin perfil/marca: puede completar registro
-    if (user && !profile?.brandId) {
+    if (user && profile?.pendingApproval) {
+      // Queda en sesión; no lo mandamos a tabs ni a register
+      return;
+    }
+
+    // Sin perfil: puede completar registro de marca
+    if (user && !profile) {
       if (!onRegister) router.replace('/(auth)/register');
       return;
     }
 
-    if (user && profile?.brandId && inAuth) {
+    // Legacy Advance: sin brandId aún se considera Advance (AuthContext lo sella)
+    const hasBrand =
+      !!profile?.brandId ||
+      (profile != null && profile.role !== 'super_admin');
+
+    if (user && !hasBrand) {
+      if (!onRegister) router.replace('/(auth)/register');
+      return;
+    }
+
+    if (user && hasBrand && inAuth) {
       router.replace('/(tabs)');
     }
   }, [user, profile, loading, segments, router]);

@@ -66,8 +66,55 @@ function argentinaDateId(date = new Date()): string {
   }).format(date);
 }
 
-async function notifyTelegram(text: string): Promise<void> {
-  await sendTelegramMessage(telegramBotToken.value(), telegramChatId.value(), text);
+const ADVANCE_BRAND_ID = 'advance-coat';
+
+/**
+ * Resuelve a qué chat mandar:
+ * - Advance (o docs sin brandId): secret global TELEGRAM_CHAT_ID
+ * - Otras marcas: solo si brands/{id}.telegramEnabled !== false y telegramChatId
+ */
+async function resolveTelegramChatId(brandId: unknown): Promise<string | null> {
+  const bid =
+    typeof brandId === 'string' && brandId.trim().length > 0 ? brandId.trim() : ADVANCE_BRAND_ID;
+
+  try {
+    const snap = await getFirestore().collection('brands').doc(bid).get();
+    const data = snap.exists ? snap.data() ?? {} : {};
+
+    if (snap.exists && data.telegramEnabled === false) {
+      logger.info('Telegram deshabilitado para la marca', { brandId: bid });
+      return null;
+    }
+
+    // Advance (o legacy): bot + chat global de Control+
+    if (bid === ADVANCE_BRAND_ID) {
+      const globalId = telegramChatId.value()?.trim();
+      return globalId || null;
+    }
+
+    if (!snap.exists) {
+      logger.info('Telegram: marca inexistente, se omite', { brandId: bid });
+      return null;
+    }
+
+    const chat =
+      typeof data.telegramChatId === 'string' ? data.telegramChatId.trim() : '';
+    if (!chat) {
+      logger.info('Telegram sin chatId configurado', { brandId: bid });
+      return null;
+    }
+    return chat;
+  } catch (err) {
+    logger.error('Telegram: error leyendo marca', { brandId: bid, err });
+    return null;
+  }
+}
+
+async function notifyTelegramForBrand(brandId: unknown, text: string): Promise<boolean> {
+  const chatId = await resolveTelegramChatId(brandId);
+  if (!chatId) return false;
+  await sendTelegramMessage(telegramBotToken.value(), chatId, text);
+  return true;
 }
 
 export const onSaleCreatedNotifyTelegram = onDocumentCreated(
@@ -88,7 +135,17 @@ export const onSaleCreatedNotifyTelegram = onDocumentCreated(
       return;
     }
 
-    await notifyTelegram(buildSaleGroupTextFromDoc(data));
+    const sent = await notifyTelegramForBrand(
+      data.brandId,
+      buildSaleGroupTextFromDoc(data)
+    );
+    if (!sent) {
+      logger.info('Venta sin destino Telegram', {
+        saleId: event.params.saleId,
+        brandId: data.brandId ?? null,
+      });
+      return;
+    }
     logger.info('Venta notificada a Telegram', { saleId: event.params.saleId });
   }
 );
@@ -165,9 +222,18 @@ export const onCajaWrittenNotifyTelegram = onDocumentWritten(
 
     const text = isRetiro ? buildCajaRetiroText(data) : buildCajaCierreText(data);
 
-    await notifyTelegram(text);
+    const sent = await notifyTelegramForBrand(data.brandId, text);
+    if (!sent) {
+      logger.info('Caja sin destino Telegram', {
+        cajaId,
+        brandId: data.brandId ?? null,
+        entryType: isRetiro ? 'retiro' : 'cierre',
+      });
+      return;
+    }
     logger.info('Caja notificada a Telegram', {
       cajaId,
+      brandId: data.brandId ?? null,
       entryType: isRetiro ? 'retiro' : 'cierre',
       eventId: eventId || 'fallback-cierre',
     });
@@ -200,7 +266,11 @@ export const remindMissingCajaCierreTelegram = onSchedule(
       'Si cerraron a mano, cargalo en Historial de caja → Día faltante.',
     ].join('\n');
 
-    await notifyTelegram(text);
+    const sent = await notifyTelegramForBrand(ADVANCE_BRAND_ID, text);
+    if (!sent) {
+      logger.warn('Recordatorio de caja sin destino Telegram', { dayId });
+      return;
+    }
     logger.info('Recordatorio de caja enviado', { dayId });
   }
 );

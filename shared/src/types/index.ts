@@ -45,6 +45,10 @@ export interface Brand {
    * Si está vacío/undefined se usan todos los estándar.
    */
   paymentMethodIds?: PaymentMethod[];
+  /** Chat/grupo de Telegram para avisos (plan Pro+) */
+  telegramChatId?: string;
+  /** Si false, no se envían avisos aunque haya chatId */
+  telegramEnabled?: boolean;
   createdAt?: Date;
   updatedAt?: Date;
 }

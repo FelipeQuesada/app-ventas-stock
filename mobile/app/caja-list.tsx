@@ -35,7 +35,7 @@ import { colors, radius, spacing, typography } from '@/constants/theme';
 export default function CajaListScreen() {
   const router = useRouter();
   const { profile } = useAuth();
-  const isAdmin = profile?.role === 'admin';
+  const isAdmin = profile?.role === 'admin' || profile?.role === 'owner';
   const [records, setRecords] = useState<DailyCaja[]>([]);
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);

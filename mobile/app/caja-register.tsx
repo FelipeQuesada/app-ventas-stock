@@ -26,7 +26,7 @@ export default function CajaRegisterScreen() {
   const { date: dateParam } = useLocalSearchParams<{ date?: string }>();
   const { user, profile } = useAuth();
   const { sellers } = useBrandSellers();
-  const isAdmin = profile?.role === 'admin';
+  const isAdmin = profile?.role === 'admin' || profile?.role === 'owner';
 
   const initialDate = useMemo(() => {
     if (dateParam) {
