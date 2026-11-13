@@ -65,8 +65,8 @@ service cloud.firestore {
             && request.resource.data.brandId == userBrandId());
     }
 
-    function canSelfSealAdvanceBrand() {
-      return request.auth.uid == userId
+    function canSelfSealAdvanceBrand(uid) {
+      return request.auth.uid == uid
         && !isSuperAdmin()
         && missingBrandId(resource.data)
         && request.resource.data.brandId == 'advance-coat'
@@ -79,8 +79,8 @@ service cloud.firestore {
         && ownData().active != false;
     }
 
-    function employeeSelfJoinOk() {
-      return request.auth.uid == userId
+    function employeeSelfJoinOk(uid) {
+      return request.auth.uid == uid
         && request.resource.data.role == 'employee'
         && request.resource.data.pendingApproval == true
         && request.resource.data.active == false
@@ -104,10 +104,10 @@ service cloud.firestore {
             && request.resource.data.role == 'owner'
             && request.resource.data.brandId is string
             && request.resource.data.brandId.size() > 0)
-        || employeeSelfJoinOk();
+        || employeeSelfJoinOk(userId);
       allow update: if isSuperAdmin()
         || isBrandAdmin()
-        || canSelfSealAdvanceBrand()
+        || canSelfSealAdvanceBrand(userId)
         || (request.auth.uid == userId
             && !request.resource.data.diff(resource.data).affectedKeys()
                 .hasAny(['role', 'active', 'brandId', 'pendingApproval', 'inviteCode']));
