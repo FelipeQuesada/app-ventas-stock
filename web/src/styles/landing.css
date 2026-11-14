@@ -2401,3 +2401,400 @@
     transform: none;
   }
 }
+
+/* ——— Presentación (tesis / PDF) ——— */
+.lp-nav-current {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.lp-pres-deck {
+  padding: calc(104px + env(safe-area-inset-top, 0px)) 0 56px;
+}
+
+.lp-pres-deck-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 22px;
+}
+
+.lp-pres-deck-head h1 {
+  margin: 0;
+  font-size: clamp(1.8rem, 4vw, 2.6rem);
+  letter-spacing: -0.8px;
+  line-height: 1.1;
+}
+
+.lp-pres-deck-sub {
+  margin: 8px 0 0;
+  color: var(--muted);
+}
+
+.lp-pres-kicker {
+  display: inline-flex;
+  margin: 0 0 10px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(96, 165, 250, 0.35);
+  background: rgba(37, 99, 235, 0.12);
+  color: #93c5fd;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.lp-pres-stage {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: center;
+}
+
+.lp-pres-navbtn {
+  width: 46px;
+  height: 46px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: rgba(22, 29, 51, 0.7);
+  color: var(--text);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.2s, border-color 0.2s;
+}
+
+.lp-pres-navbtn:hover {
+  background: rgba(37, 99, 235, 0.22);
+  border-color: rgba(96, 165, 250, 0.45);
+  transform: translateY(-1px);
+}
+
+.lp-pres-frame {
+  position: relative;
+  margin: 0;
+  border-radius: 18px;
+  overflow: hidden;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  background: #0a0e18;
+  box-shadow: 0 28px 70px -40px rgba(0, 0, 0, 0.85);
+}
+
+.lp-pres-frame img {
+  display: block;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 1800 / 1012;
+  object-fit: contain;
+  background: #111;
+}
+
+.lp-pres-frame figcaption {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(11, 15, 26, 0.78);
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  color: #e2e8f0;
+  font-size: 0.78rem;
+  font-weight: 600;
+  backdrop-filter: blur(8px);
+}
+
+.lp-pres-frame-phone {
+  position: absolute;
+  right: 5%;
+  top: 50%;
+  width: min(28%, 220px);
+  transform: translateY(-50%);
+  filter: drop-shadow(0 22px 40px rgba(15, 23, 42, 0.4));
+  z-index: 2;
+}
+
+.lp-pres-frame-phone .lp-phone-mock figcaption {
+  display: none;
+}
+
+.lp-phone-mock {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.lp-phone-mock-shell {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 9 / 19.5;
+  border-radius: 28px;
+  padding: 8px;
+  background: linear-gradient(160deg, #1e293b, #0f172a 55%, #020617);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.12),
+    0 16px 36px rgba(2, 6, 23, 0.35);
+}
+
+.lp-phone-mock-island {
+  position: absolute;
+  top: 14px;
+  left: 50%;
+  z-index: 2;
+  width: 34%;
+  height: 10px;
+  transform: translateX(-50%);
+  border-radius: 999px;
+  background: #020617;
+}
+
+.lp-phone-mock-shell img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: top center;
+  border-radius: 22px;
+  background: #f8fafc;
+}
+
+.lp-phone-mock figcaption {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #93c5fd;
+}
+
+.lp-pres-frame.is-screens {
+  background:
+    radial-gradient(ellipse 50% 40% at 80% 20%, rgba(37, 99, 235, 0.18), transparent 60%),
+    #0b0f1a;
+  overflow: visible;
+}
+
+.lp-pres-frame.is-screens > img {
+  display: none;
+}
+
+.lp-pres-screens {
+  aspect-ratio: 1800 / 1012;
+  min-height: 360px;
+  padding: 28px 28px 36px;
+  display: grid;
+  grid-template-rows: auto 1fr;
+  gap: 16px;
+}
+
+.lp-pres-screens-copy h2 {
+  margin: 0 0 6px;
+  font-size: clamp(1.4rem, 3vw, 2rem);
+  letter-spacing: -0.5px;
+}
+
+.lp-pres-screens-copy p {
+  margin: 0;
+  color: var(--muted);
+  max-width: 40rem;
+}
+
+.lp-pres-screens-tabs {
+  display: none;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.lp-pres-screens-tabs button {
+  border: 1px solid var(--line);
+  background: rgba(22, 29, 51, 0.7);
+  color: var(--muted);
+  border-radius: 999px;
+  padding: 8px 14px;
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.lp-pres-screens-tabs button.is-active {
+  color: #fff;
+  border-color: rgba(96, 165, 250, 0.55);
+  background: rgba(37, 99, 235, 0.35);
+}
+
+.lp-pres-screens-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+  align-items: end;
+  min-height: 0;
+}
+
+.lp-pres-screens-grid > button {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+
+.lp-pres-screens-grid > button:hover,
+.lp-pres-screens-grid > button.is-active {
+  transform: translateY(-6px);
+}
+
+.lp-pres-screens-grid .lp-phone-mock {
+  width: 100%;
+  max-width: 220px;
+  margin-inline: auto;
+}
+
+.lp-pres-screens-focus {
+  display: none;
+}
+
+.lp-pres-controls {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.lp-pres-dots {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 7px;
+}
+
+.lp-pres-dots button {
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+  border: 0;
+  padding: 0;
+  background: rgba(148, 163, 184, 0.35);
+  cursor: pointer;
+  transition: transform 0.15s, background 0.15s;
+}
+
+.lp-pres-dots button.is-active {
+  background: #60a5fa;
+  transform: scale(1.25);
+}
+
+.lp-pres-thumbs {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding: 18px 2px 8px;
+  scroll-snap-type: x proximity;
+  -webkit-overflow-scrolling: touch;
+}
+
+.lp-pres-thumbs button {
+  flex: 0 0 auto;
+  width: 148px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+  background: rgba(22, 29, 51, 0.55);
+  cursor: pointer;
+  scroll-snap-align: center;
+  text-align: left;
+  color: var(--muted);
+  transition: border-color 0.2s, transform 0.2s;
+}
+
+.lp-pres-thumbs button img {
+  display: block;
+  width: 100%;
+  height: 84px;
+  object-fit: cover;
+  background: #0b0f1a;
+}
+
+.lp-pres-thumbs button span {
+  display: block;
+  padding: 8px 10px 10px;
+  font-size: 0.72rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.lp-pres-thumbs button.is-active {
+  border-color: rgba(96, 165, 250, 0.7);
+  color: var(--text);
+  transform: translateY(-2px);
+  box-shadow: 0 0 0 1px rgba(37, 99, 235, 0.35);
+}
+
+.lp-pres-hint {
+  margin: 8px 0 0;
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+@media (max-width: 900px) {
+  .lp-pres-stage {
+    grid-template-columns: 1fr;
+  }
+
+  .lp-pres-navbtn {
+    display: none;
+  }
+
+  .lp-pres-frame-phone {
+    display: none;
+  }
+
+  .lp-pres-controls .lp-btn {
+    padding: 10px 14px;
+    font-size: 0.88rem;
+  }
+
+  .lp-pres-screens {
+    aspect-ratio: auto;
+    min-height: 0;
+    padding: 20px 16px 28px;
+  }
+
+  .lp-pres-screens-tabs {
+    display: flex;
+  }
+
+  .lp-pres-screens-grid {
+    display: none;
+  }
+
+  .lp-pres-screens-focus {
+    display: flex;
+    justify-content: center;
+    padding-top: 8px;
+  }
+
+  .lp-pres-screens-focus .lp-phone-mock {
+    width: min(240px, 70vw);
+  }
+}
+
+@media (max-width: 520px) {
+  .lp-pres-deck-head {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .lp-pres-thumbs button {
+    width: 120px;
+  }
+
+  .lp-pres-thumbs button img {
+    height: 68px;
+  }
+}

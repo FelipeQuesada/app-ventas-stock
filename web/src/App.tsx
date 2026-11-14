@@ -9,6 +9,7 @@ import { LoginPage } from './pages/LoginPage';
 import { RegisterPage } from './pages/RegisterPage';
 import { JoinPage } from './pages/JoinPage';
 import { LandingPage } from './pages/LandingPage';
+import { PresentationPage } from './pages/PresentationPage';
 import { DashboardPage } from './pages/DashboardPage';
 import { ProductsPage } from './pages/ProductsPage';
 import { ProductFormPage } from './pages/ProductFormPage';
@@ -42,6 +43,7 @@ export default function App() {
             <Routes>
               <Route path="/" element={<LandingPage />} />
               <Route path="/landing" element={<Navigate to="/" replace />} />
+              <Route path="/presentacion" element={<PresentationPage />} />
               <Route path="/legal/:slug" element={<LegalPage />} />
               <Route path="/login" element={<LoginPage />} />
               <Route path="/register" element={<RegisterPage />} />

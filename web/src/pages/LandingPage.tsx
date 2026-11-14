@@ -457,6 +457,7 @@ export function LandingPage() {
             <a href="#como">Cómo funciona</a>
             <a href="#planes">Planes</a>
             <a href="#faq">Preguntas</a>
+            <Link to="/presentacion">Presentación</Link>
           </div>
           <div className="lp-nav-actions">
             <Link to="/login" className="lp-nav-login">
@@ -648,9 +649,9 @@ export function LandingPage() {
               href="https://www.sismofiesta.com.ar/"
               target="_blank"
               rel="noopener noreferrer"
-              aria-label="SISMD (abre en una pestaña nueva)"
+              aria-label="SISMO (abre en una pestaña nueva)"
             >
-              <img src="/partners/sismd.png?v=3" alt="SISMD" loading="lazy" />
+              <img src="/partners/sismd.png?v=3" alt="SISMO" loading="lazy" />
             </a>
             <a
               className="lp-partner"
@@ -908,6 +909,7 @@ export function LandingPage() {
             Ventas y stock para comercios.
           </div>
           <div className="lp-foot-links">
+            <Link to="/presentacion">Presentación</Link>
             <Link to="/legal/contacto">Contacto</Link>
             <Link to="/legal/terminos">Términos y condiciones</Link>
             <Link to="/legal/privacidad">Privacidad de los datos</Link>

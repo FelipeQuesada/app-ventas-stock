@@ -167,7 +167,7 @@ export function ProductsPage() {
                     onClick={(e) => void handleDelete(p, e)}
                     aria-label="Eliminar"
                   >
-                    <Trash2 size={14} color="#EF4444" />
+                    <Trash2 size={14} color="#2563EB" />
                   </button>
                   <button
                     type="button"
