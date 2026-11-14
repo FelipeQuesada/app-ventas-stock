@@ -28,21 +28,21 @@ const TABS: { id: Tab | 'mas'; label: string; icon: typeof LayoutDashboard }[] =
 ];
 
 const BASE_POINTS: ChartPoint[] = [
-  { label: '11/10', amount: 180000, tickets: 7 },
-  { label: '13/10', amount: 420000, tickets: 12 },
-  { label: '15/10', amount: 260000, tickets: 9 },
-  { label: '17/10', amount: 1100000, tickets: 28 },
-  { label: '19/10', amount: 380000, tickets: 11 },
-  { label: '21/10', amount: 0, tickets: 0 },
-  { label: '23/10', amount: 520000, tickets: 15 },
-  { label: '25/10', amount: 210000, tickets: 8 },
-  { label: '27/10', amount: 640000, tickets: 18 },
-  { label: '29/10', amount: 90000, tickets: 3 },
-  { label: '31/10', amount: 470000, tickets: 14 },
-  { label: '02/11', amount: 330000, tickets: 10 },
-  { label: '04/11', amount: 710000, tickets: 19 },
-  { label: '06/11', amount: 150000, tickets: 5 },
-  { label: '09/11', amount: 580000, tickets: 16 },
+  { label: '30/10', amount: 180000, tickets: 7 },
+  { label: '31/10', amount: 420000, tickets: 12 },
+  { label: '01/11', amount: 260000, tickets: 9 },
+  { label: '02/11', amount: 1100000, tickets: 28 },
+  { label: '03/11', amount: 380000, tickets: 11 },
+  { label: '04/11', amount: 0, tickets: 0 },
+  { label: '05/11', amount: 520000, tickets: 15 },
+  { label: '06/11', amount: 210000, tickets: 8 },
+  { label: '07/11', amount: 640000, tickets: 18 },
+  { label: '08/11', amount: 90000, tickets: 3 },
+  { label: '09/11', amount: 470000, tickets: 14 },
+  { label: '10/11', amount: 330000, tickets: 10 },
+  { label: '11/11', amount: 710000, tickets: 19 },
+  { label: '12/11', amount: 150000, tickets: 5 },
+  { label: '13/11', amount: 580000, tickets: 16 },
 ];
 
 const Y_MAX = 1200000;
@@ -272,11 +272,11 @@ export function InteractivePhone() {
                       ))}
                     </svg>
                     <div className="lp-app-x">
-                      <span>11/10</span>
-                      <span>19/10</span>
-                      <span>27/10</span>
-                      <span>04/11</span>
-                      <span>09/11</span>
+                      <span>30/10</span>
+                      <span>03/11</span>
+                      <span>07/11</span>
+                      <span>10/11</span>
+                      <span>13/11</span>
                     </div>
                   </div>
                 </div>
