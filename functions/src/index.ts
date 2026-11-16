@@ -1,4 +1,5 @@
 import { initializeApp } from 'firebase-admin/app';
+import { getAuth } from 'firebase-admin/auth';
 import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { logger } from 'firebase-functions';
 import { defineSecret } from 'firebase-functions/params';
@@ -11,6 +12,35 @@ import { buildSaleGroupTextFromDoc } from './saleGroupText';
 import { sendTelegramMessage } from './telegram';
 
 initializeApp();
+
+const ADVANCE_BRAND_ID = 'advance-coat';
+
+type UserClaimsPayload = {
+  brandId: string | null;
+  role: string;
+  active: boolean;
+};
+
+async function syncUserClaims(
+  uid: string,
+  data: FirebaseFirestore.DocumentData | undefined
+): Promise<UserClaimsPayload> {
+  const role = String(data?.role || 'employee');
+  const pending = data?.pendingApproval === true;
+  const active = !pending && data?.active !== false;
+  let brandId: string | null =
+    typeof data?.brandId === 'string' && data.brandId.trim().length > 0
+      ? data.brandId.trim()
+      : null;
+  if (role === 'super_admin') {
+    brandId = null;
+  } else if (!brandId) {
+    brandId = ADVANCE_BRAND_ID;
+  }
+  const claims: UserClaimsPayload = { brandId, role, active };
+  await getAuth().setCustomUserClaims(uid, claims);
+  return claims;
+}
 
 const LEGACY_COLLECTIONS = [
   'products',
@@ -28,8 +58,6 @@ const LEGACY_COLLECTIONS = [
 function needsLegacyBrandId(value: unknown): boolean {
   return value === undefined || value === null || value === '';
 }
-
-const ADVANCE_BRAND_ID = 'advance-coat';
 
 function isAdvanceBrandName(name: unknown): boolean {
   const n = String(name || '')
@@ -253,6 +281,20 @@ async function runSealAdvanceLegacyBrandIds(force = false): Promise<SealResult> 
     summary.brandsCreated = 1;
   }
 
+  // Custom claims: necesario para que las queries list pasen las rules
+  // Releer users después de los patches de brandId/active
+  const usersFresh = await db.collection('users').get();
+  let claimsSynced = 0;
+  for (const docSnap of usersFresh.docs) {
+    try {
+      await syncUserClaims(docSnap.id, docSnap.data());
+      claimsSynced += 1;
+    } catch (err) {
+      logger.warn('No se pudo sync claims', { uid: docSnap.id, err });
+    }
+  }
+  summary.claimsSynced = claimsSynced;
+
   logger.info('sealAdvanceLegacyBrandIds ok', {
     summary,
     brandIdSamples,
@@ -270,6 +312,39 @@ async function runSealAdvanceLegacyBrandIds(force = false): Promise<SealResult> 
     force,
   };
 }
+
+/** Mantiene custom claims brandId/role/active al crear/editar users/{uid}. */
+export const syncUserClaimsOnWrite = onDocumentWritten(
+  { document: 'users/{userId}', region: 'southamerica-east1' },
+  async (event) => {
+    const uid = event.params.userId;
+    const after = event.data?.after;
+    if (!after?.exists) return;
+    try {
+      await syncUserClaims(uid, after.data());
+    } catch (err) {
+      logger.error('syncUserClaimsOnWrite failed', { uid, err });
+    }
+  }
+);
+
+/** El cliente llama esto tras login para sellar claims y forzar token fresco. */
+export const refreshMyClaims = onCall(
+  { region: 'southamerica-east1' },
+  async (request) => {
+    const uid = request.auth?.uid;
+    if (!uid) {
+      throw new HttpsError('unauthenticated', 'Tenés que iniciar sesión.');
+    }
+    const snap = await getFirestore().collection('users').doc(uid).get();
+    if (!snap.exists) {
+      throw new HttpsError('not-found', 'No hay perfil de usuario.');
+    }
+    const claims = await syncUserClaims(uid, snap.data());
+    return { ok: true, claims };
+  }
+);
+
 
 /**
  * Sella brandId advance-coat en docs legacy (Admin SDK).

@@ -1,11 +1,27 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { onAuthStateChanged, User } from 'firebase/auth';
+import { getFunctions, httpsCallable } from 'firebase/functions';
 import { DEFAULT_BRAND_ID } from '@advance-coat/shared';
 import { doc, updateDoc } from 'firebase/firestore';
-import { auth, db } from '@/lib/firebase';
+import { app, auth, db } from '@/lib/firebase';
 import { getUserProfile, repairOwnerProfileIfMissing, signOutUser } from '@/services/auth';
 import { UserProfile } from '@/types';
 import { setActiveBrandId } from '@/lib/brandScope';
+
+async function ensureAuthClaims(firebaseUser: User) {
+  try {
+    const token = await firebaseUser.getIdTokenResult();
+    const hasBrandClaim =
+      token.claims.brandId != null || token.claims.role === 'super_admin';
+    if (!hasBrandClaim) {
+      const fns = getFunctions(app, 'southamerica-east1');
+      await httpsCallable(fns, 'refreshMyClaims')({});
+    }
+    await firebaseUser.getIdToken(true);
+  } catch (err) {
+    console.warn('No se pudieron refrescar claims:', err);
+  }
+}
 
 interface AuthContextType {
   user: User | null;
@@ -47,6 +63,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           p = { ...p, brandId: DEFAULT_BRAND_ID };
         }
       }
+      await ensureAuthClaims(firebaseUser);
       setProfile(p);
       setActiveBrandId(p?.brandId ?? (p && p.role !== 'super_admin' ? DEFAULT_BRAND_ID : null));
     } catch (error) {

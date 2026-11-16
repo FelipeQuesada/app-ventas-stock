@@ -78,15 +78,31 @@ service cloud.firestore {
         || (isAdvanceUser() && isAdvanceDoc(data));
     }
 
+    /** brandId en custom claims del token (sí se puede validar en queries list). */
+    function tokenBrandId() {
+      return request.auth.token.brandId;
+    }
+
+    function hasTokenBrandId() {
+      return isAuthenticated()
+        && request.auth.token.brandId != null
+        && request.auth.token.brandId != '';
+    }
+
     /**
      * List/query: el cliente DEBE filtrar where('brandId' == …).
-     * Super admin bypasea sin filtro (por eso él ve datos y el empleado no).
-     * Regla alineada al constraint de la query — sin keys()/is string.
+     * Super admin bypasea sin filtro (por eso él ve datos y el resto no).
+     *
+     * Importante: comparar resource.data.brandId con get(users).brandId
+     * a menudo FALLA en list. Por eso:
+     * 1) claims del token (correcto)
+     * 2) literal advance-coat para miembros activos (parche Advance)
      */
     function sameBrandList(data) {
       return isSuperAdmin()
-        || (isActiveMember() && data.brandId == userBrandId())
-        || (isAdvanceUser() && data.brandId == 'advance-coat');
+        || (isActiveMember() && hasTokenBrandId() && data.brandId == tokenBrandId())
+        || (isActiveMember() && data.brandId == 'advance-coat')
+        || (isActiveMember() && data.brandId == userBrandId());
     }
 
     function sameBrand(data) {

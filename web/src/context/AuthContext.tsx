@@ -1,9 +1,29 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
 import { onAuthStateChanged, type User } from 'firebase/auth';
+import { getFunctions, httpsCallable } from 'firebase/functions';
 import { DEFAULT_BRAND_ID, type UserProfile } from '@advance-coat/shared';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
-import { auth, db } from '../lib/firebase';
+import { app, auth, db } from '../lib/firebase';
 import { getUserProfile, repairOwnerProfileIfMissing, signOutUser } from '../services/auth';
+
+async function ensureAuthClaims(firebaseUser: User) {
+  try {
+    const token = await firebaseUser.getIdTokenResult();
+    const hasBrandClaim =
+      token.claims.brandId != null ||
+      token.claims.role === 'super_admin' ||
+      (typeof token.claims.email === 'string' &&
+        token.claims.email.toLowerCase() === 'felimq09@gmail.com');
+    if (!hasBrandClaim) {
+      const fns = getFunctions(app, 'southamerica-east1');
+      await httpsCallable(fns, 'refreshMyClaims')({});
+    }
+    // Fuerza token fresco (claims nuevos tras approve / repair)
+    await firebaseUser.getIdToken(true);
+  } catch (err) {
+    console.warn('No se pudieron refrescar claims:', err);
+  }
+}
 
 interface AuthContextType {
   user: User | null;
@@ -63,6 +83,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           p = { ...p, brandId: nextBrandId };
         }
       }
+      await ensureAuthClaims(firebaseUser);
       setProfile(p);
     } catch (error) {
       console.error('Error loading profile:', error);
