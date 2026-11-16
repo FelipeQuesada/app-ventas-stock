@@ -122,7 +122,10 @@ export async function getSalesByDateRange(start: Date, end: Date): Promise<Sale[
       console.warn('Venta ilegible omitida', d.id, error);
     }
   }
-  return sales;
+  // Si listByBrand cayó a solo brandId (sin índice de fechas), filtramos acá
+  return sales
+    .filter((s) => s.date >= start && s.date <= end)
+    .sort((a, b) => b.date.getTime() - a.date.getTime());
 }
 
 /** Ventas de un día calendario (local). Amplía ±1 día por desfaces UTC al guardar. */

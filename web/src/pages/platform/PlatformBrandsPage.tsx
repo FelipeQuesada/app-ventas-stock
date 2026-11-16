@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Building2, LogIn } from 'lucide-react';
+import { getFunctions, httpsCallable } from 'firebase/functions';
 import type { Brand, PlanId, BrandStatus } from '@advance-coat/shared';
 import { PLAN_DEFINITIONS } from '@advance-coat/shared';
 import { listBrands, updateBrand } from '../../services/brands';
@@ -7,6 +8,7 @@ import { useAuth } from '../../context/AuthContext';
 import { useBrand } from '../../context/BrandContext';
 import { useNavigate } from 'react-router-dom';
 import { PlatformPillSelect } from '../../components/PlatformPillSelect';
+import { app } from '../../lib/firebase';
 
 const PLAN_OPTIONS = Object.values(PLAN_DEFINITIONS).map((p) => ({
   value: p.id,
@@ -28,6 +30,8 @@ export function PlatformBrandsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [migrating, setMigrating] = useState(false);
+  const [migrateMsg, setMigrateMsg] = useState('');
 
   async function load() {
     setLoading(true);
@@ -74,6 +78,28 @@ export function PlatformBrandsPage() {
     navigate('/app');
   }
 
+  async function handleSealAdvance() {
+    setMigrating(true);
+    setMigrateMsg('');
+    setError('');
+    try {
+      const fns = getFunctions(app, 'southamerica-east1');
+      const seal = httpsCallable(fns, 'sealAdvanceLegacyBrandIds');
+      const res = await seal({});
+      const data = res.data as { ok?: boolean; summary?: Record<string, number> };
+      const parts = Object.entries(data.summary ?? {}).map(([k, v]) => `${k}: ${v}`);
+      setMigrateMsg(
+        parts.length
+          ? `Migración Advance OK — ${parts.join(' · ')}`
+          : 'Migración Advance OK (sin cambios).'
+      );
+    } catch (err) {
+      setError((err as Error).message || 'No se pudo migrar Advance');
+    } finally {
+      setMigrating(false);
+    }
+  }
+
   return (
     <div>
       <div className="admin-hero card" style={{ marginBottom: 20 }}>
@@ -93,8 +119,18 @@ export function PlatformBrandsPage() {
         <button type="button" className="btn btn-ghost" onClick={() => void load()}>
           Recargar
         </button>
+        <button
+          type="button"
+          className="btn btn-secondary"
+          disabled={migrating}
+          onClick={() => void handleSealAdvance()}
+          title="Sella brandId advance-coat en docs viejos para que empleados vean datos"
+        >
+          {migrating ? 'Migrando Advance…' : 'Reparar datos Advance (empleados)'}
+        </button>
       </div>
 
+      {migrateMsg && <p className="muted">{migrateMsg}</p>}
       {error && <p className="error-text">{error}</p>}
       {loading ? (
         <p className="muted">Cargando marcas…</p>

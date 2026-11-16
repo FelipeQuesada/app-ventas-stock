@@ -12,7 +12,7 @@ const CONFIG_URL =
   (import.meta.env.VITE_FIREBASE_CONFIG_URL as string | undefined)?.trim() ||
   'https://southamerica-east1-advancecoat-ventas-stock.cloudfunctions.net/getWebFirebaseConfig';
 
-let app: FirebaseApp;
+export let app: FirebaseApp;
 export let auth: Auth;
 export let db: Firestore;
 export let storage: FirebaseStorage;

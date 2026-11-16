@@ -1,7 +1,8 @@
 import { initializeApp } from 'firebase-admin/app';
-import { getFirestore } from 'firebase-admin/firestore';
+import { getFirestore, FieldValue } from 'firebase-admin/firestore';
 import { logger } from 'firebase-functions';
 import { defineSecret } from 'firebase-functions/params';
+import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { onRequest } from 'firebase-functions/v2/https';
 import { onDocumentCreated, onDocumentWritten } from 'firebase-functions/v2/firestore';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
@@ -10,6 +11,101 @@ import { buildSaleGroupTextFromDoc } from './saleGroupText';
 import { sendTelegramMessage } from './telegram';
 
 initializeApp();
+
+const LEGACY_COLLECTIONS = [
+  'products',
+  'sales',
+  'saleDrafts',
+  'caja',
+  'cajaCentral',
+  'cajaCentralMovements',
+  'customers',
+  'presupuestos',
+  'flexShipments',
+  'auditLogs',
+] as const;
+
+function needsLegacyBrandId(value: unknown): boolean {
+  return value === undefined || value === null || value === '';
+}
+
+/**
+ * Sella brandId advance-coat en docs legacy (Admin SDK).
+ * Solo super_admin / felimq09. Necesario para que empleados vean datos.
+ */
+export const sealAdvanceLegacyBrandIds = onCall(
+  { region: 'southamerica-east1' },
+  async (request) => {
+    const email = (request.auth?.token?.email as string | undefined)?.toLowerCase() ?? '';
+    const uid = request.auth?.uid;
+    if (!uid) {
+      throw new HttpsError('unauthenticated', 'Tenés que iniciar sesión.');
+    }
+
+    const db = getFirestore();
+    const profile = (await db.collection('users').doc(uid).get()).data();
+    const isSuper =
+      email === 'felimq09@gmail.com' ||
+      profile?.role === 'super_admin' ||
+      (typeof profile?.email === 'string' && profile.email.toLowerCase() === 'felimq09@gmail.com');
+    if (!isSuper) {
+      throw new HttpsError('permission-denied', 'Solo super admin puede migrar Advance.');
+    }
+
+    const summary: Record<string, number> = {};
+    for (const col of LEGACY_COLLECTIONS) {
+      const snap = await db.collection(col).get();
+      let batch = db.batch();
+      let ops = 0;
+      let updated = 0;
+      for (const doc of snap.docs) {
+        if (!needsLegacyBrandId(doc.data().brandId)) continue;
+        batch.update(doc.ref, { brandId: 'advance-coat', updatedAt: FieldValue.serverTimestamp() });
+        ops += 1;
+        updated += 1;
+        if (ops >= 400) {
+          await batch.commit();
+          batch = db.batch();
+          ops = 0;
+        }
+      }
+      if (ops > 0) await batch.commit();
+      summary[col] = updated;
+    }
+
+    // Usuarios legacy sin marca
+    const brandIds = new Set((await db.collection('brands').get()).docs.map((d) => d.id));
+    const usersSnap = await db.collection('users').get();
+    let batch = db.batch();
+    let ops = 0;
+    let usersUpdated = 0;
+    for (const doc of usersSnap.docs) {
+      const data = doc.data();
+      if (data.role === 'super_admin') continue;
+      const current = data.brandId as string | null | undefined;
+      const missing = needsLegacyBrandId(current);
+      const orphan =
+        typeof current === 'string' &&
+        current.length > 0 &&
+        current !== 'advance-coat' &&
+        !brandIds.has(current);
+      if (!missing && !orphan) continue;
+      batch.update(doc.ref, { brandId: 'advance-coat' });
+      ops += 1;
+      usersUpdated += 1;
+      if (ops >= 400) {
+        await batch.commit();
+        batch = db.batch();
+        ops = 0;
+      }
+    }
+    if (ops > 0) await batch.commit();
+    summary.users = usersUpdated;
+
+    logger.info('sealAdvanceLegacyBrandIds ok', summary);
+    return { ok: true, summary };
+  }
+);
 
 /** Token de BotFather — firebase functions:secrets:set TELEGRAM_BOT_TOKEN */
 const telegramBotToken = defineSecret('TELEGRAM_BOT_TOKEN');
