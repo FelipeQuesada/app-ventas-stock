@@ -85,13 +85,48 @@ export function PlatformBrandsPage() {
     try {
       const fns = getFunctions(app, 'southamerica-east1');
       const seal = httpsCallable(fns, 'sealAdvanceLegacyBrandIds');
-      const res = await seal({});
-      const data = res.data as { ok?: boolean; summary?: Record<string, number> };
+      // force: unifica duplicados "Advance Coat" y sellos raros → advance-coat
+      const res = await seal({ force: true });
+      const data = res.data as {
+        ok?: boolean;
+        summary?: Record<string, number>;
+        brandIdSamples?: Record<string, Record<string, number>>;
+        brands?: Array<{ id: string; name: string }>;
+        dominantProductBrandId?: string | null;
+        advanceMembers?: Array<{
+          email: string;
+          role: string;
+          active: unknown;
+          pendingApproval: unknown;
+          brandId: unknown;
+        }>;
+      };
       const parts = Object.entries(data.summary ?? {}).map(([k, v]) => `${k}: ${v}`);
+      const productIds = data.brandIdSamples?.products
+        ? Object.entries(data.brandIdSamples.products)
+            .map(([k, v]) => `${k}=${v}`)
+            .join(', ')
+        : '';
+      const brandList = (data.brands ?? []).map((b) => `${b.id}(${b.name})`).join(', ');
+      const members = (data.advanceMembers ?? [])
+        .slice(0, 8)
+        .map(
+          (m) =>
+            `${m.email || '(sin email)'} [${m.role}] active=${String(m.active)} pending=${String(m.pendingApproval)} brand=${String(m.brandId)}`
+        )
+        .join(' · ');
       setMigrateMsg(
-        parts.length
-          ? `Migración Advance OK — ${parts.join(' · ')}`
-          : 'Migración Advance OK (sin cambios).'
+        [
+          parts.length ? `Sellado force — ${parts.join(' · ')}` : 'Sellado OK (sin cambios).',
+          data.dominantProductBrandId
+            ? `Dominant products brandId: ${data.dominantProductBrandId}`
+            : '',
+          productIds ? `Productos por brandId: ${productIds}` : '',
+          brandList ? `Marcas: ${brandList}` : '',
+          members ? `Miembros Advance: ${members}` : '',
+        ]
+          .filter(Boolean)
+          .join(' | ')
       );
     } catch (err) {
       setError((err as Error).message || 'No se pudo migrar Advance');

@@ -29,9 +29,251 @@ function needsLegacyBrandId(value: unknown): boolean {
   return value === undefined || value === null || value === '';
 }
 
+const ADVANCE_BRAND_ID = 'advance-coat';
+
+function isAdvanceBrandName(name: unknown): boolean {
+  const n = String(name || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ');
+  return n === 'advance coat' || n === 'advancecoat' || n.includes('advance coat');
+}
+
+type SealResult = {
+  ok: true;
+  summary: Record<string, number>;
+  brandIdSamples: Record<string, Record<string, number>>;
+  brands: Array<{ id: string; name: string }>;
+  advanceMembers: Array<{
+    email: string;
+    role: string;
+    active: unknown;
+    pendingApproval: unknown;
+    brandId: unknown;
+  }>;
+  dominantProductBrandId: string | null;
+  force: boolean;
+};
+
+/**
+ * Sella brandId advance-coat (Admin SDK) para que empleados puedan listar.
+ * force=true: mueve a advance-coat todo lo que no sea de otra marca real distinta.
+ */
+async function runSealAdvanceLegacyBrandIds(force = false): Promise<SealResult> {
+  const db = getFirestore();
+  const brandDocs = await db.collection('brands').get();
+  const brands = brandDocs.docs.map((d) => ({
+    id: d.id,
+    name: String(d.data().name || ''),
+  }));
+  const brandIds = new Set(brands.map((b) => b.id));
+  const otherRealBrandIds = new Set(
+    brands
+      .filter((b) => b.id !== ADVANCE_BRAND_ID && !isAdvanceBrandName(b.name))
+      .map((b) => b.id)
+  );
+  // Marcas duplicadas "Advance Coat" con otro id → también unificar a advance-coat
+  const duplicateAdvanceBrandIds = new Set(
+    brands
+      .filter((b) => b.id !== ADVANCE_BRAND_ID && isAdvanceBrandName(b.name))
+      .map((b) => b.id)
+  );
+
+  const summary: Record<string, number> = {};
+  const brandIdSamples: Record<string, Record<string, number>> = {};
+  let dominantProductBrandId: string | null = null;
+
+  for (const col of LEGACY_COLLECTIONS) {
+    const snap = await db.collection(col).get();
+    let batch = db.batch();
+    let ops = 0;
+    let updated = 0;
+    const counts: Record<string, number> = {};
+
+    for (const docSnap of snap.docs) {
+      const raw = docSnap.data().brandId;
+      const key =
+        raw === undefined || raw === null || raw === ''
+          ? '(vacío)'
+          : String(raw);
+      counts[key] = (counts[key] || 0) + 1;
+
+      const missing = needsLegacyBrandId(raw);
+      const asString = typeof raw === 'string' ? raw : '';
+      const orphan =
+        typeof raw === 'string' &&
+        raw.length > 0 &&
+        raw !== ADVANCE_BRAND_ID &&
+        !brandIds.has(raw);
+      const duplicateAdvance =
+        typeof raw === 'string' && duplicateAdvanceBrandIds.has(raw);
+      const notAdvanceString =
+        force &&
+        (missing ||
+          typeof raw !== 'string' ||
+          raw !== ADVANCE_BRAND_ID) &&
+        !(typeof raw === 'string' && otherRealBrandIds.has(raw));
+
+      // Sellar: vacío, huérfano, duplicado Advance, o force (salvo otras marcas reales)
+      if (!(missing || orphan || duplicateAdvance || notAdvanceString)) continue;
+      if (asString === ADVANCE_BRAND_ID) continue;
+
+      batch.update(docSnap.ref, {
+        brandId: ADVANCE_BRAND_ID,
+        updatedAt: FieldValue.serverTimestamp(),
+      });
+      ops += 1;
+      updated += 1;
+      if (ops >= 400) {
+        await batch.commit();
+        batch = db.batch();
+        ops = 0;
+      }
+    }
+    if (ops > 0) await batch.commit();
+    summary[col] = updated;
+    brandIdSamples[col] = counts;
+
+    if (col === 'products') {
+      let best = 0;
+      for (const [k, v] of Object.entries(counts)) {
+        if (v > best) {
+          best = v;
+          dominantProductBrandId = k === '(vacío)' ? null : k;
+        }
+      }
+    }
+  }
+
+  const usersSnap = await db.collection('users').get();
+  let batch = db.batch();
+  let ops = 0;
+  let usersUpdated = 0;
+  let usersReactivated = 0;
+  const advanceMembers: SealResult['advanceMembers'] = [];
+
+  for (const docSnap of usersSnap.docs) {
+    const data = docSnap.data();
+    if (data.role === 'super_admin') continue;
+
+    const email = String(data.email || '').toLowerCase();
+    const current = data.brandId as string | null | undefined;
+    const missing = needsLegacyBrandId(current);
+    const orphan =
+      typeof current === 'string' &&
+      current.length > 0 &&
+      current !== ADVANCE_BRAND_ID &&
+      !brandIds.has(current);
+    const onDuplicateAdvance =
+      typeof current === 'string' && duplicateAdvanceBrandIds.has(current);
+    const emailLooksAdvance = email.includes('advance');
+    const isAdvance =
+      missing ||
+      orphan ||
+      onDuplicateAdvance ||
+      current === ADVANCE_BRAND_ID ||
+      emailLooksAdvance ||
+      (force && !(typeof current === 'string' && otherRealBrandIds.has(current)));
+
+    const patch: Record<string, unknown> = {};
+    if (
+      missing ||
+      orphan ||
+      onDuplicateAdvance ||
+      emailLooksAdvance ||
+      (force && isAdvance && current !== ADVANCE_BRAND_ID)
+    ) {
+      if (!(typeof current === 'string' && otherRealBrandIds.has(current) && !emailLooksAdvance && !onDuplicateAdvance)) {
+        patch.brandId = ADVANCE_BRAND_ID;
+      }
+    }
+
+    if (
+      (isAdvance || patch.brandId === ADVANCE_BRAND_ID) &&
+      data.pendingApproval !== true &&
+      data.active === false
+    ) {
+      patch.active = true;
+      patch.pendingApproval = false;
+      usersReactivated += 1;
+    }
+
+    // Aprobados de Advance: asegurar active true
+    if (
+      (patch.brandId === ADVANCE_BRAND_ID || current === ADVANCE_BRAND_ID || onDuplicateAdvance) &&
+      data.pendingApproval !== true &&
+      data.active !== true
+    ) {
+      patch.active = true;
+      if (data.active === false) usersReactivated += 1;
+    }
+
+    if (Object.keys(patch).length > 0) {
+      batch.update(docSnap.ref, patch);
+      ops += 1;
+      usersUpdated += 1;
+      if (ops >= 400) {
+        await batch.commit();
+        batch = db.batch();
+        ops = 0;
+      }
+    }
+
+    const finalBrand = (patch.brandId as string | undefined) ?? current ?? null;
+    if (
+      finalBrand === ADVANCE_BRAND_ID ||
+      isAdvance ||
+      emailLooksAdvance ||
+      onDuplicateAdvance
+    ) {
+      advanceMembers.push({
+        email: String(data.email || ''),
+        role: String(data.role || ''),
+        active: patch.active ?? data.active,
+        pendingApproval: data.pendingApproval,
+        brandId: finalBrand,
+      });
+    }
+  }
+  if (ops > 0) await batch.commit();
+  summary.users = usersUpdated;
+  summary.usersReactivated = usersReactivated;
+
+  // Asegurar doc brands/advance-coat
+  const advanceRef = db.collection('brands').doc(ADVANCE_BRAND_ID);
+  const advanceSnap = await advanceRef.get();
+  if (!advanceSnap.exists) {
+    await advanceRef.set({
+      name: 'Advance Coat',
+      planId: 'enterprise',
+      status: 'active',
+      createdAt: FieldValue.serverTimestamp(),
+      updatedAt: FieldValue.serverTimestamp(),
+    });
+    summary.brandsCreated = 1;
+  }
+
+  logger.info('sealAdvanceLegacyBrandIds ok', {
+    summary,
+    brandIdSamples,
+    dominantProductBrandId,
+    force,
+  });
+
+  return {
+    ok: true,
+    summary,
+    brandIdSamples,
+    brands,
+    advanceMembers: advanceMembers.slice(0, 50),
+    dominantProductBrandId,
+    force,
+  };
+}
+
 /**
  * Sella brandId advance-coat en docs legacy (Admin SDK).
- * Solo super_admin / felimq09. Necesario para que empleados vean datos.
+ * Solo super_admin / felimq09. Pasar { force: true } para unificar duplicados.
  */
 export const sealAdvanceLegacyBrandIds = onCall(
   { region: 'southamerica-east1' },
@@ -52,58 +294,8 @@ export const sealAdvanceLegacyBrandIds = onCall(
       throw new HttpsError('permission-denied', 'Solo super admin puede migrar Advance.');
     }
 
-    const summary: Record<string, number> = {};
-    for (const col of LEGACY_COLLECTIONS) {
-      const snap = await db.collection(col).get();
-      let batch = db.batch();
-      let ops = 0;
-      let updated = 0;
-      for (const doc of snap.docs) {
-        if (!needsLegacyBrandId(doc.data().brandId)) continue;
-        batch.update(doc.ref, { brandId: 'advance-coat', updatedAt: FieldValue.serverTimestamp() });
-        ops += 1;
-        updated += 1;
-        if (ops >= 400) {
-          await batch.commit();
-          batch = db.batch();
-          ops = 0;
-        }
-      }
-      if (ops > 0) await batch.commit();
-      summary[col] = updated;
-    }
-
-    // Usuarios legacy sin marca
-    const brandIds = new Set((await db.collection('brands').get()).docs.map((d) => d.id));
-    const usersSnap = await db.collection('users').get();
-    let batch = db.batch();
-    let ops = 0;
-    let usersUpdated = 0;
-    for (const doc of usersSnap.docs) {
-      const data = doc.data();
-      if (data.role === 'super_admin') continue;
-      const current = data.brandId as string | null | undefined;
-      const missing = needsLegacyBrandId(current);
-      const orphan =
-        typeof current === 'string' &&
-        current.length > 0 &&
-        current !== 'advance-coat' &&
-        !brandIds.has(current);
-      if (!missing && !orphan) continue;
-      batch.update(doc.ref, { brandId: 'advance-coat' });
-      ops += 1;
-      usersUpdated += 1;
-      if (ops >= 400) {
-        await batch.commit();
-        batch = db.batch();
-        ops = 0;
-      }
-    }
-    if (ops > 0) await batch.commit();
-    summary.users = usersUpdated;
-
-    logger.info('sealAdvanceLegacyBrandIds ok', summary);
-    return { ok: true, summary };
+    const force = Boolean((request.data as { force?: boolean } | undefined)?.force);
+    return runSealAdvanceLegacyBrandIds(force);
   }
 );
 
@@ -161,8 +353,6 @@ function argentinaDateId(date = new Date()): string {
     day: '2-digit',
   }).format(date);
 }
-
-const ADVANCE_BRAND_ID = 'advance-coat';
 
 /**
  * Resuelve a qué chat mandar:

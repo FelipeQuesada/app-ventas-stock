@@ -50,20 +50,20 @@ service cloud.firestore {
         || data.brandId == '';
     }
 
-    /** Legacy Advance: perfil sin brandId opera como advance-coat. */
+    /**
+     * Marca del usuario. Legacy sin brandId → advance-coat.
+     * Debe coincidir con el where('brandId' == …) del cliente para que list funcione.
+     * OJO: no usar keys().hasAll / "is string" en paths de list (rompe queries).
+     */
     function userBrandId() {
-      return isSuperAdmin()
-        ? 'advance-coat'
-        : (hasOwnProfile() && !missingBrandId(ownData())
-            ? ownData().brandId
-            : 'advance-coat');
+      return hasOwnProfile() && !missingBrandId(ownData())
+        ? ownData().brandId
+        : 'advance-coat';
     }
 
     function isAdvanceUser() {
       return isSuperAdmin()
-        || (hasOwnProfile()
-          && ownData().pendingApproval != true
-          && ownData().active != false
+        || (isActiveMember()
           && (missingBrandId(ownData()) || ownData().brandId == 'advance-coat'));
     }
 
@@ -71,10 +71,26 @@ service cloud.firestore {
       return missingBrandId(data) || data.brandId == 'advance-coat';
     }
 
-    function sameBrand(data) {
+    /** Lectura de un doc (get): admite legacy Advance sin brandId. */
+    function sameBrandGet(data) {
       return isSuperAdmin()
-        || (hasOwnProfile() && data.brandId == userBrandId())
+        || (isActiveMember() && data.brandId == userBrandId())
         || (isAdvanceUser() && isAdvanceDoc(data));
+    }
+
+    /**
+     * List/query: el cliente DEBE filtrar where('brandId' == …).
+     * Super admin bypasea sin filtro (por eso él ve datos y el empleado no).
+     * Regla alineada al constraint de la query — sin keys()/is string.
+     */
+    function sameBrandList(data) {
+      return isSuperAdmin()
+        || (isActiveMember() && data.brandId == userBrandId())
+        || (isAdvanceUser() && data.brandId == 'advance-coat');
+    }
+
+    function sameBrand(data) {
+      return sameBrandGet(data);
     }
 
     function brandWriteOk() {
@@ -163,42 +179,51 @@ service cloud.firestore {
         || (hasOwnProfile() && isBrandAdmin() && userBrandId() == brandId);
     }
 
-    // Super admin: acceso total (OR con el resto de reglas)
     match /products/{productId} {
-      allow read, create, update, delete: if isSuperAdmin();
-      allow read: if isAuthenticated() && isActiveMember() && sameBrand(resource.data);
-      allow create: if isAuthenticated() && isActiveMember() && brandWriteOk();
-      allow update: if isAuthenticated() && isActiveMember() && sameBrand(resource.data)
-        && (brandWriteOk() || stockOnlyUpdate());
-      allow delete: if isBrandAdmin() && sameBrand(resource.data);
+      allow get: if isSuperAdmin() || sameBrandGet(resource.data);
+      allow list: if sameBrandList(resource.data);
+      allow create: if isSuperAdmin()
+        || (isAuthenticated() && isActiveMember() && brandWriteOk());
+      allow update: if isSuperAdmin()
+        || (isAuthenticated() && isActiveMember() && sameBrand(resource.data)
+          && (brandWriteOk() || stockOnlyUpdate()));
+      allow delete: if isSuperAdmin() || (isBrandAdmin() && sameBrand(resource.data));
     }
 
     match /sales/{saleId} {
-      allow read, create, update, delete: if isSuperAdmin();
-      allow read: if isAuthenticated() && isActiveMember() && sameBrand(resource.data);
-      allow create: if isAuthenticated() && isActiveMember() && brandWriteOk();
-      allow update: if isAuthenticated() && isActiveMember() && sameBrand(resource.data)
-        && (brandWriteOk() || stockOnlyUpdate());
-      allow delete: if isBrandAdmin() && sameBrand(resource.data);
+      allow get: if isSuperAdmin() || sameBrandGet(resource.data);
+      allow list: if sameBrandList(resource.data);
+      allow create: if isSuperAdmin()
+        || (isAuthenticated() && isActiveMember() && brandWriteOk());
+      allow update: if isSuperAdmin()
+        || (isAuthenticated() && isActiveMember() && sameBrand(resource.data)
+          && (brandWriteOk() || stockOnlyUpdate()));
+      allow delete: if isSuperAdmin() || (isBrandAdmin() && sameBrand(resource.data));
     }
 
     match /saleDrafts/{draftId} {
-      allow read, create, update, delete: if isSuperAdmin();
-      allow read, delete: if isAuthenticated() && isActiveMember() && sameBrand(resource.data);
-      allow create: if isAuthenticated() && isActiveMember() && brandWriteOk();
-      allow update: if isAuthenticated() && isActiveMember() && sameBrand(resource.data) && brandWriteOk();
+      allow get: if isSuperAdmin() || sameBrandGet(resource.data);
+      allow list: if sameBrandList(resource.data);
+      allow delete: if isSuperAdmin()
+        || (isAuthenticated() && isActiveMember() && sameBrand(resource.data));
+      allow create: if isSuperAdmin()
+        || (isAuthenticated() && isActiveMember() && brandWriteOk());
+      allow update: if isSuperAdmin()
+        || (isAuthenticated() && isActiveMember() && sameBrand(resource.data) && brandWriteOk());
     }
 
     match /caja/{dateId} {
-      allow read, create, update, delete: if isSuperAdmin();
-      allow read: if isAuthenticated() && isActiveMember() && sameBrand(resource.data);
-      allow create: if isAuthenticated() && isActiveMember() && brandWriteOk();
-      allow update: if isAuthenticated() && isActiveMember() && sameBrand(resource.data) && (
-        isBrandAdmin()
-        || request.resource.data.brandId == userBrandId()
-        || (isAdvanceUser() && request.resource.data.brandId == 'advance-coat')
-      );
-      allow delete: if isBrandAdmin() && sameBrand(resource.data);
+      allow get: if isSuperAdmin() || sameBrandGet(resource.data);
+      allow list: if sameBrandList(resource.data);
+      allow create: if isSuperAdmin()
+        || (isAuthenticated() && isActiveMember() && brandWriteOk());
+      allow update: if isSuperAdmin()
+        || (isAuthenticated() && isActiveMember() && sameBrand(resource.data) && (
+          isBrandAdmin()
+          || request.resource.data.brandId == userBrandId()
+          || (isAdvanceUser() && request.resource.data.brandId == 'advance-coat')
+        ));
+      allow delete: if isSuperAdmin() || (isBrandAdmin() && sameBrand(resource.data));
     }
 
     match /cajaCentral/{docId} {
@@ -215,41 +240,52 @@ service cloud.firestore {
     }
 
     match /cajaCentralMovements/{movementId} {
-      allow read, write: if isSuperAdmin();
-      allow read: if isAuthenticated() && (isBrandAdmin() || isSuperAdmin())
-        && sameBrand(resource.data);
-      allow create: if isAuthenticated() && brandWriteOk() && (
+      allow get: if isSuperAdmin() || (
+        isAuthenticated() && (isBrandAdmin() || isSuperAdmin()) && sameBrandGet(resource.data)
+      );
+      allow list: if isSuperAdmin() || (
+        isAuthenticated() && (isBrandAdmin() || isSuperAdmin()) && sameBrandList(resource.data)
+      );
+      allow create: if isSuperAdmin() || (isAuthenticated() && brandWriteOk() && (
         request.resource.data.type == 'deposito'
         || ((request.resource.data.type == 'retiro') && isBrandAdmin())
-      );
+      ));
       allow update, delete: if isBrandAdmin() || isSuperAdmin();
     }
 
     match /customers/{customerId} {
-      allow read, create, update, delete: if isSuperAdmin();
-      allow read: if isAuthenticated() && isActiveMember() && sameBrand(resource.data);
-      allow create: if isAuthenticated() && isActiveMember() && brandWriteOk();
-      allow update, delete: if isAuthenticated() && isActiveMember() && sameBrand(resource.data);
+      allow get: if isSuperAdmin() || sameBrandGet(resource.data);
+      allow list: if sameBrandList(resource.data);
+      allow create: if isSuperAdmin()
+        || (isAuthenticated() && isActiveMember() && brandWriteOk());
+      allow update, delete: if isSuperAdmin()
+        || (isAuthenticated() && isActiveMember() && sameBrand(resource.data));
     }
 
     match /presupuestos/{presupuestoId} {
-      allow read, create, update, delete: if isSuperAdmin();
-      allow read: if isAuthenticated() && isActiveMember() && sameBrand(resource.data);
-      allow create: if isAuthenticated() && isActiveMember() && brandWriteOk();
-      allow update, delete: if isAuthenticated() && isActiveMember() && sameBrand(resource.data);
+      allow get: if isSuperAdmin() || sameBrandGet(resource.data);
+      allow list: if sameBrandList(resource.data);
+      allow create: if isSuperAdmin()
+        || (isAuthenticated() && isActiveMember() && brandWriteOk());
+      allow update, delete: if isSuperAdmin()
+        || (isAuthenticated() && isActiveMember() && sameBrand(resource.data));
     }
 
     match /flexShipments/{shipmentId} {
-      allow read, create, update, delete: if isSuperAdmin();
-      allow read: if isAuthenticated() && isActiveMember() && sameBrand(resource.data);
-      allow create: if isAuthenticated() && isActiveMember() && brandWriteOk();
-      allow update, delete: if isAuthenticated() && isActiveMember() && sameBrand(resource.data);
+      allow get: if isSuperAdmin() || sameBrandGet(resource.data);
+      allow list: if sameBrandList(resource.data);
+      allow create: if isSuperAdmin()
+        || (isAuthenticated() && isActiveMember() && brandWriteOk());
+      allow update, delete: if isSuperAdmin()
+        || (isAuthenticated() && isActiveMember() && sameBrand(resource.data));
     }
 
     match /auditLogs/{logId} {
-      allow read, create, update, delete: if isSuperAdmin();
-      allow read: if isAuthenticated() && (isBrandAdmin() || isSuperAdmin());
-      allow create: if isAuthenticated() && isActiveMember() && brandWriteOk();
+      allow get: if isSuperAdmin() || (isAuthenticated() && (isBrandAdmin() || isSuperAdmin()));
+      allow list: if isSuperAdmin() || (isAuthenticated() && (isBrandAdmin() || isSuperAdmin()));
+      allow create: if isSuperAdmin()
+        || (isAuthenticated() && isActiveMember() && brandWriteOk());
+      allow update, delete: if isSuperAdmin();
     }
   }
 }

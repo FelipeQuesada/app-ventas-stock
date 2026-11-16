@@ -43,12 +43,14 @@ export function DashboardPage() {
   const [sales, setSales] = useState<Sale[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [showLowStock, setShowLowStock] = useState(false);
 
   useEffect(() => {
     if (brandLoading) return;
     let cancelled = false;
     setLoading(true);
+    setLoadError(null);
     (async () => {
       try {
         const now = new Date();
@@ -73,6 +75,12 @@ export function DashboardPage() {
         if (!cancelled) {
           setSales([]);
           setProducts([]);
+          const code = (err as { code?: string })?.code;
+          setLoadError(
+            code === 'permission-denied'
+              ? 'Sin permiso para leer datos de la marca. Pedile al super admin que reactive tu usuario y vuelva a “Reparar datos Advance”.'
+              : ((err as Error)?.message || 'No se pudo cargar el dashboard')
+          );
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -95,6 +103,17 @@ export function DashboardPage() {
 
   return (
     <div>
+      {loadError && (
+        <div className="alert alert-warning" style={{ marginBottom: 16 }}>
+          <AlertTriangle size={20} color="#B45309" />
+          <div style={{ flex: 1 }}>
+            <strong>No se pudieron cargar los datos</strong>
+            <p className="muted" style={{ margin: '4px 0 0' }}>
+              {loadError}
+            </p>
+          </div>
+        </div>
+      )}
       {showLowStock && lowStock.length > 0 && (
         <div className="alert alert-warning">
           <AlertTriangle size={20} color="#B45309" />

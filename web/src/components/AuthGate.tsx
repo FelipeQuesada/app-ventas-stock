@@ -90,6 +90,23 @@ export function AuthGate() {
     );
   }
 
+  if (profile.active === false) {
+    return (
+      <div className="loading-screen" style={{ flexDirection: 'column', gap: 12, padding: 24 }}>
+        <p style={{ margin: 0, textAlign: 'center', fontSize: 18, fontWeight: 600 }}>
+          Tu usuario está desactivado
+        </p>
+        <p className="muted" style={{ margin: 0, textAlign: 'center', maxWidth: 420 }}>
+          Contactá al administrador de tu marca para que reactive tu acceso. Sin eso no podés ver
+          ventas, productos ni el resto de la app.
+        </p>
+        <button type="button" className="btn btn-ghost" onClick={() => void signOutUser()}>
+          Cerrar sesión
+        </button>
+      </div>
+    );
+  }
+
   if (isSuperAdminRole(profile.role) && !brand) {
     return <Navigate to="/platform" replace />;
   }

@@ -24,7 +24,7 @@ import { requireBrandId } from '../lib/brandScope';
 const COLLECTION = 'products';
 const PRODUCTS_TTL_MS = 60_000;
 
-let productsCache: { at: number; data: Product[] } | null = null;
+let productsCache: { at: number; brandId: string; data: Product[] } | null = null;
 let productsInflight: Promise<Product[]> | null = null;
 
 export function invalidateProductsCache() {
@@ -50,18 +50,35 @@ function mapProduct(id: string, data: Record<string, unknown>): Product {
 }
 
 export async function getProducts(): Promise<Product[]> {
-  if (productsCache && Date.now() - productsCache.at < PRODUCTS_TTL_MS) {
+  let brandId: string;
+  try {
+    brandId = requireBrandId();
+  } catch {
+    return [];
+  }
+
+  if (
+    productsCache &&
+    productsCache.brandId === brandId &&
+    Date.now() - productsCache.at < PRODUCTS_TTL_MS &&
+    productsCache.data.length > 0
+  ) {
     return productsCache.data;
   }
 
   if (productsInflight) return productsInflight;
 
   productsInflight = (async () => {
-    const docs = await listByBrand(COLLECTION, [orderBy('name')]);
+    const docs = await listByBrand(COLLECTION, [orderBy('name')], brandId);
     const data = docs
       .map((d) => mapProduct(d.id, d.data()))
       .sort((a, b) => a.name.localeCompare(b.name));
-    productsCache = { at: Date.now(), data };
+    // No cachear vacío: un permission-denied temporal dejaba la UI en 0 por 60s
+    if (data.length > 0) {
+      productsCache = { at: Date.now(), brandId, data };
+    } else {
+      productsCache = null;
+    }
     return data;
   })().finally(() => {
     productsInflight = null;
@@ -87,15 +104,19 @@ export function subscribeProducts(
     q,
     (snap) => {
       const data = snap.docs.map((d) => mapProduct(d.id, d.data()));
-      productsCache = { at: Date.now(), data };
+      if (data.length > 0) {
+        productsCache = { at: Date.now(), brandId, data };
+      }
       onData(data);
     },
     async () => {
-      // Fallback si falta índice o docs legacy sin brandId
+      // Fallback si falta índice compuesto
       try {
-        const docs = await listByBrand(COLLECTION, [orderBy('name')]);
+        const docs = await listByBrand(COLLECTION, [orderBy('name')], brandId);
         const data = docs.map((d) => mapProduct(d.id, d.data()));
-        productsCache = { at: Date.now(), data };
+        if (data.length > 0) {
+          productsCache = { at: Date.now(), brandId, data };
+        }
         onData(data);
       } catch (error) {
         onError?.(error as Error);
