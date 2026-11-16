@@ -120,8 +120,9 @@ export function BrandProvider({ children }: { children: React.ReactNode }) {
         });
         setError(null);
       } else if (!superAdmin) {
+        // Mantener el brandId del perfil aunque el doc no exista aún
         setBrand(null);
-        setActiveBrandMeta({ id: DEFAULT_BRAND_ID, name: 'Advance Coat' });
+        setActiveBrandMeta({ id: brandId, name: brandId === DEFAULT_BRAND_ID ? 'Advance Coat' : brandId });
         setError(null);
       } else {
         setBrand(null);
@@ -134,8 +135,13 @@ export function BrandProvider({ children }: { children: React.ReactNode }) {
       invalidateProductsCache();
     } catch (err) {
       setBrand(null);
-      setActiveBrandId(superAdmin ? null : DEFAULT_BRAND_ID);
-      setActiveBrandMeta(null);
+      // No forzar Advance: empleados de otras marcas quedarían sin datos
+      setActiveBrandId(superAdmin ? null : brandId);
+      setActiveBrandMeta(
+        superAdmin || !brandId
+          ? null
+          : { id: brandId, name: brandId === DEFAULT_BRAND_ID ? 'Advance Coat' : brandId }
+      );
       setError((err as Error).message);
     } finally {
       setLoading(false);

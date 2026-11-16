@@ -17,7 +17,11 @@ function isLegacyAdvanceDoc(data: DocumentData, bid: string): boolean {
   return value === undefined || value === null || value === '';
 }
 
-/** Lista docs de una colección filtrados por marca activa (con fallback sin índice). */
+/**
+ * Lista docs filtrados por marca activa.
+ * Nunca hace un scan global de la colección: eso solo funciona para super_admin
+ * y deja a empleados/dueños con arrays vacíos (dashboards en 0).
+ */
 export async function listByBrand(
   collectionName: string,
   extra: QueryConstraint[] = [],
@@ -26,19 +30,37 @@ export async function listByBrand(
   const bid = brandId ?? requireBrandId();
   const byId = new Map<string, QueryDocumentSnapshot<DocumentData>>();
 
+  const merge = (docs: QueryDocumentSnapshot<DocumentData>[]) => {
+    docs.forEach((d) => byId.set(d.id, d));
+  };
+
+  // 1) Query indexada: brandId + extras (orderBy, etc.)
   try {
     const snap = await getDocs(
       query(collection(db, collectionName), where('brandId', '==', bid), ...extra)
     );
-    snap.docs.forEach((d) => byId.set(d.id, d));
+    merge(snap.docs);
   } catch {
-    // índice faltante u otra constraint: filtramos en cliente
+    // 2) Sin índice compuesto: solo brandId y ordenamos en cliente si hace falta
+    try {
+      const snap = await getDocs(
+        query(collection(db, collectionName), where('brandId', '==', bid))
+      );
+      merge(snap.docs);
+    } catch {
+      // sin acceso / colección inexistente
+    }
   }
 
-  // Advance: siempre incluir docs legacy sin brandId (la query indexada no los trae)
-  if (bid === DEFAULT_BRAND_ID || byId.size === 0) {
+  // 3) Advance legacy: docs sin brandId (solo si ya somos marca Advance).
+  // No usamos list global (falla para miembros de marca). Intentamos extras solos
+  // y filtramos en cliente; si rules lo bloquean, nos quedamos con lo de brandId.
+  if (bid === DEFAULT_BRAND_ID) {
     try {
-      const snap = await getDocs(query(collection(db, collectionName), ...extra));
+      const snap =
+        extra.length > 0
+          ? await getDocs(query(collection(db, collectionName), ...extra))
+          : await getDocs(collection(db, collectionName));
       snap.docs.forEach((d) => {
         const data = d.data();
         if (data.brandId === bid || isLegacyAdvanceDoc(data, bid)) {
@@ -46,7 +68,7 @@ export async function listByBrand(
         }
       });
     } catch {
-      // sin extras tampoco: no hay nada que listar
+      // Empleados/admins de marca no pueden listar sin filtro: OK, ya tenemos brandId.
     }
   }
 

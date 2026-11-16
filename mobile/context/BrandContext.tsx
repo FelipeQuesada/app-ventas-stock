@@ -65,16 +65,14 @@ export function BrandProvider({ children }: { children: React.ReactNode }) {
       if (b) {
         setBrand(b);
         setActiveBrandId(b.id);
-      } else if (!isSuperAdminRole(profile.role)) {
-        setBrand(null);
-        setActiveBrandId(DEFAULT_BRAND_ID);
       } else {
+        // Mantener brandId del perfil (no forzar Advance: deja a empleados sin datos)
         setBrand(null);
         setActiveBrandId(brandId);
       }
       invalidateProductsCache();
     } catch {
-      setActiveBrandId(isSuperAdminRole(profile.role) ? brandId : DEFAULT_BRAND_ID);
+      setActiveBrandId(brandId);
       setBrand(null);
     } finally {
       setLoading(false);

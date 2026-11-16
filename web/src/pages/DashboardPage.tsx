@@ -38,7 +38,7 @@ import { useBrand } from '../context/BrandContext';
 export function DashboardPage() {
   const navigate = useNavigate();
   const { profile } = useAuth();
-  const { limits } = useBrand();
+  const { limits, brand, loading: brandLoading } = useBrand();
   const isAdmin = isBrandAdminRole(profile?.role) || isSuperAdminRole(profile?.role);
   const [sales, setSales] = useState<Sale[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -46,7 +46,9 @@ export function DashboardPage() {
   const [showLowStock, setShowLowStock] = useState(false);
 
   useEffect(() => {
+    if (brandLoading) return;
     let cancelled = false;
+    setLoading(true);
     (async () => {
       try {
         const now = new Date();
@@ -66,6 +68,12 @@ export function DashboardPage() {
             setShowLowStock(true);
           }
         }
+      } catch (err) {
+        console.error('Error cargando dashboard', err);
+        if (!cancelled) {
+          setSales([]);
+          setProducts([]);
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -73,7 +81,7 @@ export function DashboardPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [brand?.id, brandLoading]);
 
   if (loading) return <div className="loading-screen">Cargando dashboard…</div>;
 
